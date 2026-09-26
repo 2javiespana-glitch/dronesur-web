@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2 } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
-import { SITE } from '@/lib/content'
+import { SITE, INITIAL_VIDEOS, type VideoItem } from '@/lib/content'
 import { type Review, useReviews } from '@/lib/reviews'
 
 type Draft = Omit<Review, 'id'>
@@ -22,7 +22,29 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [showForm, setShowForm] = useState(false)
+const [videos, setVideos] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('dronesur_videos') : null
+    return saved ? JSON.parse(saved) : INITIAL_VIDEOS
+  })
 
+  const [newVideo, setNewVideo] = useState({ title: '', url: '', category: 'hero' })
+
+  const handleAddVideo = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newVideo.url) return
+    
+    const updated = [...videos, { ...newVideo, id: Date.now().toString() }]
+    setVideos(updated)
+    localStorage.setItem('dronesur_videos', JSON.stringify(updated))
+    setNewVideo({ title: '', url: '', category: 'hero' })
+  }
+
+  const handleDeleteVideo = (id: string) => {
+    const updated = videos.filter(v => v.id !== id)
+    setVideos(updated)
+    localStorage.setItem('dronesur_videos', JSON.stringify(updated))
+  }
+  
   const login = (e: React.FormEvent) => {
     e.preventDefault()
     if (pass === "poyete_dronesur") {
@@ -270,6 +292,7 @@ export default function AdminPage() {
           </div>
         ))}
       </div>
+      {/* Panel de Gestión de Vídeos */}
     </main>
   )
 }
