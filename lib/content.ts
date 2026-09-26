@@ -271,12 +271,12 @@ export const T: Dict = {
 
   'legal.title': { es: 'Seguridad y Garantía Legal', en: 'Safety & Legal Compliance' },
   'legal.text': {
-    es: 'Operamos con total cumplimiento de la normativa aérea española y europea. Todos nuestros vuelos están coordinados y autorizados según los requisitos de AESA y EASA, con pilotos certificados y seguro de responsabilidad civil.',
-    en: 'We operate in full compliance with Spanish and European aviation regulations. All our flights are coordinated and authorized according to AESA and EASA requirements, with certified pilots and civil liability insurance.',
+    es: 'Operamos según la normativa aérea para un vuelo 100% legal y seguro. Todos nuestros vuelos están coordinados y autorizados según los requisitos de AESA y EASA, con pilotos certificados y seguro de responsabilidad civil.',
+    en: 'We operate under aviation regulations for a 100% legal and safe flight. All our flights are coordinated and authorized according to AESA and EASA requirements, with certified pilots and civil liability insurance.',
   },
   'legal.aesa': { es: 'Operador registrado AESA', en: 'AESA registered operator' },
   'legal.easa': { es: 'Normativa EASA', en: 'EASA compliant' },
-  'legal.insured': { es: 'Seguro de RC incluido', en: 'Liability insurance included' },
+  'legal.insured': { es: 'Trámites legales incluidos', en: 'Legal permits included' },
   'legal.deliveryTitle': { es: 'Entrega del material', en: 'Material delivery' },
 
   'about.title': { es: 'Sobre Dronesur', en: 'About Dronesur' },
