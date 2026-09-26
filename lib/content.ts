@@ -271,8 +271,8 @@ export const T: Dict = {
 
   'legal.title': { es: 'Seguridad y Garantía Legal', en: 'Safety & Legal Compliance' },
   'legal.text': {
-    es: 'Operamos según la normativa aérea para un vuelo 100% legal y seguro. Todos nuestros vuelos están coordinados y autorizados según los requisitos de AESA y EASA, con pilotos certificados y seguro de responsabilidad civil.',
-    en: 'We operate under aviation regulations for a 100% legal and safe flight. All our flights are coordinated and authorized according to AESA and EASA requirements, with certified pilots and civil liability insurance.',
+    es: 'Operamos según la normativa aérea para un vuelo 100% legal y seguro. Todos nuestros vuelos están coordinados y autorizados según los requisitos de AESA y EASA con pilotos certificados.',
+    en: 'We operate under aviation regulations for a 100% legal and safe flight. All our flights are coordinated and authorized according to AESA and EASA requirements with certified pilots.',
   },
   'legal.aesa': { es: 'Operador registrado AESA', en: 'AESA registered operator' },
   'legal.easa': { es: 'Normativa EASA', en: 'EASA compliant' },
