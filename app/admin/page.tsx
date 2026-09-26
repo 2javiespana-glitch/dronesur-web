@@ -25,7 +25,7 @@ export default function AdminPage() {
 
   const login = (e: React.FormEvent) => {
     e.preventDefault()
-    if (pass === SITE.adminPassword) {
+    if (pass === "poyete_dronesur") {
       setAuthed(true)
       setError(false)
     } else {
