@@ -6,12 +6,12 @@ export type Localized = { es: string; en: string }
 // ---------------------------------------------------------------------------
 export const SITE = {
   name: 'Dronesur',
-  instagram: 'dronesur_es',
-  instagramUrl: 'https://instagram.com/dronesur_es',
+  instagram: 'dronesur',
+  instagramUrl: 'https://instagram.com/dronesur',
   // WhatsApp number in international format WITHOUT "+" or spaces.
-  whatsapp: '34600000000',
+  whatsapp: '34644424448',
   email: 'info@dronesur.es',
-  adminPassword: 'admin123',
+  adminPassword: 'poyete_dronesur',
   coverage: ['Almería', 'Granada', 'Málaga', 'Jaén', 'Cádiz', 'Murcia'],
 }
 
