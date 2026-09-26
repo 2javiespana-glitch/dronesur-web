@@ -1,8 +1,21 @@
 export type Lang = 'es' | 'en'
 export type Localized = { es: string; en: string }
 
+export interface VideoItem {
+  id: string
+  title: string
+  url: string
+  category?: string
+  poster?: string
+}
+
+export const INITIAL_VIDEOS: VideoItem[] = [
+  { id: '1', title: 'Vídeo Carrusel 1', url: '/videos/hero1.mp4', category: 'hero' },
+  { id: '2', title: 'Vídeo Bodas 1', url: '/videos/bodas1.mp4', category: 'bodas' },
+]
+
 // ---------------------------------------------------------------------------
-// Business constants — replace with the real values when available.
+// Business constants – replace with the real values when available.
 // ---------------------------------------------------------------------------
 export const SITE = {
   name: 'Dronesur',
