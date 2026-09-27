@@ -114,15 +114,6 @@ export function Hero({ videos }: HeroProps) {
 
       {/* Content */}
       <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-4 text-center">
-        <span className="animate-fade-up mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-black/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gold-soft)] backdrop-blur-sm">
-          {usingCustomVideos
-            ? videos[index]?.title
-            : HERO_SLIDES[index] &&
-              tl({
-                es: HERO_SLIDES[index].captionEs,
-                en: HERO_SLIDES[index].captionEn,
-              })}
-        </span>
         <h1
           className="animate-fade-up text-balance text-4xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-5xl md:text-6xl lg:text-7xl"
           style={{ animationDelay: '0.05s' }}
