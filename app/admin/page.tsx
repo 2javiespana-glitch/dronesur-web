@@ -2,10 +2,14 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2 } from 'lucide-react'
+import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2, UploadCloud } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { SITE, INITIAL_VIDEOS, type VideoItem, CATEGORIES, type Category } from '@/lib/content'
 import { type Review, useReviews } from '@/lib/reviews'
+
+// ⬅️ SUSTITUYE estos dos valores por los tuyos de Cloudinary (no son secretos, es normal que estén aquí)
+const CLOUDINARY_CLOUD_NAME = 'bar5rrho'
+const CLOUDINARY_UPLOAD_PRESET = 'dronesur videos'
 
 type Draft = Omit<Review, 'id'>
 
@@ -29,6 +33,11 @@ export default function AdminPage() {
 
   const [newVideo, setNewVideo] = useState({ title: '', url: '', category: 'hero' })
 
+  const [dragOver, setDragOver] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadError, setUploadError] = useState('')
+
   const [categories, setCategories] = useState<Category[]>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('dronesur_categories') : null
     return saved ? JSON.parse(saved) : CATEGORIES
@@ -51,6 +60,83 @@ export default function AdminPage() {
     const updated = videos.filter(v => v.id !== id)
     setVideos(updated)
     localStorage.setItem('dronesur_videos', JSON.stringify(updated))
+  }
+
+  const uploadVideoFile = (file: File) => {
+    if (CLOUDINARY_CLOUD_NAME === 'TU_CLOUD_NAME') {
+      setUploadError('Falta configurar Cloudinary: sustituye TU_CLOUD_NAME y TU_PRESET arriba del archivo.')
+      return
+    }
+
+    const maxSizeMB = 100
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      setUploadError(
+        `Este archivo pesa ${(file.size / (1024 * 1024)).toFixed(0)}MB. El plan gratuito de Cloudinary solo acepta hasta ${maxSizeMB}MB por vídeo. Comprímelo primero (por ejemplo con HandBrake) y vuelve a intentarlo.`
+      )
+      return
+    }
+
+    setUploading(true)
+    setUploadProgress(0)
+    setUploadError('')
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`)
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        setUploadProgress(Math.round((event.loaded / event.total) * 100))
+      }
+    }
+
+    xhr.onload = () => {
+      setUploading(false)
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const response = JSON.parse(xhr.responseText)
+        const updated = [
+          ...videos,
+          {
+            id: Date.now().toString(),
+            title: newVideo.title,
+            // Se guarda tal cual, sin recomprimir. Si algún día quieres que cargue más
+            // rápido (con una compresión inteligente que casi no se nota), cambia la
+            // línea de abajo por:
+            // url: response.secure_url.replace('/upload/', '/upload/q_auto,f_auto/'),
+            url: response.secure_url,
+            category: newVideo.category,
+          },
+        ]
+        setVideos(updated)
+        localStorage.setItem('dronesur_videos', JSON.stringify(updated))
+        setNewVideo({ title: '', url: '', category: 'hero' })
+      } else {
+        setUploadError('No se pudo subir el vídeo. Revisa el Cloud Name y el nombre del preset.')
+      }
+    }
+
+    xhr.onerror = () => {
+      setUploading(false)
+      setUploadError('Error de conexión al subir el vídeo. Comprueba tu internet e inténtalo de nuevo.')
+    }
+
+    xhr.send(formData)
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) uploadVideoFile(file)
+  }
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) uploadVideoFile(file)
+    e.target.value = ''
   }
 
   const startEditCategory = (cat: Category) => {
@@ -352,6 +438,63 @@ export default function AdminPage() {
             />
           </div>
           <div>
+            <label className="mb-1.5 block text-sm font-medium" htmlFor="v-category">
+              Categoría
+            </label>
+            <input
+              id="v-category"
+              value={newVideo.category}
+              onChange={(e) => setNewVideo({ ...newVideo, category: e.target.value })}
+              placeholder="hero"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium">
+              Sube el vídeo desde tu iPhone o tu ordenador
+            </label>
+            <label
+              htmlFor="v-file"
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOver(true)
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center text-sm transition ${
+                dragOver ? 'border-[var(--gold)] bg-[var(--gold)]/5' : 'border-border'
+              }`}
+            >
+              <input
+                id="v-file"
+                type="file"
+                accept="video/*"
+                onChange={handleFileInputChange}
+                className="hidden"
+              />
+              <UploadCloud className="h-6 w-6 text-muted-foreground" />
+              {uploading ? (
+                <span>Subiendo... {uploadProgress}%</span>
+              ) : (
+                <span>
+                  En el ordenador: arrastra aquí el archivo. En el iPhone: toca aquí para elegirlo de tu galería.
+                </span>
+              )}
+            </label>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Se añade solo en cuanto termine de subir — no hace falta pulsar "Añadir vídeo" para este caso.
+            </p>
+            {uploadError && <p className="mt-2 text-sm text-destructive">{uploadError}</p>}
+          </div>
+
+          <div className="sm:col-span-2 flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            o pega la dirección si el vídeo ya está alojado en otro sitio
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium" htmlFor="v-url">
               URL del vídeo
             </label>
@@ -364,27 +507,12 @@ export default function AdminPage() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-sm font-medium" htmlFor="v-category">
-              Categoría
-            </label>
-            <input
-              id="v-category"
-              value={newVideo.category}
-              onChange={(e) => setNewVideo({ ...newVideo, category: e.target.value })}
-              placeholder="hero"
-              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Usa "hero" para el carrusel principal, o el slug de una categoría (inmobiliaria, eventos...).
-            </p>
-          </div>
-          <div className="sm:col-span-2">
             <button
               type="submit"
               className="inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-5 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
             >
               <Plus className="h-4 w-4" />
-              Añadir vídeo
+              Añadir vídeo (solo si pegaste una URL arriba)
             </button>
           </div>
         </form>
