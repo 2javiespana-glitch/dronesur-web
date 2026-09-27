@@ -45,6 +45,8 @@ export default function AdminPage() {
 
   const [editingCatSlug, setEditingCatSlug] = useState<string | null>(null)
   const [catDraft, setCatDraft] = useState<Category | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [imageUploadError, setImageUploadError] = useState('')
 
   const handleAddVideo = (e: React.FormEvent) => {
     e.preventDefault()
