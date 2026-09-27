@@ -1,4 +1,7 @@
-import { SiteHeader } from '@/components/site-header'
+'use client'
+
+import { useState, useEffect } from 'react'
+import { INITIAL_VIDEOS, type VideoItem } from '@/lib/content'
 import { Hero } from '@/components/hero'
 import { WelcomePromo } from '@/components/welcome-promo'
 import { Categories } from '@/components/categories'
@@ -12,11 +15,24 @@ import { WhatsAppFab } from '@/components/whatsapp-fab'
 import { CookieBanner } from '@/components/cookie-banner'
 
 export default function HomePage() {
+  const [videos, setVideos] = useState(INITIAL_VIDEOS)
+
+  useEffect(() => {
+    const saved = localStorage.getItem('dronesur_videos')
+    if (saved) {
+      try {
+        setVideos(JSON.parse(saved))
+      } catch (e) {
+        console.error(e)
+      }
+    }
+  }, [])
+
   return (
     <>
       <SiteHeader />
       <main>
-        <Hero />
+       v.category === 'hero')} />
         <WelcomePromo />
         <Categories />
         <CoverageServices />
