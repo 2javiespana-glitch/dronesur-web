@@ -5,26 +5,35 @@ import Image from 'next/image'
 import { ChevronDown, ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
-import { HERO_AUDIO, HERO_SLIDES } from '@/lib/content'
+import { HERO_AUDIO, HERO_SLIDES, type VideoItem } from '@/lib/content'
 
-export function Hero() {
+type HeroProps = {
+  videos: VideoItem[]
+}
+
+export function Hero({ videos }: HeroProps) {
   const { t, tl } = useSite()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
   const [muted, setMuted] = useState(true)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
+  // Si hay vídeos guardados con categoría "hero", se usan esos.
+  // Si todavía no hay ninguno, se muestran las 3 imágenes de ejemplo de siempre.
+  const usingCustomVideos = videos.length > 0
+  const slideCount = usingCustomVideos ? videos.length : HERO_SLIDES.length
+
   const next = useCallback(
-    () => setIndex((i) => (i + 1) % HERO_SLIDES.length),
-    [],
+    () => setIndex((i) => (i + 1) % slideCount),
+    [slideCount],
   )
   const prev = useCallback(
-    () => setIndex((i) => (i - 1 + HERO_SLIDES.length) % HERO_SLIDES.length),
-    [],
+    () => setIndex((i) => (i - 1 + slideCount) % slideCount),
+    [slideCount],
   )
 
   useEffect(() => {
-    const id = setInterval(next, 4000)
+    const id = setInterval(next, 6000)
     return () => clearInterval(id)
   }, [next])
 
@@ -44,53 +53,75 @@ export function Hero() {
 
   return (
     <section id="top" className="relative h-[100svh] w-full overflow-hidden">
-      {/* Slides — drop your own videos in /public/hero and set `video` in lib/content.ts */}
-      {HERO_SLIDES.map((slide, i) => (
-        <div
-          key={i}
-          className={`absolute inset-0 transition-opacity duration-1000 ${
-            i === index ? 'opacity-100' : 'opacity-0'
-          }`}
-          aria-hidden={i !== index}
-        >
-          {slide.video ? (
-            <video
-              className="h-full w-full object-cover"
-              src={slide.video}
-              poster={slide.poster}
-              autoPlay
-              muted
-              loop
-              playsInline
-            />
-          ) : (
-            <Image
-              src={slide.poster || '/placeholder.svg'}
-              alt={tl({ es: slide.captionEs, en: slide.captionEn })}
-              fill
-              priority={i === 0}
-              className="object-cover"
-              sizes="100vw"
-            />
-          )}
-        </div>
-      ))}
+      {/* Slides */}
+      {usingCustomVideos
+        ? videos.map((v, i) => (
+            <div
+              key={v.id}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                i === index ? 'opacity-100' : 'opacity-0'
+              }`}
+              aria-hidden={i !== index}
+            >
+              <video
+                className="h-full w-full object-cover"
+                src={v.url}
+                poster={v.poster}
+                autoPlay
+                muted
+                loop
+                playsInline
+              />
+            </div>
+          ))
+        : HERO_SLIDES.map((slide, i) => (
+            <div
+              key={i}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                i === index ? 'opacity-100' : 'opacity-0'
+              }`}
+              aria-hidden={i !== index}
+            >
+              {slide.video ? (
+                <video
+                  className="h-full w-full object-cover"
+                  src={slide.video}
+                  poster={slide.poster}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : (
+                <Image
+                  src={slide.poster || '/placeholder.svg'}
+                  alt={tl({ es: slide.captionEs, en: slide.captionEn })}
+                  fill
+                  priority={i === 0}
+                  className="object-cover"
+                  sizes="100vw"
+                />
+              )}
+            </div>
+          ))}
 
       {/* Overlays */}
       <div className="pointer-events-none absolute inset-0 bg-black/40" />
       <div className="pointer-events-none absolute inset-0 bg-hero-fade" />
 
-      {/* Cinematic background music (add /public/audio/cinematic-theme.mp3) */}
+      {/* Cinematic background music */}
       <audio ref={audioRef} src={HERO_AUDIO} loop muted preload="none" />
 
       {/* Content */}
       <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-4 text-center">
         <span className="animate-fade-up mb-5 inline-flex items-center gap-2 rounded-full border border-[var(--gold)]/40 bg-black/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--gold-soft)] backdrop-blur-sm">
-          {HERO_SLIDES[index] &&
-            tl({
-              es: HERO_SLIDES[index].captionEs,
-              en: HERO_SLIDES[index].captionEn,
-            })}
+          {usingCustomVideos
+            ? videos[index]?.title
+            : HERO_SLIDES[index] &&
+              tl({
+                es: HERO_SLIDES[index].captionEs,
+                en: HERO_SLIDES[index].captionEn,
+              })}
         </span>
         <h1
           className="animate-fade-up text-balance text-4xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-5xl md:text-6xl lg:text-7xl"
@@ -141,7 +172,7 @@ export function Hero() {
 
       {/* Dots */}
       <div className="absolute bottom-8 left-1/2 z-20 flex -translate-x-1/2 gap-2">
-        {HERO_SLIDES.map((_, i) => (
+        {Array.from({ length: slideCount }).map((_, i) => (
           <button
             key={i}
             onClick={() => setIndex(i)}
