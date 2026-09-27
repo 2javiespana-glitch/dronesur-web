@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { INITIAL_VIDEOS, type VideoItem } from '@/lib/content'
+import { SiteHeader } from '@/components/site-header'
 import { Hero } from '@/components/hero'
 import { WelcomePromo } from '@/components/welcome-promo'
 import { Categories } from '@/components/categories'
@@ -32,7 +33,7 @@ export default function HomePage() {
     <>
       <SiteHeader />
       <main>
-       v.category === 'hero')} />
+        <Hero videos={videos.filter((v) => v.category === 'hero')} />
         <WelcomePromo />
         <Categories />
         <CoverageServices />
