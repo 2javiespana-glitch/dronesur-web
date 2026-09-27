@@ -22,7 +22,7 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [showForm, setShowForm] = useState(false)
-const [videos, setVideos] = useState(() => {
+  const [videos, setVideos] = useState(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('dronesur_videos') : null
     return saved ? JSON.parse(saved) : INITIAL_VIDEOS
   })
@@ -32,7 +32,7 @@ const [videos, setVideos] = useState(() => {
   const handleAddVideo = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVideo.url) return
-    
+
     const updated = [...videos, { ...newVideo, id: Date.now().toString() }]
     setVideos(updated)
     localStorage.setItem('dronesur_videos', JSON.stringify(updated))
@@ -44,7 +44,7 @@ const [videos, setVideos] = useState(() => {
     setVideos(updated)
     localStorage.setItem('dronesur_videos', JSON.stringify(updated))
   }
-  
+
   const login = (e: React.FormEvent) => {
     e.preventDefault()
     if (pass === "poyete_dronesur") {
@@ -138,6 +138,7 @@ const [videos, setVideos] = useState(() => {
             <RotateCcw className="h-3.5 w-3.5" />
             {t('admin.reset')}
           </button>
+
           <button
             onClick={() => setAuthed(false)}
             className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted"
@@ -292,7 +293,94 @@ const [videos, setVideos] = useState(() => {
           </div>
         ))}
       </div>
+
       {/* Panel de Gestión de Vídeos */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold">Gestión de Vídeos</h2>
+        <p className="text-sm text-muted-foreground">Vídeos del carrusel de presentación</p>
+
+        <form
+          onSubmit={handleAddVideo}
+          className="mt-4 grid gap-4 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
+        >
+          <div>
+            <label className="mb-1.5 block text-sm font-medium" htmlFor="v-title">
+              Título
+            </label>
+            <input
+              id="v-title"
+              value={newVideo.title}
+              onChange={(e) => setNewVideo({ ...newVideo, title: e.target.value })}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium" htmlFor="v-url">
+              URL del vídeo
+            </label>
+            <input
+              id="v-url"
+              value={newVideo.url}
+              onChange={(e) => setNewVideo({ ...newVideo, url: e.target.value })}
+              placeholder="https://..."
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium" htmlFor="v-category">
+              Categoría
+            </label>
+            <input
+              id="v-category"
+              value={newVideo.category}
+              onChange={(e) => setNewVideo({ ...newVideo, category: e.target.value })}
+              placeholder="hero"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Usa "hero" para el carrusel principal, o el nombre de la categoría del trabajo.
+            </p>
+          </div>
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-5 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
+            >
+              <Plus className="h-4 w-4" />
+              Añadir vídeo
+            </button>
+          </div>
+        </form>
+
+        <div className="mt-4 space-y-3">
+          {videos.length === 0 && (
+            <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              Todavía no hay vídeos.
+            </p>
+          )}
+          {videos.map((v) => (
+            <div
+              key={v.id}
+              className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="font-semibold">{v.title || '(sin título)'}</p>
+                <p className="truncate text-xs text-muted-foreground">{v.url}</p>
+                <p className="text-xs text-muted-foreground">Categoría: {v.category}</p>
+              </div>
+              <button
+                onClick={() => handleDeleteVideo(v.id)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Panel de Gestión de Categorías — pendiente, necesito ver lib/content.ts */}
     </main>
   )
 }
