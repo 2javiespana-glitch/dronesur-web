@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2 } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
-import { SITE, INITIAL_VIDEOS, type VideoItem } from '@/lib/content'
+import { SITE, INITIAL_VIDEOS, type VideoItem, CATEGORIES, type Category } from '@/lib/content'
 import { type Review, useReviews } from '@/lib/reviews'
 
 type Draft = Omit<Review, 'id'>
@@ -29,6 +29,14 @@ export default function AdminPage() {
 
   const [newVideo, setNewVideo] = useState({ title: '', url: '', category: 'hero' })
 
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('dronesur_categories') : null
+    return saved ? JSON.parse(saved) : CATEGORIES
+  })
+
+  const [editingCatSlug, setEditingCatSlug] = useState<string | null>(null)
+  const [catDraft, setCatDraft] = useState<Category | null>(null)
+
   const handleAddVideo = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVideo.url) return
@@ -43,6 +51,35 @@ export default function AdminPage() {
     const updated = videos.filter(v => v.id !== id)
     setVideos(updated)
     localStorage.setItem('dronesur_videos', JSON.stringify(updated))
+  }
+
+  const startEditCategory = (cat: Category) => {
+    setEditingCatSlug(cat.slug)
+    setCatDraft({ ...cat, gallery: [...cat.gallery] })
+  }
+
+  const cancelEditCategory = () => {
+    setEditingCatSlug(null)
+    setCatDraft(null)
+  }
+
+  const saveCategory = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!catDraft) return
+    const cleanGallery = catDraft.gallery.map((g) => g.trim()).filter(Boolean)
+    const updatedDraft = { ...catDraft, gallery: cleanGallery }
+    const updated = categories.map((c) => (c.slug === updatedDraft.slug ? updatedDraft : c))
+    setCategories(updated)
+    localStorage.setItem('dronesur_categories', JSON.stringify(updated))
+    setEditingCatSlug(null)
+    setCatDraft(null)
+  }
+
+  const resetCategories = () => {
+    setCategories(CATEGORIES)
+    localStorage.removeItem('dronesur_categories')
+    setEditingCatSlug(null)
+    setCatDraft(null)
   }
 
   const login = (e: React.FormEvent) => {
@@ -338,7 +375,7 @@ export default function AdminPage() {
               className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              Usa "hero" para el carrusel principal, o el nombre de la categoría del trabajo.
+              Usa "hero" para el carrusel principal, o el slug de una categoría (inmobiliaria, eventos...).
             </p>
           </div>
           <div className="sm:col-span-2">
@@ -380,7 +417,184 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Panel de Gestión de Categorías — pendiente, necesito ver lib/content.ts */}
+      {/* Panel de Gestión de Categorías */}
+      <div className="mt-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold">Gestión de Categorías</h2>
+            <p className="text-sm text-muted-foreground">Servicios que se muestran en la web</p>
+          </div>
+          <button
+            onClick={resetCategories}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restaurar categorías originales
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {categories.map((cat) => (
+            <div key={cat.slug} className="rounded-xl border border-border bg-card p-4">
+              {editingCatSlug === cat.slug && catDraft ? (
+                <form onSubmit={saveCategory} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Título (ES)</label>
+                      <input
+                        value={catDraft.title.es}
+                        onChange={(e) =>
+                          setCatDraft({ ...catDraft, title: { ...catDraft.title, es: e.target.value } })
+                        }
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Title (EN)</label>
+                      <input
+                        value={catDraft.title.en}
+                        onChange={(e) =>
+                          setCatDraft({ ...catDraft, title: { ...catDraft.title, en: e.target.value } })
+                        }
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Precio (ES)</label>
+                      <input
+                        value={catDraft.price.es}
+                        onChange={(e) =>
+                          setCatDraft({ ...catDraft, price: { ...catDraft.price, es: e.target.value } })
+                        }
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Price (EN)</label>
+                      <input
+                        value={catDraft.price.en}
+                        onChange={(e) =>
+                          setCatDraft({ ...catDraft, price: { ...catDraft.price, en: e.target.value } })
+                        }
+                        className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Descripción corta (ES)</label>
+                      <textarea
+                        rows={2}
+                        value={catDraft.short.es}
+                        onChange={(e) =>
+                          setCatDraft({ ...catDraft, short: { ...catDraft.short, es: e.target.value } })
+                        }
+                        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Short description (EN)</label>
+                      <textarea
+                        rows={2}
+                        value={catDraft.short.en}
+                        onChange={(e) =>
+                          setCatDraft({ ...catDraft, short: { ...catDraft.short, en: e.target.value } })
+                        }
+                        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Descripción larga (ES)</label>
+                      <textarea
+                        rows={4}
+                        value={catDraft.description.es}
+                        onChange={(e) =>
+                          setCatDraft({
+                            ...catDraft,
+                            description: { ...catDraft.description, es: e.target.value },
+                          })
+                        }
+                        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Long description (EN)</label>
+                      <textarea
+                        rows={4}
+                        value={catDraft.description.en}
+                        onChange={(e) =>
+                          setCatDraft({
+                            ...catDraft,
+                            description: { ...catDraft.description, en: e.target.value },
+                          })
+                        }
+                        className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">Imagen principal (URL)</label>
+                    <input
+                      value={catDraft.image}
+                      onChange={(e) => setCatDraft({ ...catDraft, image: e.target.value })}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">Galería (una URL por línea)</label>
+                    <textarea
+                      rows={3}
+                      value={catDraft.gallery.join('\n')}
+                      onChange={(e) => setCatDraft({ ...catDraft, gallery: e.target.value.split('\n') })}
+                      className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className="rounded-full bg-[var(--gold)] px-5 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
+                    >
+                      Guardar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEditCategory}
+                      className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold transition hover:bg-muted"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{cat.title.es}</p>
+                    <p className="text-xs text-muted-foreground">{cat.price.es}</p>
+                    <p className="mt-1 text-sm text-foreground/80">{cat.short.es}</p>
+                  </div>
+                  <button
+                    onClick={() => startEditCategory(cat)}
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold transition hover:bg-muted"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </main>
   )
 }
