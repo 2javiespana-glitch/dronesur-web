@@ -6,6 +6,7 @@ export interface VideoItem {
   title: string
   url: string
   category?: string
+  type?: 'image' | 'video'
   poster?: string
 }
 
@@ -24,7 +25,6 @@ export const SITE = {
   // WhatsApp number in international format WITHOUT "+" or spaces.
   whatsapp: '34644424448',
   email: 'info@dronesur.es',
-  adminPassword: 'poyete_dronesur',
   coverage: ['Almería', 'Granada', 'Málaga', 'Jaén', 'Cádiz', 'Murcia'],
 }
 
