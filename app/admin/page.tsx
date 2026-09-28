@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2, UploadCloud } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
-import { SITE, INITIAL_VIDEOS, type VideoItem, CATEGORIES, type Category } from '@/lib/content'
+import { type VideoItem, CATEGORIES, type Category } from '@/lib/content'
 import { type Review, useReviews } from '@/lib/reviews'
 
 // ⬅️ SUSTITUYE estos dos valores por los tuyos de Cloudinary (no son secretos, es normal que estén aquí)
@@ -26,10 +26,10 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [showForm, setShowForm] = useState(false)
-  const [videos, setVideos] = useState(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('dronesur_videos') : null
-    return saved ? JSON.parse(saved) : INITIAL_VIDEOS
-  })
+  const [videos, setVideos] = useState<VideoItem[]>([])
+  const [mediaError, setMediaError] = useState('')
+  const [filterCat, setFilterCat] = useState('all')
+  const [uploadInfo, setUploadInfo] = useState('')
 
   const [newVideo, setNewVideo] = useState({ title: '', url: '', category: 'hero' })
 
@@ -48,96 +48,143 @@ export default function AdminPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageUploadError, setImageUploadError] = useState('')
 
-  const handleAddVideo = (e: React.FormEvent) => {
+  const jsonHeaders = { 'Content-Type': 'application/json', 'x-admin-password': pass }
+
+  const loadMedia = async () => {
+    try {
+      const res = await fetch('/api/media', { cache: 'no-store' })
+      const data = await res.json()
+      setVideos(Array.isArray(data) ? data : [])
+    } catch {
+      setMediaError('No se pudo cargar la lista de fotos y vídeos.')
+    }
+  }
+
+  // Guarda un elemento en el servidor (base de datos), no en el navegador.
+  const saveMedia = async (item: { title: string; url: string; category: string; type: 'image' | 'video' }) => {
+    try {
+      const res = await fetch('/api/media', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ action: 'add', item }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setMediaError(data?.error || 'No se pudo guardar.')
+        return false
+      }
+      setVideos(data.items)
+      setMediaError('')
+      return true
+    } catch {
+      setMediaError('Error de conexión al guardar.')
+      return false
+    }
+  }
+
+  const handleAddVideo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVideo.url) return
-
-    const updated = [...videos, { ...newVideo, id: Date.now().toString() }]
-    setVideos(updated)
-    localStorage.setItem('dronesur_videos', JSON.stringify(updated))
-    setNewVideo({ title: '', url: '', category: 'hero' })
+    const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(newVideo.url)
+    const ok = await saveMedia({ ...newVideo, type: isVideo ? 'video' : 'image' })
+    if (ok) setNewVideo({ title: '', url: '', category: newVideo.category })
   }
 
-  const handleDeleteVideo = (id: string) => {
-    const updated = videos.filter(v => v.id !== id)
-    setVideos(updated)
-    localStorage.setItem('dronesur_videos', JSON.stringify(updated))
-  }
-
-  const uploadVideoFile = (file: File) => {
-    if (CLOUDINARY_CLOUD_NAME === 'TU_CLOUD_NAME') {
-      setUploadError('Falta configurar Cloudinary: sustituye TU_CLOUD_NAME y TU_PRESET arriba del archivo.')
-      return
-    }
-
-    const maxSizeMB = 100
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      setUploadError(
-        `Este archivo pesa ${(file.size / (1024 * 1024)).toFixed(0)}MB. El plan gratuito de Cloudinary solo acepta hasta ${maxSizeMB}MB por vídeo. Comprímelo primero (por ejemplo con HandBrake) y vuelve a intentarlo.`
-      )
-      return
-    }
-
-    setUploading(true)
-    setUploadProgress(0)
-    setUploadError('')
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
-
-    const xhr = new XMLHttpRequest()
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`)
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        setUploadProgress(Math.round((event.loaded / event.total) * 100))
+  const handleDeleteVideo = async (id: string) => {
+    try {
+      const res = await fetch('/api/media', {
+        method: 'DELETE',
+        headers: jsonHeaders,
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setMediaError(data?.error || 'No se pudo borrar.')
+        return
       }
+      setVideos(data.items)
+    } catch {
+      setMediaError('Error de conexión al borrar.')
     }
+  }
 
-    xhr.onload = () => {
-      setUploading(false)
-      if (xhr.status >= 200 && xhr.status < 300) {
-        const response = JSON.parse(xhr.responseText)
-        const updated = [
-          ...videos,
-          {
-            id: Date.now().toString(),
+  // Sube UN archivo (foto o vídeo) a Cloudinary y después guarda su URL + categoría en el servidor.
+  const uploadOne = (file: File) =>
+    new Promise<void>((resolve) => {
+      const isVideo = file.type.startsWith('video/')
+      const maxSizeMB = isVideo ? 100 : 10
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        setUploadError(
+          `"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(0)}MB. El plan gratuito de Cloudinary acepta hasta ${maxSizeMB}MB por ${isVideo ? 'vídeo' : 'foto'}. Comprímelo y vuelve a intentarlo.`
+        )
+        resolve()
+        return
+      }
+
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+
+      const xhr = new XMLHttpRequest()
+      // "auto" permite subir tanto fotos como vídeos con el mismo formulario.
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`)
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100))
+        }
+      }
+
+      xhr.onload = async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          const response = JSON.parse(xhr.responseText)
+          await saveMedia({
             title: newVideo.title,
-            // Se guarda tal cual, sin recomprimir. Si algún día quieres que cargue más
-            // rápido (con una compresión inteligente que casi no se nota), cambia la
-            // línea de abajo por:
-            // url: response.secure_url.replace('/upload/', '/upload/q_auto,f_auto/'),
             url: response.secure_url,
             category: newVideo.category,
-          },
-        ]
-        setVideos(updated)
-        localStorage.setItem('dronesur_videos', JSON.stringify(updated))
-        setNewVideo({ title: '', url: '', category: 'hero' })
-      } else {
-        setUploadError('No se pudo subir el vídeo. Revisa el Cloud Name y el nombre del preset.')
+            type: response.resource_type === 'video' ? 'video' : 'image',
+          })
+        } else {
+          let detail = ''
+          try {
+            detail = JSON.parse(xhr.responseText)?.error?.message ?? ''
+          } catch {}
+          setUploadError(`No se pudo subir "${file.name}". ${detail}`)
+        }
+        resolve()
       }
-    }
 
-    xhr.onerror = () => {
-      setUploading(false)
-      setUploadError('Error de conexión al subir el vídeo. Comprueba tu internet e inténtalo de nuevo.')
-    }
+      xhr.onerror = () => {
+        setUploadError('Error de conexión al subir el archivo. Comprueba tu internet e inténtalo de nuevo.')
+        resolve()
+      }
 
-    xhr.send(formData)
+      xhr.send(formData)
+    })
+
+  const uploadFiles = async (files: File[]) => {
+    if (files.length === 0) return
+    setUploading(true)
+    setUploadError('')
+    setMediaError('')
+    for (let i = 0; i < files.length; i++) {
+      setUploadInfo(files.length > 1 ? `(${i + 1} de ${files.length})` : '')
+      setUploadProgress(0)
+      await uploadOne(files[i])
+    }
+    setUploading(false)
+    setUploadInfo('')
+    setNewVideo({ ...newVideo, title: '' })
   }
 
   const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault()
     setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) uploadVideoFile(file)
+    void uploadFiles(Array.from(e.dataTransfer.files ?? []))
   }
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) uploadVideoFile(file)
+    void uploadFiles(Array.from(e.target.files ?? []))
     e.target.value = ''
   }
 
@@ -170,12 +217,22 @@ export default function AdminPage() {
     setCatDraft(null)
   }
 
-  const login = (e: React.FormEvent) => {
+  const login = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (pass === "poyete_dronesur") {
-      setAuthed(true)
-      setError(false)
-    } else {
+    try {
+      const res = await fetch('/api/media', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-password': pass },
+        body: JSON.stringify({ action: 'check' }),
+      })
+      if (res.ok) {
+        setAuthed(true)
+        setError(false)
+        void loadMedia()
+      } else {
+        setError(true)
+      }
+    } catch {
       setError(true)
     }
   }
@@ -421,8 +478,8 @@ export default function AdminPage() {
 
       {/* Panel de Gestión de Vídeos */}
       <div className="mt-10">
-        <h2 className="text-xl font-bold">Gestión de Vídeos</h2>
-        <p className="text-sm text-muted-foreground">Vídeos del carrusel de presentación</p>
+        <h2 className="text-xl font-bold">Gestión de Fotos y Vídeos</h2>
+        <p className="text-sm text-muted-foreground">Elige la categoría y sube fotos o vídeos. El carrusel de inicio solo usa vídeos.</p>
 
         <form
           onSubmit={handleAddVideo}
@@ -460,7 +517,7 @@ export default function AdminPage() {
 
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium">
-              Sube el vídeo desde tu iPhone o tu ordenador
+              Sube fotos o vídeos desde tu iPhone o tu ordenador (puedes elegir varios a la vez)
             </label>
             <label
               htmlFor="v-file"
@@ -477,13 +534,14 @@ export default function AdminPage() {
               <input
                 id="v-file"
                 type="file"
-                accept="video/*"
+                accept="image/*,video/*"
+                multiple
                 onChange={handleFileInputChange}
                 className="hidden"
               />
               <UploadCloud className="h-6 w-6 text-muted-foreground" />
               {uploading ? (
-                <span>Subiendo... {uploadProgress}%</span>
+                <span>Subiendo {uploadInfo}... {uploadProgress}%</span>
               ) : (
                 <span>
                   En el ordenador: arrastra aquí el archivo. En el iPhone: toca aquí para elegirlo de tu galería.
@@ -504,7 +562,7 @@ export default function AdminPage() {
 
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium" htmlFor="v-url">
-              URL del vídeo
+              URL de la foto o del vídeo
             </label>
             <input
               id="v-url"
@@ -520,18 +578,42 @@ export default function AdminPage() {
               className="inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-5 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
             >
               <Plus className="h-4 w-4" />
-              Añadir vídeo (solo si pegaste una URL arriba)
+              Añadir (solo si pegaste una URL arriba)
             </button>
           </div>
         </form>
 
+        {mediaError && <p className="mt-3 text-sm text-destructive">{mediaError}</p>}
+
+        <div className="mt-6 flex items-center gap-3">
+          <label className="text-sm font-medium" htmlFor="v-filter">
+            Ver
+          </label>
+          <select
+            id="v-filter"
+            value={filterCat}
+            onChange={(e) => setFilterCat(e.target.value)}
+            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+          >
+            <option value="all">Todas las categorías</option>
+            <option value="hero">Inicio (carrusel principal)</option>
+            <option value="inmobiliaria">Inmobiliaria, Hoteles y Terrenos</option>
+            <option value="eventos">Bodas, Graduaciones y Eventos</option>
+            <option value="fotogrametria">Fotogrametría y Modelado 3D</option>
+            <option value="obra">Seguimiento de Obra</option>
+            <option value="aerea">Aérea / Otros servicios</option>
+          </select>
+        </div>
+
         <div className="mt-4 space-y-3">
           {videos.length === 0 && (
             <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-              Todavía no hay vídeos.
+              Todavía no hay fotos ni vídeos.
             </p>
           )}
-          {videos.map((v) => (
+          {videos
+            .filter((v) => filterCat === 'all' || v.category === filterCat)
+            .map((v) => (
             <div
               key={v.id}
               className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -539,7 +621,7 @@ export default function AdminPage() {
               <div className="min-w-0">
                 <p className="font-semibold">{v.title || '(sin título)'}</p>
                 <p className="truncate text-xs text-muted-foreground">{v.url}</p>
-                <p className="text-xs text-muted-foreground">Categoría: {v.category}</p>
+                <p className="text-xs text-muted-foreground">Categoría: {v.category} · {v.type === 'image' ? 'Foto' : 'Vídeo'}</p>
               </div>
               <button
                 onClick={() => handleDeleteVideo(v.id)}
@@ -685,15 +767,9 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium">Galería (una URL por línea)</label>
-                    <textarea
-                      rows={3}
-                      value={catDraft.gallery.join('\n')}
-                      onChange={(e) => setCatDraft({ ...catDraft, gallery: e.target.value.split('\n') })}
-                      className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                    />
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Las fotos y vídeos de cada categoría se gestionan arriba, en «Gestión de Fotos y Vídeos».
+                  </p>
 
                   <div className="flex gap-2">
                     <button
