@@ -32,8 +32,6 @@ export function SiteHeader() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const logoSrc = theme === 'dark' ? '/logo-dark.png' : '/logo-light.png'
-
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
@@ -45,11 +43,11 @@ export function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <Link href="/#top" className="flex items-center gap-2.5" aria-label="Dronesur inicio">
           <Image
-            src={logoSrc || '/placeholder.svg'}
+            src="/logo-dronesur.png"
             alt="Dronesur"
-            width={40}
-            height={40}
-            className="h-9 w-9 object-contain"
+            width={44}
+            height={44}
+            className="h-10 w-10 object-contain sm:h-11 sm:w-11"
             priority
           />
           <span className="text-lg font-bold tracking-tight">
