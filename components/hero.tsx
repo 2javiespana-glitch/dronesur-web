@@ -1,27 +1,45 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import { ChevronDown, ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
-import { HERO_AUDIO, HERO_SLIDES, type VideoItem } from '@/lib/content'
+import { HERO_AUDIO, type VideoItem } from '@/lib/content'
 
 type HeroProps = {
   videos: VideoItem[]
 }
 
 export function Hero({ videos }: HeroProps) {
-  const { t, tl } = useSite()
+  const { t } = useSite()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
   const [muted, setMuted] = useState(true)
+  const [showDesktopNotice, setShowDesktopNotice] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Si hay vídeos guardados con categoría "hero", se usan esos.
-  // Si todavía no hay ninguno, se muestran las 3 imágenes de ejemplo de siempre.
-  const usingCustomVideos = videos.length > 0
-  const slideCount = usingCustomVideos ? videos.length : HERO_SLIDES.length
+  // Solo se muestran los vídeos que has subido tú desde el admin con categoría "hero".
+  // Ya no se usan las fotos de stock que trajo la plantilla de V0.
+  const slideCount = videos.length
+
+  // Aviso de "optimizado para ordenador", solo en móvil y solo una vez por visita.
+  useEffect(() => {
+    const isMobile = window.matchMedia('(max-width: 640px)').matches
+    const alreadyShown = sessionStorage.getItem('dronesur_desktop_notice')
+    if (isMobile && !alreadyShown) {
+      setShowDesktopNotice(true)
+      sessionStorage.setItem('dronesur_desktop_notice', '1')
+    }
+  }, [])
+
+  // Arregla un fallo típico de Safari/iPhone: React no siempre marca el vídeo como
+  // "silenciado" a nivel del navegador (solo a nivel de atributo), y eso hace que a
+  // veces el vídeo no arranque solo y haga falta pulsar play. Esto lo fuerza siempre.
+  const forcePlay = useCallback((el: HTMLVideoElement | null) => {
+    if (!el) return
+    el.muted = true
+    void el.play().catch(() => {})
+  }, [])
 
   const next = useCallback(
     () => setIndex((i) => (i + 1) % slideCount),
@@ -51,58 +69,38 @@ export function Hero({ videos }: HeroProps) {
     }
   }
 
-  // Cada "slide" (vídeo o imagen) de fondo, reutilizado tanto en la caja móvil como en el fondo de escritorio.
+  // Cada vídeo de fondo, reutilizado tanto en la caja móvil como en el fondo de escritorio.
+  // Si todavía no has subido ningún vídeo con categoría "hero", se muestra un fondo
+  // neutro con el logo en vez de fotos de stock.
   const renderSlides = (mobile: boolean) =>
-    usingCustomVideos
-      ? videos.map((v, i) => (
-          <div
-            key={v.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              i === index ? 'opacity-100' : 'opacity-0'
-            }`}
-            aria-hidden={i !== index}
-          >
-            <video
-              className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
-              src={v.url}
-              poster={v.poster}
-              autoPlay
-              muted
-              loop
-              playsInline
-            />
-          </div>
-        ))
-      : HERO_SLIDES.map((slide, i) => (
-          <div
-            key={i}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              i === index ? 'opacity-100' : 'opacity-0'
-            }`}
-            aria-hidden={i !== index}
-          >
-            {slide.video ? (
-              <video
-                className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
-                src={slide.video}
-                poster={slide.poster}
-                autoPlay
-                muted
-                loop
-                playsInline
-              />
-            ) : (
-              <Image
-                src={slide.poster || '/placeholder.svg'}
-                alt={tl({ es: slide.captionEs, en: slide.captionEn })}
-                fill
-                priority={i === 0}
-                className="object-cover"
-                sizes="100vw"
-              />
-            )}
-          </div>
-        ))
+    videos.length > 0 ? (
+      videos.map((v, i) => (
+        <div
+          key={v.id}
+          className={`absolute inset-0 transition-opacity duration-1000 ${
+            i === index ? 'opacity-100' : 'opacity-0'
+          }`}
+          aria-hidden={i !== index}
+        >
+          <video
+            ref={forcePlay}
+            className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
+            src={v.url}
+            poster={v.poster}
+            autoPlay
+            muted
+            loop
+            playsInline
+          />
+        </div>
+      ))
+    ) : (
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#0b0e14] to-[#1a1f2b]">
+        <span className="text-2xl font-extrabold tracking-wide text-white/60 sm:text-3xl">
+          Drone<span className="text-[var(--gold)]">sur</span>
+        </span>
+      </div>
+    )
 
   // Flechas, puntos y botón de silenciar, reutilizados en las dos versiones (tamaño distinto en cada una).
   const controls = (compact: boolean) => (
@@ -152,6 +150,9 @@ export function Hero({ videos }: HeroProps) {
       <div className="relative aspect-video w-full sm:hidden">
         {renderSlides(true)}
         <div className="pointer-events-none absolute inset-0 bg-black/10" />
+        {/* Degradado negro arriba: para que el menú (Inicio, Instagram, ES/EN...) se lea
+            bien sobre el vídeo, sin taparlo del todo. */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-16 bg-gradient-to-b from-black/75 to-transparent" />
         {controls(true)}
         <button
           onClick={toggleMute}
@@ -189,12 +190,14 @@ export function Hero({ videos }: HeroProps) {
         {renderSlides(false)}
         <div className="pointer-events-none absolute inset-0 bg-black/40" />
         <div className="pointer-events-none absolute inset-0 bg-hero-fade" />
+        {/* Degradado extra arriba: para que el menú se lea bien sobre el vídeo */}
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-32 bg-gradient-to-b from-black/70 to-transparent" />
 
-        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-4 text-center">
-          <h1 className="animate-fade-up text-balance text-5xl font-extrabold leading-tight text-white drop-shadow-lg md:text-6xl lg:text-7xl">
+        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-end px-4 pb-24 text-center lg:pb-28">
+          <h1 className="animate-fade-up text-balance text-4xl font-extrabold leading-tight text-white drop-shadow-lg md:text-5xl lg:text-6xl">
             {t('hero.title')}
           </h1>
-          <p className="animate-fade-up mt-5 max-w-2xl text-pretty text-lg text-white/85 drop-shadow md:text-xl">
+          <p className="animate-fade-up mt-4 max-w-2xl text-pretty text-base text-white/85 drop-shadow md:text-lg">
             {t('hero.subtitle')}
           </p>
           <div className="animate-fade-up mt-8 flex flex-col gap-3 sm:flex-row">
@@ -237,6 +240,23 @@ export function Hero({ videos }: HeroProps) {
 
       {/* Música de fondo cinematográfica (común a móvil y escritorio) */}
       <audio ref={audioRef} src={HERO_AUDIO} loop muted preload="none" />
+
+      {/* Aviso: "optimizado para ordenador" — solo en móvil, se puede cerrar */}
+      {showDesktopNotice && (
+        <div className="fixed inset-x-4 bottom-4 z-[200] flex items-center gap-3 rounded-xl border border-white/10 bg-[#12151c]/95 px-4 py-3 text-white shadow-xl backdrop-blur-sm sm:hidden">
+          <p className="flex-1 text-xs leading-snug text-white/85">
+            Este sitio está optimizado para verse en ordenador. En móvil algunas partes
+            pueden verse distintas.
+          </p>
+          <button
+            onClick={() => setShowDesktopNotice(false)}
+            className="shrink-0 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white/90 transition hover:bg-white/10"
+            aria-label="Cerrar aviso"
+          >
+            Entendido
+          </button>
+        </div>
+      )}
     </section>
   )
 }
