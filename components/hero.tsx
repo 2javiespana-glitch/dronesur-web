@@ -39,6 +39,12 @@ export function Hero({ videos }: HeroProps) {
     if (!el) return
     el.muted = true
     void el.play().catch(() => {})
+    // Respaldo por si el atributo "loop" falla en algún navegador/vídeo: al terminar,
+    // lo reiniciamos nosotros mismos en vez de depender solo del navegador.
+    el.onended = () => {
+      el.currentTime = 0
+      void el.play().catch(() => {})
+    }
   }, [])
 
   const next = useCallback(
@@ -145,14 +151,14 @@ export function Hero({ videos }: HeroProps) {
   )
 
   return (
-    <section id="top" className="relative w-full overflow-hidden bg-black sm:h-[100svh]">
+    <section
+      id="top"
+      className="relative mt-16 w-full overflow-hidden bg-black sm:h-[calc(100svh-4rem)]"
+    >
       {/* ---------- MÓVIL: caja de vídeo horizontal (estilo YouTube), sin recortar ---------- */}
       <div className="relative aspect-video w-full sm:hidden">
         {renderSlides(true)}
         <div className="pointer-events-none absolute inset-0 bg-black/10" />
-        {/* Degradado negro arriba: para que el menú (Inicio, Instagram, ES/EN...) se lea
-            bien sobre el vídeo, sin taparlo del todo. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-16 bg-gradient-to-b from-black/75 to-transparent" />
         {controls(true)}
         <button
           onClick={toggleMute}
@@ -190,8 +196,6 @@ export function Hero({ videos }: HeroProps) {
         {renderSlides(false)}
         <div className="pointer-events-none absolute inset-0 bg-black/40" />
         <div className="pointer-events-none absolute inset-0 bg-hero-fade" />
-        {/* Degradado extra arriba: para que el menú se lea bien sobre el vídeo */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-[5] h-32 bg-gradient-to-b from-black/70 to-transparent" />
 
         <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-end px-4 pb-24 text-center lg:pb-28">
           <h1 className="animate-fade-up text-balance text-4xl font-extrabold leading-tight text-white drop-shadow-lg md:text-5xl lg:text-6xl">
