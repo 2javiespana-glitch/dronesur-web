@@ -65,7 +65,7 @@ export function Hero({ videos }: HeroProps) {
             >
               {/* Fondo: el mismo vídeo, ampliado y desenfocado, para rellenar los laterales sin recortar el vídeo real */}
               <video
-                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl sm:hidden"
+                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl"
                 src={v.url}
                 autoPlay
                 muted
@@ -75,7 +75,7 @@ export function Hero({ videos }: HeroProps) {
               />
               {/* Vídeo real: nunca se recorta */}
               <video
-                className="relative h-full w-full object-contain sm:object-cover"
+                className="relative h-full w-full object-contain"
                 src={v.url}
                 poster={v.poster}
                 autoPlay
@@ -97,7 +97,7 @@ export function Hero({ videos }: HeroProps) {
                 <>
                   {/* Fondo: el mismo vídeo, ampliado y desenfocado, para rellenar los laterales sin recortar el vídeo real */}
                   <video
-                    className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl sm:hidden"
+                    className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl"
                     src={slide.video}
                     autoPlay
                     muted
@@ -107,7 +107,7 @@ export function Hero({ videos }: HeroProps) {
                   />
                   {/* Vídeo real: nunca se recorta */}
                   <video
-                    className="relative h-full w-full object-contain sm:object-cover"
+                    className="relative h-full w-full object-contain"
                     src={slide.video}
                     poster={slide.poster}
                     autoPlay
