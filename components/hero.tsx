@@ -58,24 +58,13 @@ export function Hero({ videos }: HeroProps) {
         ? videos.map((v, i) => (
             <div
               key={v.id}
-              className={`absolute inset-0 bg-black transition-opacity duration-1000 ${
+              className={`absolute inset-0 transition-opacity duration-1000 ${
                 i === index ? 'opacity-100' : 'opacity-0'
               }`}
               aria-hidden={i !== index}
             >
-              {/* Fondo: el mismo vídeo, ampliado y desenfocado, para rellenar los laterales sin recortar el vídeo real */}
               <video
-                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl"
-                src={v.url}
-                autoPlay
-                muted
-                loop
-                playsInline
-                aria-hidden="true"
-              />
-              {/* Vídeo real: nunca se recorta */}
-              <video
-                className="relative h-full w-full object-contain"
+                className="h-full w-full object-cover"
                 src={v.url}
                 poster={v.poster}
                 autoPlay
@@ -88,34 +77,21 @@ export function Hero({ videos }: HeroProps) {
         : HERO_SLIDES.map((slide, i) => (
             <div
               key={i}
-              className={`absolute inset-0 bg-black transition-opacity duration-1000 ${
+              className={`absolute inset-0 transition-opacity duration-1000 ${
                 i === index ? 'opacity-100' : 'opacity-0'
               }`}
               aria-hidden={i !== index}
             >
               {slide.video ? (
-                <>
-                  {/* Fondo: el mismo vídeo, ampliado y desenfocado, para rellenar los laterales sin recortar el vídeo real */}
-                  <video
-                    className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl"
-                    src={slide.video}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    aria-hidden="true"
-                  />
-                  {/* Vídeo real: nunca se recorta */}
-                  <video
-                    className="relative h-full w-full object-contain"
-                    src={slide.video}
-                    poster={slide.poster}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                  />
-                </>
+                <video
+                  className="h-full w-full object-cover"
+                  src={slide.video}
+                  poster={slide.poster}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
               ) : (
                 <Image
                   src={slide.poster || '/placeholder.svg'}
