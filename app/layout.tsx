@@ -31,9 +31,6 @@ export const metadata: Metadata = {
     'AESA',
     'Dronesur',
   ],
-  icons: {
-    icon: '/logo-dark.png',
-  },
   openGraph: {
     title: 'Dronesur',
     description:
@@ -73,7 +70,6 @@ export default function RootLayout({
   return (
     <html lang="es" className={`dark ${inter.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/logo-dark.png" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
