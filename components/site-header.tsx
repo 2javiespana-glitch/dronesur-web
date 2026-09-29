@@ -37,7 +37,7 @@ export function SiteHeader() {
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
         scrolled
           ? 'border-b border-border bg-background/80 backdrop-blur-xl'
-          : 'bg-transparent'
+          : 'border-b border-white/10 bg-[#0b0e14]/90 backdrop-blur-md'
       }`}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
