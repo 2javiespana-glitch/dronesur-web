@@ -12,6 +12,7 @@ export function Categories() {
   const { t, tl } = useSite()
   const { open } = useQuote()
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
+  const [covers, setCovers] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const saved = localStorage.getItem('dronesur_categories')
@@ -22,6 +23,25 @@ export function Categories() {
         console.error(e)
       }
     }
+  }, [])
+
+  // Portadas de cada tarjeta, subidas desde el admin (categoría "cover-<slug>").
+  // Mientras no subas ninguna, se sigue viendo la foto de stock de siempre.
+  useEffect(() => {
+    fetch('/api/media', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((all: { category: string; url: string; type?: string }[]) => {
+        if (!Array.isArray(all)) return
+        const next: Record<string, string> = {}
+        for (const item of all) {
+          if (item.category?.startsWith('cover-') && item.type !== 'video') {
+            const slug = item.category.replace('cover-', '')
+            next[slug] = item.url // el último subido gana, por eso no usamos "if (!next[slug])"
+          }
+        }
+        setCovers(next)
+      })
+      .catch(() => {})
   }, [])
 
   return (
@@ -43,7 +63,7 @@ export function Categories() {
               className="relative block aspect-[4/3] overflow-hidden"
             >
               <Image
-                src={cat.image || '/placeholder.svg'}
+                src={covers[cat.slug] || cat.image || '/placeholder.svg'}
                 alt={tl(cat.title)}
                 fill
                 sizes="(max-width: 768px) 100vw, 33vw"
