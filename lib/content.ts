@@ -8,6 +8,7 @@ export interface VideoItem {
   category?: string
   type?: 'image' | 'video'
   poster?: string
+  albumId?: string
 }
 
 export const INITIAL_VIDEOS: VideoItem[] = [
