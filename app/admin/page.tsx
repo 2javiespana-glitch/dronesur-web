@@ -11,6 +11,17 @@ import { type Review, useReviews } from '@/lib/reviews'
 const CLOUDINARY_CLOUD_NAME = 'bar5rrho'
 const CLOUDINARY_UPLOAD_PRESET = 'dronesur videos'
 
+// Categorías que tienen subpágina propia y admiten álbumes (carpetas de trabajos)
+const JOB_CATEGORIES = [
+  { value: 'inmobiliaria', label: 'Inmobiliaria, Hoteles y Terrenos' },
+  { value: 'eventos', label: 'Bodas, Graduaciones y Eventos' },
+  { value: 'fotogrametria', label: 'Fotogrametría y Modelado 3D' },
+  { value: 'obra', label: 'Seguimiento de Obra' },
+  { value: 'aerea', label: 'Aérea / Otros servicios' },
+]
+
+type Album = { id: string; category: string; title: string; createdAt: number }
+
 type Draft = Omit<Review, 'id'>
 
 const EMPTY: Draft = { name: '', role: '', rating: 5, text: '' }
@@ -32,6 +43,11 @@ export default function AdminPage() {
   const [uploadInfo, setUploadInfo] = useState('')
 
   const [newVideo, setNewVideo] = useState({ title: '', url: '', category: 'hero' })
+  const [albums, setAlbums] = useState<Album[]>([])
+  const [selectedAlbumId, setSelectedAlbumId] = useState('') // '' = sin álbum (galería general)
+  const [newAlbumTitle, setNewAlbumTitle] = useState('')
+  const [creatingAlbum, setCreatingAlbum] = useState(false)
+  const [albumError, setAlbumError] = useState('')
 
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -60,8 +76,67 @@ export default function AdminPage() {
     }
   }
 
+  const loadAlbums = async () => {
+    try {
+      const res = await fetch('/api/albums', { cache: 'no-store' })
+      const data = await res.json()
+      setAlbums(Array.isArray(data) ? data : [])
+    } catch {
+      setAlbumError('No se pudieron cargar los álbumes.')
+    }
+  }
+
+  const createAlbum = async () => {
+    const title = newAlbumTitle.trim()
+    if (!title) return
+    if (!JOB_CATEGORIES.some((c) => c.value === newVideo.category)) return
+    setCreatingAlbum(true)
+    setAlbumError('')
+    try {
+      const res = await fetch('/api/albums', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ action: 'add', album: { category: newVideo.category, title } }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setAlbumError(data?.error || 'No se pudo crear el álbum.')
+        return
+      }
+      setAlbums(data.albums)
+      const created = data.albums[data.albums.length - 1]
+      setSelectedAlbumId(created?.id ?? '')
+      setNewAlbumTitle('')
+    } catch {
+      setAlbumError('Error de conexión al crear el álbum.')
+    } finally {
+      setCreatingAlbum(false)
+    }
+  }
+
+  const deleteAlbum = async (id: string) => {
+    if (!confirm('¿Borrar este álbum? También se borrarán las fotos y vídeos que tenga dentro.')) return
+    try {
+      const res = await fetch('/api/albums', {
+        method: 'DELETE',
+        headers: jsonHeaders,
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setAlbumError(data?.error || 'No se pudo borrar el álbum.')
+        return
+      }
+      setAlbums(data.albums)
+      if (selectedAlbumId === id) setSelectedAlbumId('')
+      void loadMedia()
+    } catch {
+      setAlbumError('Error de conexión al borrar el álbum.')
+    }
+  }
+
   // Guarda un elemento en el servidor (base de datos), no en el navegador.
-  const saveMedia = async (item: { title: string; url: string; category: string; type: 'image' | 'video' }) => {
+  const saveMedia = async (item: { title: string; url: string; category: string; type: 'image' | 'video'; albumId?: string }) => {
     try {
       const res = await fetch('/api/media', {
         method: 'POST',
@@ -82,11 +157,20 @@ export default function AdminPage() {
     }
   }
 
+  const currentAlbumId = () =>
+    JOB_CATEGORIES.some((c) => c.value === newVideo.category) && selectedAlbumId
+      ? selectedAlbumId
+      : undefined
+
   const handleAddVideo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVideo.url) return
     const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(newVideo.url)
-    const ok = await saveMedia({ ...newVideo, type: isVideo ? 'video' : 'image' })
+    const ok = await saveMedia({
+      ...newVideo,
+      type: isVideo ? 'video' : 'image',
+      albumId: currentAlbumId(),
+    })
     if (ok) setNewVideo({ title: '', url: '', category: newVideo.category })
   }
 
@@ -143,6 +227,7 @@ export default function AdminPage() {
             url: response.secure_url,
             category: newVideo.category,
             type: response.resource_type === 'video' ? 'video' : 'image',
+            albumId: currentAlbumId(),
           })
         } else {
           let detail = ''
@@ -229,6 +314,7 @@ export default function AdminPage() {
         setAuthed(true)
         setError(false)
         void loadMedia()
+        void loadAlbums()
       } else {
         setError(true)
       }
@@ -503,17 +589,79 @@ export default function AdminPage() {
             <select
               id="v-category"
               value={newVideo.category}
-              onChange={(e) => setNewVideo({ ...newVideo, category: e.target.value })}
+              onChange={(e) => {
+                setNewVideo({ ...newVideo, category: e.target.value })
+                setSelectedAlbumId('')
+                setNewAlbumTitle('')
+              }}
               className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
             >
-              <option value="hero">Inicio (carrusel principal)</option>
-              <option value="inmobiliaria">Inmobiliaria, Hoteles y Terrenos</option>
-              <option value="eventos">Bodas, Graduaciones y Eventos</option>
-              <option value="fotogrametria">Fotogrametría y Modelado 3D</option>
-              <option value="obra">Seguimiento de Obra</option>
-              <option value="aerea">Aérea / Otros servicios</option>
+              <optgroup label="Inicio">
+                <option value="hero">Carrusel principal (vídeos)</option>
+              </optgroup>
+              <optgroup label="Categorías (subpágina de cada servicio)">
+                {JOB_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Portada (tarjeta en la página principal)">
+                {JOB_CATEGORIES.map((c) => (
+                  <option key={`cover-${c.value}`} value={`cover-${c.value}`}>
+                    Portada — {c.label}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
+
+          {JOB_CATEGORIES.some((c) => c.value === newVideo.category) && (
+            <div className="sm:col-span-2 rounded-xl border border-border bg-background/50 p-4">
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="v-album">
+                Álbum (carpeta del trabajo, ej. "Boda García-Pérez")
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <select
+                  id="v-album"
+                  value={selectedAlbumId}
+                  onChange={(e) => setSelectedAlbumId(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)] sm:flex-1"
+                >
+                  <option value="">Sin álbum (galería general de la categoría)</option>
+                  {albums
+                    .filter((a) => a.category === newVideo.category)
+                    .map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={newAlbumTitle}
+                  onChange={(e) => setNewAlbumTitle(e.target.value)}
+                  placeholder="Nombre del nuevo álbum (ej. Boda García-Pérez)"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)] sm:flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={createAlbum}
+                  disabled={!newAlbumTitle.trim() || creatingAlbum}
+                  className="shrink-0 rounded-lg bg-[var(--gold)] px-4 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-50"
+                >
+                  {creatingAlbum ? 'Creando…' : '+ Crear álbum'}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Crea el álbum una vez; después ya queda seleccionado arriba para todo lo que subas
+                a continuación en esta misma categoría.
+              </p>
+              {albumError && <p className="mt-2 text-sm text-destructive">{albumError}</p>}
+            </div>
+          )}
 
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium">
@@ -597,11 +745,16 @@ export default function AdminPage() {
           >
             <option value="all">Todas las categorías</option>
             <option value="hero">Inicio (carrusel principal)</option>
-            <option value="inmobiliaria">Inmobiliaria, Hoteles y Terrenos</option>
-            <option value="eventos">Bodas, Graduaciones y Eventos</option>
-            <option value="fotogrametria">Fotogrametría y Modelado 3D</option>
-            <option value="obra">Seguimiento de Obra</option>
-            <option value="aerea">Aérea / Otros servicios</option>
+            {JOB_CATEGORIES.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+            {JOB_CATEGORIES.map((c) => (
+              <option key={`cover-${c.value}`} value={`cover-${c.value}`}>
+                Portada — {c.label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -621,10 +774,50 @@ export default function AdminPage() {
               <div className="min-w-0">
                 <p className="font-semibold">{v.title || '(sin título)'}</p>
                 <p className="truncate text-xs text-muted-foreground">{v.url}</p>
-                <p className="text-xs text-muted-foreground">Categoría: {v.category} · {v.type === 'image' ? 'Foto' : 'Vídeo'}</p>
+                <p className="text-xs text-muted-foreground">
+                  Categoría: {v.category} · {v.type === 'image' ? 'Foto' : 'Vídeo'}
+                  {v.albumId && (
+                    <> · Álbum: {albums.find((a) => a.id === v.albumId)?.title ?? '(borrado)'}</>
+                  )}
+                </p>
               </div>
               <button
                 onClick={() => handleDeleteVideo(v.id)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Panel de Gestión de Álbumes (carpetas dentro de cada categoría) */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold">Álbumes creados</h2>
+        <p className="text-sm text-muted-foreground">
+          Borrar un álbum borra también todas las fotos y vídeos que tenga dentro.
+        </p>
+        {albumError && <p className="mt-2 text-sm text-destructive">{albumError}</p>}
+        <div className="mt-4 space-y-2">
+          {albums.length === 0 && (
+            <p className="text-sm text-muted-foreground">Todavía no has creado ningún álbum.</p>
+          )}
+          {albums.map((a) => (
+            <div
+              key={a.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{a.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {JOB_CATEGORIES.find((c) => c.value === a.category)?.label ?? a.category} ·{' '}
+                  {videos.filter((v) => v.albumId === a.id).length} archivo(s)
+                </p>
+              </div>
+              <button
+                onClick={() => deleteAlbum(a.id)}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
