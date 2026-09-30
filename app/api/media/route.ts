@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { readJSON, writeJSON, isAdmin, adminPasswordConfigured } from '@/lib/kv'
 
-// Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría) en una base de datos
-// Upstash Redis, para que TODOS los visitantes vean lo mismo (no solo tu navegador).
+// Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría, y opcionalmente
+// su álbum) en una base de datos Upstash Redis, para que TODOS los visitantes vean lo
+// mismo (no solo tu navegador).
 //
-// - GET     -> devuelve la lista (pública, la usan el hero y las subpáginas)
+// - GET     -> devuelve la lista (pública, la usan el hero, las portadas y las subpáginas)
 // - POST    -> { action: 'check' }  comprueba la contraseña del admin
 //              { action: 'add', item } añade una foto o vídeo (solo admin)
 // - DELETE  -> { id } borra un elemento (solo admin)
@@ -11,7 +13,12 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 
 const KEY = 'dronesur:media'
-const ALLOWED_CATEGORIES = ['hero', 'inmobiliaria', 'eventos', 'fotogrametria', 'obra', 'aerea']
+
+// Categorías de "trabajo" (las que tienen subpágina propia con álbumes)
+const JOB_CATEGORIES = ['inmobiliaria', 'eventos', 'fotogrametria', 'obra', 'aerea']
+// Categorías especiales: el carrusel de inicio, y la "portada" de cada tarjeta de servicio
+const SPECIAL_CATEGORIES = ['hero', ...JOB_CATEGORIES.map((c) => `cover-${c}`)]
+const ALLOWED_CATEGORIES = [...JOB_CATEGORIES, ...SPECIAL_CATEGORIES]
 
 type MediaItem = {
   id: string
@@ -19,48 +26,15 @@ type MediaItem = {
   url: string
   category: string
   type: 'image' | 'video'
-}
-
-// Vercel puede llamar a las variables de una forma u otra según la integración,
-// así que aceptamos las dos.
-function dbConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
-  if (!url || !token) throw new Error('DB_NOT_CONFIGURED')
-  return { url, token }
-}
-
-async function redis(command: string[]) {
-  const { url, token } = dbConfig()
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-    cache: 'no-store',
-  })
-  const data = await res.json()
-  if (data.error) throw new Error(data.error)
-  return data.result
+  albumId?: string
 }
 
 async function readAll(): Promise<MediaItem[]> {
-  const raw = await redis(['GET', KEY])
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
+  return readJSON<MediaItem[]>(KEY, [])
 }
 
 async function writeAll(items: MediaItem[]) {
-  await redis(['SET', KEY, JSON.stringify(items)])
-}
-
-function isAdmin(req: Request) {
-  const expected = process.env.ADMIN_PASSWORD
-  return !!expected && req.headers.get('x-admin-password') === expected
+  await writeJSON(KEY, items)
 }
 
 function fail(message: string, status: number) {
@@ -85,7 +59,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!process.env.ADMIN_PASSWORD) {
+  if (!adminPasswordConfigured()) {
     return fail('Falta configurar ADMIN_PASSWORD en Vercel (Settings > Environment Variables).', 500)
   }
   if (!isAdmin(req)) return fail('Contraseña incorrecta', 401)
@@ -115,6 +89,7 @@ export async function POST(req: Request) {
         url: item.url,
         category: item.category,
         type: item.type === 'image' ? 'image' : 'video',
+        ...(item.albumId ? { albumId: String(item.albumId) } : {}),
       }
       const updated = [...items, newItem]
       await writeAll(updated)
