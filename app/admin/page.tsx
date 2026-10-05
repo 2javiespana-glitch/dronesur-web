@@ -5,22 +5,32 @@ import Link from 'next/link'
 import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2, UploadCloud } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { type VideoItem, CATEGORIES, type Category } from '@/lib/content'
-import { type Review, useReviews } from '@/lib/reviews'
+type Review = {
+  id: string
+  name: string
+  role: string
+  rating: number
+  text: string
+  source?: 'public' | 'admin'
+  createdAt?: number
+}
 
 // ⬅️ SUSTITUYE estos dos valores por los tuyos de Cloudinary (no son secretos, es normal que estén aquí)
 const CLOUDINARY_CLOUD_NAME = 'bar5rrho'
 const CLOUDINARY_UPLOAD_PRESET = 'dronesur videos'
 
-// Categorías que tienen subpágina propia y admiten álbumes (carpetas de trabajos)
-const JOB_CATEGORIES = [
-  { value: 'inmobiliaria', label: 'Inmobiliaria, Hoteles y Terrenos' },
-  { value: 'eventos', label: 'Bodas, Graduaciones y Eventos' },
-  { value: 'fotogrametria', label: 'Fotogrametría y Modelado 3D' },
-  { value: 'obra', label: 'Seguimiento de Obra' },
-  { value: 'aerea', label: 'Aérea / Otros servicios' },
-]
-
 type Album = { id: string; category: string; title: string; createdAt: number }
+
+const EMPTY_CATEGORY_DRAFT = {
+  titleEs: '',
+  titleEn: '',
+  shortEs: '',
+  shortEn: '',
+  descriptionEs: '',
+  descriptionEn: '',
+  priceEs: '',
+  priceEn: '',
+}
 
 type Draft = Omit<Review, 'id'>
 
@@ -28,7 +38,248 @@ const EMPTY: Draft = { name: '', role: '', rating: 5, text: '' }
 
 export default function AdminPage() {
   const { t } = useSite()
-  const { reviews, addReview, updateReview, deleteReview, resetReviews } = useReviews()
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewsError, setReviewsError] = useState('')
+
+  const loadReviews = () => {
+    fetch('/api/reviews', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setReviews(data)
+      })
+      .catch(() => setReviewsError('No se pudieron cargar las reseñas.'))
+  }
+
+  const addReview = async (draft: Draft) => {
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ action: 'add', review: draft }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setReviewsError(data?.error || 'No se pudo guardar la reseña.')
+        return
+      }
+      setReviews(data.reviews)
+      setReviewsError('')
+    } catch {
+      setReviewsError('Error de conexión al guardar la reseña.')
+    }
+  }
+
+  const updateReview = async (id: string, draft: Draft) => {
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ action: 'update', id, review: draft }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setReviewsError(data?.error || 'No se pudo actualizar la reseña.')
+        return
+      }
+      setReviews(data.reviews)
+      setReviewsError('')
+    } catch {
+      setReviewsError('Error de conexión al actualizar la reseña.')
+    }
+  }
+
+  const deleteReview = async (id: string) => {
+    if (!confirm('¿Borrar esta reseña?')) return
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'DELETE',
+        headers: jsonHeaders,
+        body: JSON.stringify({ id }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setReviewsError(data?.error || 'No se pudo borrar la reseña.')
+        return
+      }
+      setReviews(data.reviews)
+    } catch {
+      setReviewsError('Error de conexión al borrar la reseña.')
+    }
+  }
+
+  type PromoOverride = {
+    badgeEs: string
+    titleEs: string
+    textEs: string
+    ctaEs: string
+    badgeEn: string
+    titleEn: string
+    textEn: string
+    ctaEn: string
+  }
+  const EMPTY_PROMO_OVERRIDE: PromoOverride = {
+    badgeEs: '',
+    titleEs: '',
+    textEs: '',
+    ctaEs: '',
+    badgeEn: '',
+    titleEn: '',
+    textEn: '',
+    ctaEn: '',
+  }
+
+  type SiteSettings = {
+    promo: boolean
+    coverage: boolean
+    guarantee: boolean
+    reviews: boolean
+    legal: boolean
+    about: boolean
+    pilot: boolean
+    promoOverride: PromoOverride
+  }
+  const DEFAULT_SETTINGS: SiteSettings = {
+    promo: true,
+    coverage: true,
+    guarantee: true,
+    reviews: true,
+    legal: true,
+    about: true,
+    pilot: true,
+    promoOverride: EMPTY_PROMO_OVERRIDE,
+  }
+  const SETTINGS_LABELS: { key: keyof SiteSettings; label: string }[] = [
+    { key: 'promo', label: 'Banner de bienvenida / descuento' },
+    { key: 'coverage', label: 'Zonas de cobertura' },
+    { key: 'guarantee', label: 'Garantía legal' },
+    { key: 'reviews', label: 'Reseñas de clientes' },
+    { key: 'legal', label: 'Sección legal' },
+    { key: 'about', label: 'Sobre Nosotros' },
+    { key: 'pilot', label: 'Sobre el piloto' },
+  ]
+
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [settingsError, setSettingsError] = useState('')
+
+  const loadSettings = () => {
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data && typeof data === 'object') {
+          setSettings({
+            ...DEFAULT_SETTINGS,
+            ...data,
+            promoOverride: { ...EMPTY_PROMO_OVERRIDE, ...(data.promoOverride ?? {}) },
+          })
+        }
+      })
+      .catch(() => setSettingsError('No se pudo cargar la configuración.'))
+  }
+
+  const saveSettings = async (next: SiteSettings) => {
+    setSettings(next) // optimista: se ve el cambio al instante
+    setSettingsSaving(true)
+    setSettingsError('')
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ action: 'set', settings: next }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setSettingsError(data?.error || 'No se pudo guardar.')
+        return
+      }
+      setSettings(data)
+      setSettingsSaved(true)
+      setTimeout(() => setSettingsSaved(false), 1500)
+    } catch {
+      setSettingsError('Error de conexión al guardar.')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
+  const [categories, setCategories] = useState<Category[]>(CATEGORIES)
+  const jobCategories = categories.map((c) => ({ value: c.slug, label: c.title.es }))
+
+  const [categoryDraft, setCategoryDraft] = useState(EMPTY_CATEGORY_DRAFT)
+  const [categoryError, setCategoryError] = useState('')
+  const [creatingCategory, setCreatingCategory] = useState(false)
+
+  const loadCategories = () => {
+    fetch('/api/categories', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setCategories(data)
+      })
+      .catch(() => setCategoryError('No se pudieron cargar las categorías.'))
+  }
+
+  const addCategory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!categoryDraft.titleEs.trim()) {
+      setCategoryError('Ponle al menos un título en español.')
+      return
+    }
+    setCreatingCategory(true)
+    setCategoryError('')
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          action: 'add',
+          category: {
+            title: { es: categoryDraft.titleEs, en: categoryDraft.titleEn },
+            short: { es: categoryDraft.shortEs, en: categoryDraft.shortEn },
+            description: { es: categoryDraft.descriptionEs, en: categoryDraft.descriptionEn },
+            price: { es: categoryDraft.priceEs, en: categoryDraft.priceEn },
+          },
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setCategoryError(data?.error || 'No se pudo crear la categoría.')
+        return
+      }
+      setCategories(data.categories)
+      setCategoryDraft(EMPTY_CATEGORY_DRAFT)
+    } catch {
+      setCategoryError('Error de conexión al crear la categoría.')
+    } finally {
+      setCreatingCategory(false)
+    }
+  }
+
+  const deleteCategory = async (slug: string, title: string) => {
+    if (
+      !confirm(
+        `¿Borrar "${title}"? También se borrarán todas sus fotos, vídeos, su portada y sus álbumes. Esto no se puede deshacer.`,
+      )
+    )
+      return
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'DELETE',
+        headers: jsonHeaders,
+        body: JSON.stringify({ slug }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setCategoryError(data?.error || 'No se pudo borrar la categoría.')
+        return
+      }
+      setCategories(data.categories)
+      void loadMedia()
+      void loadAlbums()
+    } catch {
+      setCategoryError('Error de conexión al borrar la categoría.')
+    }
+  }
 
   const [authed, setAuthed] = useState(false)
   const [pass, setPass] = useState('')
@@ -89,7 +340,7 @@ export default function AdminPage() {
   const createAlbum = async () => {
     const title = newAlbumTitle.trim()
     if (!title) return
-    if (!JOB_CATEGORIES.some((c) => c.value === newVideo.category)) return
+    if (!jobCategories.some((c) => c.value === newVideo.category)) return
     setCreatingAlbum(true)
     setAlbumError('')
     try {
@@ -158,7 +409,7 @@ export default function AdminPage() {
   }
 
   const currentAlbumId = () =>
-    JOB_CATEGORIES.some((c) => c.value === newVideo.category) && selectedAlbumId
+    jobCategories.some((c) => c.value === newVideo.category) && selectedAlbumId
       ? selectedAlbumId
       : undefined
 
@@ -315,6 +566,9 @@ export default function AdminPage() {
         setError(false)
         void loadMedia()
         void loadAlbums()
+        loadReviews()
+        loadSettings()
+        loadCategories()
       } else {
         setError(true)
       }
@@ -399,14 +653,6 @@ export default function AdminPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={resetReviews}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            {t('admin.reset')}
-          </button>
-
           <button
             onClick={() => setAuthed(false)}
             className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted"
@@ -562,6 +808,243 @@ export default function AdminPage() {
         ))}
       </div>
 
+      {reviewsError && <p className="mt-2 text-sm text-destructive">{reviewsError}</p>}
+
+      {/* Panel: Qué se ve en la web */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold">Qué se ve en la web</h2>
+        <p className="text-sm text-muted-foreground">
+          Desmarca una casilla para ocultar esa sección de la página principal. El Inicio
+          (carrusel), los Servicios y el Contacto siempre están visibles.
+        </p>
+
+        <div className="mt-4 grid gap-2 rounded-2xl border border-border bg-card p-5 sm:grid-cols-2">
+          {SETTINGS_LABELS.map(({ key, label }) => (
+            <label
+              key={key}
+              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition hover:bg-muted"
+            >
+              <input
+                type="checkbox"
+                checked={settings[key]}
+                onChange={(e) => saveSettings({ ...settings, [key]: e.target.checked })}
+                className="h-4 w-4 rounded border-input accent-[var(--gold)]"
+              />
+              Show: {label}
+            </label>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          {settingsSaving && <span>Guardando…</span>}
+          {settingsSaved && <span className="text-[var(--gold)]">Guardado ✓</span>}
+          {settingsError && <span className="text-destructive">{settingsError}</span>}
+        </div>
+      </div>
+
+      {/* Panel: Texto del banner de descuento */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold">Texto del banner de descuento</h2>
+        <p className="text-sm text-muted-foreground">
+          Deja un campo en blanco para usar el texto de siempre. Rellénalo para
+          sustituirlo (ej. cambiar "15%" por "20%", o poner "Oferta Halloween").
+        </p>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            saveSettings(settings)
+          }}
+          className="mt-4 grid gap-6 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
+        >
+          {(
+            [
+              { lang: 'Español', badge: 'badgeEs', title: 'titleEs', text: 'textEs', cta: 'ctaEs' },
+              { lang: 'English', badge: 'badgeEn', title: 'titleEn', text: 'textEn', cta: 'ctaEn' },
+            ] as const
+          ).map((col) => (
+            <div key={col.lang} className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground">{col.lang}</h3>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Insignia (ej. "NUEVOS CLIENTES")</label>
+                <input
+                  value={settings.promoOverride[col.badge]}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      promoOverride: { ...settings.promoOverride, [col.badge]: e.target.value },
+                    })
+                  }
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Título (ej. "15% de descuento")</label>
+                <input
+                  value={settings.promoOverride[col.title]}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      promoOverride: { ...settings.promoOverride, [col.title]: e.target.value },
+                    })
+                  }
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Texto descriptivo</label>
+                <textarea
+                  rows={2}
+                  value={settings.promoOverride[col.text]}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      promoOverride: { ...settings.promoOverride, [col.text]: e.target.value },
+                    })
+                  }
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Texto del botón</label>
+                <input
+                  value={settings.promoOverride[col.cta]}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      promoOverride: { ...settings.promoOverride, [col.cta]: e.target.value },
+                    })
+                  }
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+            </div>
+          ))}
+
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              disabled={settingsSaving}
+              className="rounded-full bg-[var(--gold)] px-6 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
+            >
+              {settingsSaving ? 'Guardando…' : 'Guardar texto del banner'}
+            </button>
+            {settingsSaved && <span className="ml-3 text-sm text-[var(--gold)]">Guardado ✓</span>}
+          </div>
+        </form>
+      </div>
+
+      {/* Panel: Categorías de servicio */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold">Categorías de servicio</h2>
+        <p className="text-sm text-muted-foreground">
+          Crea tantas categorías como quieras (ej. "Deportes", "Tomas para cine") o borra
+          las que no tengan futuro. Aparecen en la portada con el mismo estilo que las demás.
+        </p>
+
+        {categoryError && <p className="mt-2 text-sm text-destructive">{categoryError}</p>}
+
+        {/* Listado */}
+        <div className="mt-4 space-y-2">
+          {categories.map((cat) => (
+            <div
+              key={cat.slug}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3.5"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">{cat.title.es}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  /servicios/{cat.slug} · {cat.price.es || 'sin precio'}
+                </p>
+              </div>
+              <button
+                onClick={() => deleteCategory(cat.slug, cat.title.es)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-destructive/40 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:bg-destructive/10"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Formulario de nueva categoría */}
+        <form
+          onSubmit={addCategory}
+          className="mt-5 grid gap-5 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
+        >
+          <h3 className="text-sm font-semibold sm:col-span-2">+ Nueva categoría</h3>
+
+          {(
+            [
+              { lang: 'Español', title: 'titleEs', short: 'shortEs', desc: 'descriptionEs', price: 'priceEs' },
+              { lang: 'English', title: 'titleEn', short: 'shortEn', desc: 'descriptionEn', price: 'priceEn' },
+            ] as const
+          ).map((col) => (
+            <div key={col.lang} className="space-y-3">
+              <h4 className="text-xs font-semibold text-muted-foreground">{col.lang}</h4>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">
+                  Título {col.lang === 'Español' && '(obligatorio)'}
+                </label>
+                <input
+                  value={categoryDraft[col.title]}
+                  onChange={(e) => setCategoryDraft({ ...categoryDraft, [col.title]: e.target.value })}
+                  placeholder={col.lang === 'Español' ? 'Ej. Deportes' : 'Ej. Sports'}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Resumen corto (tarjeta de inicio)</label>
+                <input
+                  value={categoryDraft[col.short]}
+                  onChange={(e) => setCategoryDraft({ ...categoryDraft, [col.short]: e.target.value })}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Descripción (dentro de la categoría)</label>
+                <textarea
+                  rows={2}
+                  value={categoryDraft[col.desc]}
+                  onChange={(e) => setCategoryDraft({ ...categoryDraft, [col.desc]: e.target.value })}
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Precio (ej. "desde 30 €/hora")</label>
+                <input
+                  value={categoryDraft[col.price]}
+                  onChange={(e) => setCategoryDraft({ ...categoryDraft, [col.price]: e.target.value })}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+            </div>
+          ))}
+
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              disabled={creatingCategory}
+              className="rounded-full bg-[var(--gold)] px-6 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
+            >
+              {creatingCategory ? 'Creando…' : '+ Crear categoría'}
+            </button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              La foto de la tarjeta se añade después, igual que con las demás: eligiéndola
+              en "Gestión de Fotos y Vídeos" con la categoría "Portada — {categoryDraft.titleEs || '...'}".
+            </p>
+          </div>
+        </form>
+      </div>
+
       {/* Panel de Gestión de Vídeos */}
       <div className="mt-10">
         <h2 className="text-xl font-bold">Gestión de Fotos y Vídeos</h2>
@@ -600,14 +1083,14 @@ export default function AdminPage() {
                 <option value="hero">Carrusel principal (vídeos)</option>
               </optgroup>
               <optgroup label="Categorías (subpágina de cada servicio)">
-                {JOB_CATEGORIES.map((c) => (
+                {jobCategories.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}
                   </option>
                 ))}
               </optgroup>
               <optgroup label="Portada (tarjeta en la página principal)">
-                {JOB_CATEGORIES.map((c) => (
+                {jobCategories.map((c) => (
                   <option key={`cover-${c.value}`} value={`cover-${c.value}`}>
                     Portada — {c.label}
                   </option>
@@ -616,7 +1099,7 @@ export default function AdminPage() {
             </select>
           </div>
 
-          {JOB_CATEGORIES.some((c) => c.value === newVideo.category) && (
+          {jobCategories.some((c) => c.value === newVideo.category) && (
             <div className="sm:col-span-2 rounded-xl border border-border bg-background/50 p-4">
               <label className="mb-1.5 block text-sm font-medium" htmlFor="v-album">
                 Álbum (carpeta del trabajo, ej. "Boda García-Pérez")
@@ -745,12 +1228,12 @@ export default function AdminPage() {
           >
             <option value="all">Todas las categorías</option>
             <option value="hero">Inicio (carrusel principal)</option>
-            {JOB_CATEGORIES.map((c) => (
+            {jobCategories.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>
             ))}
-            {JOB_CATEGORIES.map((c) => (
+            {jobCategories.map((c) => (
               <option key={`cover-${c.value}`} value={`cover-${c.value}`}>
                 Portada — {c.label}
               </option>
@@ -812,7 +1295,7 @@ export default function AdminPage() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold">{a.title}</p>
                 <p className="text-xs text-muted-foreground">
-                  {JOB_CATEGORIES.find((c) => c.value === a.category)?.label ?? a.category} ·{' '}
+                  {jobCategories.find((c) => c.value === a.category)?.label ?? a.category} ·{' '}
                   {videos.filter((v) => v.albumId === a.id).length} archivo(s)
                 </p>
               </div>
