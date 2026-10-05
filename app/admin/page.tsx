@@ -305,11 +305,6 @@ export default function AdminPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState('')
 
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('dronesur_categories') : null
-    return saved ? JSON.parse(saved) : CATEGORIES
-  })
-
   const [editingCatSlug, setEditingCatSlug] = useState<string | null>(null)
   const [catDraft, setCatDraft] = useState<Category | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
