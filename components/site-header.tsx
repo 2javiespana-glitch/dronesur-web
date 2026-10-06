@@ -1,5 +1,8 @@
-'use client'
 
+
+Site header · TSX
+'use client'
+ 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -8,30 +11,56 @@ import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { InstagramIcon } from '@/components/icons'
 import { SITE } from '@/lib/content'
-
-const LINKS = [
+ 
+// Claves de /api/settings que controlan secciones con enlace en el menú.
+type SectionKey = 'promo' | 'guarantee' | 'reviews' | 'legal' | 'about'
+type VisibilitySettings = Partial<Record<SectionKey, boolean>>
+ 
+// `section` es la clave del panel de admin que controla ese enlace.
+// Sin `section`, el enlace se muestra siempre (Inicio, Servicios, Contacto).
+const LINKS: { key: string; href: string; section?: SectionKey }[] = [
   { key: 'nav.home', href: '/#top' },
   { key: 'nav.services', href: '/#servicios' },
-  { key: 'nav.promos', href: '/#promociones' },
-  { key: 'nav.legal', href: '/#garantia-legal' },
-  { key: 'nav.reviews', href: '/#resenas' },
-  { key: 'nav.about', href: '/#sobre' },
+  { key: 'nav.promos', href: '/#promociones', section: 'promo' },
+  { key: 'nav.legal', href: '/#garantia-legal', section: 'legal' },
+  { key: 'nav.reviews', href: '/#resenas', section: 'reviews' },
+  { key: 'nav.about', href: '/#sobre', section: 'about' },
   { key: 'nav.contact', href: '/#contacto' },
 ]
-
+ 
 export function SiteHeader() {
   const { theme, toggleTheme, lang, setLang, t } = useSite()
   const { open } = useQuote()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-
+  const [settings, setSettings] = useState<VisibilitySettings>({})
+ 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
-
+ 
+  // Lee qué secciones están visibles (lo mismo que usa la página principal).
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setSettings(data)
+      })
+      .catch(() => {
+        // Si falla, se dejan todos los enlaces visibles.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+ 
+  // Un enlace se oculta solo si su sección está explícitamente en false.
+  const visibleLinks = LINKS.filter((l) => !l.section || settings[l.section] !== false)
+ 
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
@@ -54,9 +83,9 @@ export function SiteHeader() {
             Drone<span className="text-gold">sur</span>
           </span>
         </Link>
-
+ 
         <nav className="hidden items-center gap-1 lg:flex">
-          {LINKS.map((l) => (
+          {visibleLinks.map((l) => (
             <Link
               key={l.key}
               href={l.href}
@@ -66,7 +95,7 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-
+ 
         <div className="flex items-center gap-1.5">
           <a
             href={SITE.instagramUrl}
@@ -77,7 +106,7 @@ export function SiteHeader() {
           >
             <InstagramIcon className="h-5 w-5" />
           </a>
-
+ 
           <div className="flex overflow-hidden rounded-full border border-border text-xs font-semibold">
             <button
               onClick={() => setLang('es')}
@@ -102,7 +131,7 @@ export function SiteHeader() {
               EN
             </button>
           </div>
-
+ 
           <button
             onClick={toggleTheme}
             className="rounded-full p-2 text-foreground/80 transition hover:bg-muted hover:text-gold"
@@ -114,14 +143,14 @@ export function SiteHeader() {
               <Moon className="h-5 w-5" />
             )}
           </button>
-
+ 
           <button
             onClick={() => open()}
             className="ml-1 hidden rounded-full bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] sm:inline-flex"
           >
             {t('hero.cta')}
           </button>
-
+ 
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className="rounded-full p-2 text-foreground lg:hidden"
@@ -132,11 +161,11 @@ export function SiteHeader() {
           </button>
         </div>
       </div>
-
+ 
       {mobileOpen && (
         <nav className="border-t border-border bg-background/95 backdrop-blur-xl lg:hidden">
           <div className="flex flex-col px-4 py-3">
-            {LINKS.map((l) => (
+            {visibleLinks.map((l) => (
               <Link
                 key={l.key}
                 href={l.href}
@@ -161,3 +190,4 @@ export function SiteHeader() {
     </header>
   )
 }
+ 
