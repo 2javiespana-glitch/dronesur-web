@@ -4,10 +4,19 @@ import { CategoryDetail } from '@/components/category-detail'
 import { SiteFooter } from '@/components/contact-footer'
 import { WhatsAppFab } from '@/components/whatsapp-fab'
 import { CookieBanner } from '@/components/cookie-banner'
-import { CATEGORIES, getCategory } from '@/lib/content'
+import { getCategory } from '@/lib/content'
+import { readJSON } from '@/lib/kv'
 
-export function generateStaticParams() {
-  return CATEGORIES.map((c) => ({ slug: c.slug }))
+// La página lee cada vez qué categorías están ocultas (panel de admin), así que no se genera fija.
+export const dynamic = 'force-dynamic'
+
+async function getHiddenCategories(): Promise<string[]> {
+  try {
+    const settings = await readJSON<{ hiddenCategories?: string[] }>('dronesur:settings', {})
+    return Array.isArray(settings.hiddenCategories) ? settings.hiddenCategories : []
+  } catch {
+    return []
+  }
 }
 
 export default async function CategoryPage({
@@ -18,6 +27,10 @@ export default async function CategoryPage({
   const { slug } = await params
   const category = getCategory(slug)
   if (!category) notFound()
+
+  // Categoría oculta desde el admin: la dirección deja de funcionar.
+  const hidden = await getHiddenCategories()
+  if (hidden.includes(slug)) notFound()
 
   return (
     <>
