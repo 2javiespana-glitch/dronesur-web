@@ -25,12 +25,32 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState('')
   const [details, setDetails] = useState('')
   const [discount, setDiscount] = useState(true)
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([])
 
   const open = (opts?: { service?: string; discount?: boolean }) => {
     if (opts?.service) setService(opts.service)
     if (typeof opts?.discount === 'boolean') setDiscount(opts.discount)
     setIsOpen(true)
   }
+
+  // Al abrir el formulario, lee qué categorías están ocultas desde el panel de admin.
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.hiddenCategories)) {
+          setHiddenCategories(data.hiddenCategories)
+        }
+      })
+      .catch(() => {
+        // Si falla, se muestran todas las categorías.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -115,7 +135,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                   className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
                 >
                   <option value="">{t('wa.selectPlaceholder')}</option>
-                  {CATEGORIES.map((c) => (
+                  {CATEGORIES.filter((c) => !hiddenCategories.includes(c.slug)).map((c) => (
                     <option key={c.slug} value={tl(c.title)}>
                       {tl(c.title)}
                     </option>
