@@ -6,6 +6,7 @@ import { Star, Loader2, CheckCircle2 } from 'lucide-react'
 type Review = {
   id: string
   name: string
+  role?: string
   rating: number
   text: string
   source: 'public' | 'admin'
@@ -43,6 +44,7 @@ export function ReviewsSection() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
+  const [role, setRole] = useState('')
   const [rating, setRating] = useState(5)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
@@ -76,7 +78,7 @@ export function ReviewsSection() {
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'submit', review: { name, rating, text } }),
+        body: JSON.stringify({ action: 'submit', review: { name, role, rating, text } }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
@@ -86,6 +88,7 @@ export function ReviewsSection() {
       setReviews((prev) => [data.review, ...prev])
       setSent(true)
       setName('')
+      setRole('')
       setText('')
       setRating(5)
       setTimeout(() => {
@@ -133,9 +136,16 @@ export function ReviewsSection() {
               <p className="mt-3 flex-1 text-sm leading-relaxed text-foreground/90">
                 "{r.text}"
               </p>
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm font-semibold">{r.name}</span>
-                <span className="text-xs text-muted-foreground">{timeAgo(r.createdAt)}</span>
+              <div className="mt-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="block text-sm font-semibold">{r.name}</span>
+                  {r.role && (
+                    <span className="block text-xs text-muted-foreground">{r.role}</span>
+                  )}
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {timeAgo(r.createdAt)}
+                </span>
               </div>
             </div>
           ))}
@@ -171,6 +181,18 @@ export function ReviewsSection() {
                   maxLength={80}
                   className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
                   placeholder="Tu nombre"
+                />
+
+                <label className="mt-4 block text-sm font-medium">
+                  Profesión o empresa{' '}
+                  <span className="font-normal text-muted-foreground">(opcional)</span>
+                </label>
+                <input
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  maxLength={80}
+                  className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                  placeholder="Ej. Agente inmobiliario, Hotel Costa Luz"
                 />
 
                 <label className="mt-4 block text-sm font-medium">Puntuación</label>
