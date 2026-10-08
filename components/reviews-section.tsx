@@ -133,7 +133,7 @@ export function ReviewsSection() {
               className="flex flex-col rounded-2xl border border-border bg-card p-5"
             >
               <Stars value={r.rating} />
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-foreground/90">
+              <p className="mt-3 flex-1 whitespace-pre-line text-sm leading-relaxed text-foreground/90">
                 "{r.text}"
               </p>
               <div className="mt-4 flex items-start justify-between gap-3">
