@@ -5,6 +5,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { HERO_AUDIO, type VideoItem } from '@/lib/content'
+import { playableVideoUrl } from '@/lib/media-url'
 
 type HeroProps = {
   videos: VideoItem[]
@@ -91,7 +92,7 @@ export function Hero({ videos }: HeroProps) {
           <video
             ref={forcePlay}
             className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
-            src={v.url}
+            src={playableVideoUrl(v.url)}
             poster={v.poster}
             autoPlay
             muted
