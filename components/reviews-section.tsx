@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Star, Loader2, CheckCircle2 } from 'lucide-react'
+import { LEGAL } from '@/lib/legal'
 
 type Review = {
   id: string
@@ -14,6 +15,7 @@ type Review = {
 }
 
 function Stars({ value }: { value: number }) {
+  if (!value) return null // opiniones sin puntuación: no se muestran estrellas
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
@@ -63,8 +65,11 @@ export function ReviewsSection() {
 
   useEffect(load, [])
 
-  const average =
-    reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0
+  // La media solo cuenta las opiniones que traen puntuación, y solo se muestra cuando hay
+  // suficientes (5 o más) para que no resulte engañosa con pocas opiniones.
+  const rated = reviews.filter((r) => r.rating > 0)
+  const average = rated.length > 0 ? rated.reduce((sum, r) => sum + r.rating, 0) / rated.length : 0
+  const showAverage = rated.length >= 5
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -85,7 +90,6 @@ export function ReviewsSection() {
         setError(data?.error || 'No se pudo enviar la reseña.')
         return
       }
-      setReviews((prev) => [data.review, ...prev])
       setSent(true)
       setName('')
       setRole('')
@@ -106,11 +110,11 @@ export function ReviewsSection() {
     <section id="resenas" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto mb-10 max-w-2xl text-center">
         <h2 className="text-3xl font-extrabold sm:text-4xl">Reseñas de clientes</h2>
-        {reviews.length > 0 && (
+        {showAverage && (
           <div className="mt-3 flex items-center justify-center gap-2">
             <Stars value={Math.round(average)} />
             <span className="text-sm text-muted-foreground">
-              {average.toFixed(1)} de 5 · {reviews.length} reseña{reviews.length !== 1 ? 's' : ''}
+              {average.toFixed(1)} de 5 · {rated.length} valoraciones
             </span>
           </div>
         )}
@@ -123,7 +127,7 @@ export function ReviewsSection() {
         </div>
       ) : reviews.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
-          Todavía no hay reseñas. ¡Sé el primero en dejar la tuya!
+          Todavía no hay opiniones publicadas. ¡Sé el primero en dejar la tuya!
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -152,6 +156,15 @@ export function ReviewsSection() {
         </div>
       )}
 
+      {/* Nota de transparencia: dice la verdad sobre de dónde salen las opiniones */}
+      <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-relaxed text-muted-foreground">
+        Opiniones recogidas de mensajes de clientes (por ejemplo, por WhatsApp) y publicadas con su
+        permiso, o enviadas con el formulario de esta web y revisadas antes de publicarse. No se
+        verifican de forma independiente.
+        {LEGAL.serviciosGratuitosHasta &&
+          ' Durante el lanzamiento, algunos trabajos se realizan sin coste, y parte de las opiniones puede referirse a ellos.'}
+      </p>
+
       <div className="mt-10 flex justify-center">
         {!showForm ? (
           <button
@@ -169,6 +182,7 @@ export function ReviewsSection() {
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <CheckCircle2 className="h-10 w-10 text-[var(--gold)]" />
                 <p className="font-semibold">¡Gracias por tu opinión!</p>
+                <p className="text-xs text-muted-foreground">La publicaremos en cuanto la revisemos.</p>
               </div>
             ) : (
               <>
