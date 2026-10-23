@@ -12,6 +12,7 @@ type Review = {
   rating: number
   text: string
   source?: 'public' | 'admin'
+  approved?: boolean
   createdAt?: number
 }
 
@@ -34,7 +35,7 @@ const EMPTY_CATEGORY_DRAFT = {
 
 type Draft = Omit<Review, 'id'>
 
-const EMPTY: Draft = { name: '', role: '', rating: 5, text: '' }
+const EMPTY: Draft = { name: '', role: '', rating: 0, text: '' }
 
 export default function AdminPage() {
   const { t } = useSite()
@@ -42,7 +43,7 @@ export default function AdminPage() {
   const [reviewsError, setReviewsError] = useState('')
 
   const loadReviews = () => {
-    fetch('/api/reviews', { cache: 'no-store' })
+    fetch('/api/reviews', { cache: 'no-store', headers: { 'x-admin-password': pass } })
       .then((r) => r.json())
       .then((data) => {
         if (Array.isArray(data)) setReviews(data)
@@ -85,6 +86,25 @@ export default function AdminPage() {
       setReviewsError('')
     } catch {
       setReviewsError('Error de conexión al actualizar la reseña.')
+    }
+  }
+
+  const approveReview = async (id: string, approved: boolean) => {
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ action: 'approve', id, approved }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setReviewsError(data?.error || 'No se pudo actualizar la opinión.')
+        return
+      }
+      setReviews(data.reviews)
+      setReviewsError('')
+    } catch {
+      setReviewsError('Error de conexión al actualizar la opinión.')
     }
   }
 
@@ -296,6 +316,8 @@ export default function AdminPage() {
   const [uploadInfo, setUploadInfo] = useState('')
 
   const [newVideo, setNewVideo] = useState({ title: '', url: '', category: 'hero' })
+  // Qué tipo de contenido se va a subir: normal (foto o vídeo), foto 360°, modelo 3D o enlace incrustado.
+  const [contentKind, setContentKind] = useState<'normal' | 'panorama' | 'model3d' | 'embed'>('normal')
   const [albums, setAlbums] = useState<Album[]>([])
   const [selectedAlbumId, setSelectedAlbumId] = useState('') // '' = sin álbum (galería general)
   const [newAlbumTitle, setNewAlbumTitle] = useState('')
@@ -379,7 +401,7 @@ export default function AdminPage() {
   }
 
   // Guarda un elemento en el servidor (base de datos), no en el navegador.
-  const saveMedia = async (item: { title: string; url: string; category: string; type: 'image' | 'video'; albumId?: string }) => {
+  const saveMedia = async (item: { title: string; url: string; category: string; type: 'image' | 'video' | 'panorama' | 'model3d' | 'embed'; albumId?: string }) => {
     try {
       const res = await fetch('/api/media', {
         method: 'POST',
@@ -405,15 +427,26 @@ export default function AdminPage() {
       ? selectedAlbumId
       : undefined
 
+  // El tipo especial (360°, 3D, enlace) solo vale en las categorías de servicio,
+  // nunca en el carrusel de inicio ni en las portadas.
+  const isServiceCategory = jobCategories.some((c) => c.value === newVideo.category)
+  const effectiveKind = isServiceCategory ? contentKind : 'normal'
+
   const handleAddVideo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newVideo.url) return
     const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(newVideo.url)
-    const ok = await saveMedia({
-      ...newVideo,
-      type: isVideo ? 'video' : 'image',
-      albumId: currentAlbumId(),
-    })
+    const type =
+      effectiveKind === 'panorama'
+        ? 'panorama'
+        : effectiveKind === 'model3d'
+          ? 'model3d'
+          : effectiveKind === 'embed'
+            ? 'embed'
+            : isVideo
+              ? 'video'
+              : 'image'
+    const ok = await saveMedia({ ...newVideo, type, albumId: currentAlbumId() })
     if (ok) setNewVideo({ title: '', url: '', category: newVideo.category })
   }
 
@@ -435,14 +468,33 @@ export default function AdminPage() {
     }
   }
 
-  // Sube UN archivo (foto o vídeo) a Cloudinary y después guarda su URL + categoría en el servidor.
+  // Sube UN archivo (foto, vídeo, foto 360° o modelo 3D) a Cloudinary y después guarda
+  // su URL + categoría en el servidor.
   const uploadOne = (file: File) =>
     new Promise<void>((resolve) => {
+      const kind = effectiveKind
       const isVideo = file.type.startsWith('video/')
-      const maxSizeMB = isVideo ? 100 : 10
+      const isModel = kind === 'model3d'
+
+      if (isModel && !/\.glb$/i.test(file.name)) {
+        setUploadError(`"${file.name}" no es un modelo .glb. Exporta tu modelo en formato GLB (un único archivo).`)
+        resolve()
+        return
+      }
+      if (kind === 'panorama' && !file.type.startsWith('image/')) {
+        setUploadError(`"${file.name}" no es una foto. Para una foto 360° sube una imagen (JPG).`)
+        resolve()
+        return
+      }
+
+      const maxSizeMB = isModel ? 10 : isVideo ? 100 : 10
+      const label = isModel ? 'modelo 3D' : isVideo ? 'vídeo' : 'foto'
       if (file.size > maxSizeMB * 1024 * 1024) {
         setUploadError(
-          `"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(0)}MB. El plan gratuito de Cloudinary acepta hasta ${maxSizeMB}MB por ${isVideo ? 'vídeo' : 'foto'}. Comprímelo y vuelve a intentarlo.`
+          `"${file.name}" pesa ${(file.size / (1024 * 1024)).toFixed(0)}MB. El plan gratuito de Cloudinary acepta hasta ${maxSizeMB}MB por ${label}. ` +
+            (isModel
+              ? 'Optimízalo (menos polígonos y texturas más pequeñas) o súbelo a Sketchfab y usa «Enlace incrustado».'
+              : 'Comprímelo y vuelve a intentarlo.'),
         )
         resolve()
         return
@@ -453,8 +505,9 @@ export default function AdminPage() {
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
 
       const xhr = new XMLHttpRequest()
-      // "auto" permite subir tanto fotos como vídeos con el mismo formulario.
-      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`)
+      // "auto" sube fotos y vídeos; los modelos 3D van como archivo "raw"; las panorámicas como imagen.
+      const endpoint = isModel ? 'raw' : kind === 'panorama' ? 'image' : 'auto'
+      xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${endpoint}/upload`)
 
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -469,7 +522,14 @@ export default function AdminPage() {
             title: newVideo.title,
             url: response.secure_url,
             category: newVideo.category,
-            type: response.resource_type === 'video' ? 'video' : 'image',
+            type:
+              kind === 'panorama'
+                ? 'panorama'
+                : kind === 'model3d'
+                  ? 'model3d'
+                  : response.resource_type === 'video'
+                    ? 'video'
+                    : 'image',
             albumId: currentAlbumId(),
           })
         } else {
@@ -689,7 +749,22 @@ export default function AdminPage() {
                     />
                   </button>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => setDraft({ ...draft, rating: 0 })}
+                  className={`ml-3 rounded-full border px-3 text-xs font-semibold transition ${
+                    draft.rating === 0
+                      ? 'border-[var(--gold)] text-gold'
+                      : 'border-border text-muted-foreground hover:bg-muted'
+                  }`}
+                >
+                  Sin estrellas
+                </button>
               </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Pon estrellas solo si la persona te dio una puntuación. Si te escribió un mensaje
+                sin puntuar, déjalo «Sin estrellas»: no inventes una nota por ella.
+              </p>
             </div>
 
             <div className="mt-4">
@@ -742,6 +817,11 @@ export default function AdminPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-semibold">{r.name}</p>
+                {r.approved === false && (
+                  <span className="rounded-full bg-[var(--gold)] px-2 py-0.5 text-[10px] font-bold text-[var(--gold-foreground)]">
+                    PENDIENTE
+                  </span>
+                )}
                 <span className="flex">
                   {Array.from({ length: r.rating }).map((_, i) => (
                     <Star key={i} className="h-3.5 w-3.5 fill-[var(--gold)] text-[var(--gold)]" />
@@ -752,6 +832,14 @@ export default function AdminPage() {
               <p className="mt-1.5 whitespace-pre-line text-sm text-foreground/90">{r.text}</p>
             </div>
             <div className="flex shrink-0 gap-2">
+              {r.approved === false && (
+                <button
+                  onClick={() => approveReview(r.id, true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--gold)] px-3 py-1.5 text-xs font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
+                >
+                  Aprobar
+                </button>
+              )}
               <button
                 onClick={() => startEdit(r)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold transition hover:bg-muted"
@@ -1114,9 +1202,43 @@ export default function AdminPage() {
             </div>
           )}
 
+          {isServiceCategory && (
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="v-kind">
+                Tipo de contenido
+              </label>
+              <select
+                id="v-kind"
+                value={contentKind}
+                onChange={(e) => setContentKind(e.target.value as typeof contentKind)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+              >
+                <option value="normal">Foto o vídeo normal</option>
+                <option value="panorama">Foto 360° (el visitante la gira y hace zoom)</option>
+                <option value="model3d">Modelo 3D (archivo .glb)</option>
+                <option value="embed">Enlace incrustado (Sketchfab, Kuula o Matterport)</option>
+              </select>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {contentKind === 'normal' &&
+                  'Fotos y vídeos de siempre. Se pueden subir varios a la vez.'}
+                {contentKind === 'panorama' &&
+                  'Una foto panorámica esférica en formato 2:1 (el doble de ancha que alta), como las que hace el modo «Esfera» del dron. Máximo 10 MB y 25 megapíxeles: unos 6000 × 3000 píxeles va perfecto.'}
+                {contentKind === 'model3d' &&
+                  'Un único archivo .glb de máximo 10 MB. Si tu modelo pesa más, súbelo a Sketchfab (gratis) y usa «Enlace incrustado».'}
+                {contentKind === 'embed' &&
+                  'No se sube ningún archivo: pega abajo la dirección del modelo o del recorrido. Solo se admiten Sketchfab, Kuula y Matterport.'}
+              </p>
+            </div>
+          )}
+
+          {effectiveKind !== 'embed' && (
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium">
-              Sube fotos o vídeos desde tu iPhone o tu ordenador (puedes elegir varios a la vez)
+              {effectiveKind === 'panorama'
+                ? 'Sube la foto 360°'
+                : effectiveKind === 'model3d'
+                  ? 'Sube el modelo 3D (.glb)'
+                  : 'Sube fotos o vídeos desde tu iPhone o tu ordenador (puedes elegir varios a la vez)'}
             </label>
             <label
               htmlFor="v-file"
@@ -1133,8 +1255,14 @@ export default function AdminPage() {
               <input
                 id="v-file"
                 type="file"
-                accept="image/*,video/*"
-                multiple
+                accept={
+                  effectiveKind === 'model3d'
+                    ? '.glb,model/gltf-binary'
+                    : effectiveKind === 'panorama'
+                      ? 'image/*'
+                      : 'image/*,video/*'
+                }
+                multiple={effectiveKind === 'normal'}
                 onChange={handleFileInputChange}
                 className="hidden"
               />
@@ -1152,6 +1280,7 @@ export default function AdminPage() {
             </p>
             {uploadError && <p className="mt-2 text-sm text-destructive">{uploadError}</p>}
           </div>
+          )}
 
           <div className="sm:col-span-2 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" />
@@ -1161,7 +1290,7 @@ export default function AdminPage() {
 
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium" htmlFor="v-url">
-              URL de la foto o del vídeo
+              {effectiveKind === 'embed' ? 'Dirección del contenido (Sketchfab, Kuula o Matterport)' : 'URL de la foto o del vídeo'}
             </label>
             <input
               id="v-url"
@@ -1226,7 +1355,7 @@ export default function AdminPage() {
                 <p className="font-semibold">{v.title || '(sin título)'}</p>
                 <p className="truncate text-xs text-muted-foreground">{v.url}</p>
                 <p className="text-xs text-muted-foreground">
-                  Categoría: {v.category} · {v.type === 'image' ? 'Foto' : 'Vídeo'}
+                  Categoría: {v.category} · {v.type === 'image' ? 'Foto' : v.type === 'panorama' ? 'Foto 360°' : v.type === 'model3d' ? 'Modelo 3D' : v.type === 'embed' ? 'Enlace incrustado' : 'Vídeo'}
                   {v.albumId && (
                     <> · Álbum: {albums.find((a) => a.id === v.albumId)?.title ?? '(borrado)'}</>
                   )}
