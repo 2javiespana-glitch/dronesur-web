@@ -9,15 +9,22 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Box,
   Folder as FolderIcon,
+  Globe,
   Play,
 } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { WhatsAppIcon } from '@/components/icons'
 import type { Category, VideoItem } from '@/lib/content'
+import { playableVideoUrl, thumbUrl } from '@/lib/media-url'
+import { PanoramaViewer } from '@/components/panorama-viewer'
+import { Model3DViewer } from '@/components/model-3d-viewer'
+import { EmbedViewer } from '@/components/embed-viewer'
 
-type GalleryItem = { id: string; url: string; type: 'image' | 'video' }
+type GalleryKind = 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
+type GalleryItem = { id: string; url: string; type: GalleryKind }
 type Album = { id: string; category: string; title: string; createdAt: number }
 type Folder = { id: string; title: string; items: GalleryItem[] }
 
@@ -25,6 +32,27 @@ type Folder = { id: string; title: string; items: GalleryItem[] }
 function videoThumb(url: string) {
   if (!url.includes('res.cloudinary.com')) return null
   return url.replace(/\.[a-z0-9]+(\?.*)?$/i, '.jpg')
+}
+
+// Imagen pequeña para representar cada elemento (null = no hay, se muestra un icono).
+function previewOf(item: GalleryItem): string | null {
+  if (item.type === 'video') return videoThumb(item.url)
+  if (item.type === 'panorama') return thumbUrl(item.url)
+  if (item.type === 'image') return item.url
+  return null
+}
+
+function kindLabel(type: GalleryKind) {
+  if (type === 'video') return 'Vídeo'
+  if (type === 'panorama') return 'Foto 360°'
+  if (type === 'model3d') return 'Modelo 3D'
+  if (type === 'embed') return 'Contenido interactivo'
+  return 'Imagen'
+}
+
+function toKind(type?: string): GalleryKind {
+  if (type === 'image' || type === 'panorama' || type === 'model3d' || type === 'embed') return type
+  return 'video' // los elementos antiguos sin tipo eran vídeos
 }
 
 export function CategoryDetail({ category }: { category: Category }) {
@@ -54,7 +82,7 @@ export function CategoryDetail({ category }: { category: Category }) {
         const toGalleryItem = (m: VideoItem): GalleryItem => ({
           id: m.id,
           url: m.url,
-          type: m.type === 'image' ? 'image' : 'video',
+          type: toKind(m.type),
         })
 
         setCustom(forCategory.map(toGalleryItem))
@@ -124,11 +152,7 @@ export function CategoryDetail({ category }: { category: Category }) {
             <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {folders.map((f) => {
                 const coverItem = f.items[0]
-                const cover = coverItem
-                  ? coverItem.type === 'video'
-                    ? videoThumb(coverItem.url)
-                    : coverItem.url
-                  : null
+                const cover = coverItem ? previewOf(coverItem) : null
                 const isSelected = selectedFolderId === f.id
                 return (
                   <button
@@ -171,7 +195,7 @@ export function CategoryDetail({ category }: { category: Category }) {
             </div>
           ) : items.length === 0 ? (
             <div className="flex aspect-[4/3] items-center justify-center rounded-2xl border border-dashed border-border text-center text-sm text-muted-foreground">
-              Este álbum todavía no tiene fotos ni vídeos
+              Este álbum todavía no tiene contenido
             </div>
           ) : (
             <>
@@ -179,7 +203,7 @@ export function CategoryDetail({ category }: { category: Category }) {
                 {current.type === 'video' ? (
                   <video
                     key={current.id}
-                    src={current.url}
+                    src={playableVideoUrl(current.url)}
                     className="h-full w-full object-contain"
                     controls
                     autoPlay
@@ -187,6 +211,18 @@ export function CategoryDetail({ category }: { category: Category }) {
                     loop
                     playsInline
                   />
+                ) : current.type === 'panorama' ? (
+                  <div key={current.id} className="absolute inset-0">
+                    <PanoramaViewer url={current.url} />
+                  </div>
+                ) : current.type === 'model3d' ? (
+                  <div key={current.id} className="absolute inset-0">
+                    <Model3DViewer url={current.url} label={tl(category.title)} />
+                  </div>
+                ) : current.type === 'embed' ? (
+                  <div key={current.id} className="absolute inset-0">
+                    <EmbedViewer url={current.url} label={tl(category.title)} />
+                  </div>
                 ) : (
                   <img
                     key={current.id}
@@ -216,10 +252,16 @@ export function CategoryDetail({ category }: { category: Category }) {
                 )}
               </div>
 
+              {(current.type === 'panorama' || current.type === 'model3d') && (
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Arrastra para girar · rueda del ratón o pellizco para acercar
+                </p>
+              )}
+
               {items.length > 1 && (
                 <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4">
                   {items.map((item, i) => {
-                    const thumb = item.type === 'video' ? videoThumb(item.url) : item.url
+                    const thumb = previewOf(item)
                     return (
                       <button
                         key={item.id}
@@ -227,12 +269,26 @@ export function CategoryDetail({ category }: { category: Category }) {
                         className={`relative aspect-video overflow-hidden rounded-lg border-2 bg-muted transition ${
                           i === index ? 'border-[var(--gold)]' : 'border-transparent opacity-70'
                         }`}
-                        aria-label={`${item.type === 'video' ? 'Vídeo' : 'Imagen'} ${i + 1}`}
+                        aria-label={`${kindLabel(item.type)} ${i + 1}`}
                       >
                         {thumb && <img src={thumb} alt="" className="h-full w-full object-cover" />}
                         {item.type === 'video' && (
                           <span className="absolute inset-0 flex items-center justify-center bg-black/30">
                             <Play className="h-6 w-6 fill-white text-white" />
+                          </span>
+                        )}
+                        {item.type === 'panorama' && (
+                          <span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-bold text-white">
+                            <Globe className="h-3 w-3" />
+                            360°
+                          </span>
+                        )}
+                        {(item.type === 'model3d' || item.type === 'embed') && (
+                          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 text-white">
+                            <Box className="h-6 w-6" />
+                            <span className="text-[10px] font-bold">
+                              {item.type === 'model3d' ? '3D' : 'Interactivo'}
+                            </span>
                           </span>
                         )}
                       </button>
