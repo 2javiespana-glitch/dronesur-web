@@ -1,7 +1,9 @@
-import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter, Manrope } from 'next/font/google'
 import { Providers } from '@/components/providers'
+import { AnalyticsGate } from '@/components/analytics-gate'
+import { LegalLinks } from '@/components/legal-links'
+import { LEGAL } from '@/lib/legal'
 import './globals.css'
 
 const inter = Inter({
@@ -17,6 +19,9 @@ const manrope = Manrope({
 })
 
 export const metadata: Metadata = {
+  // Dirección base para que la imagen de vista previa salga completa al compartir el enlace.
+  // Se toma de lib/legal.ts: cámbiala allí cuando tengas dominio propio.
+  metadataBase: new URL(`https://${LEGAL.web}`),
   title: 'Dronesur | Perspectivas aéreas de alto impacto en el sur de España',
   description:
     'Dronesur — Servicios profesionales de dron en Almería, Granada, Málaga, Jaén, Cádiz y Murcia. Vídeo y fotografía aérea 4K, fotogrametría, eventos, inmobiliaria y seguimiento de obra.',
@@ -32,10 +37,15 @@ export const metadata: Metadata = {
     'Dronesur',
   ],
   openGraph: {
-    title: 'Dronesur',
+    title: 'Dronesur | Perspectivas aéreas de alto impacto en el sur de España',
     description:
-      'Elevamos la imagen de tu proyecto. Perspectivas aéreas de alto impacto en el sur de España.',
+      'Elevamos la imagen de tu proyecto. Fotografía y vídeo aéreo con dron en Andalucía y Murcia.',
     type: 'website',
+    siteName: 'Dronesur',
+    locale: 'es_ES',
+  },
+  twitter: {
+    card: 'summary_large_image',
   },
 }
 
@@ -74,7 +84,8 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <Providers>{children}</Providers>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <LegalLinks />
+        <AnalyticsGate />
       </body>
     </html>
   )
