@@ -6,23 +6,23 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
-import { CATEGORIES, type Category } from '@/lib/content'
+import type { Category } from '@/lib/content'
 
 export function Categories() {
   const { t, tl } = useSite()
   const { open } = useQuote()
-  const [categories, setCategories] = useState<Category[]>(CATEGORIES)
+  const [categories, setCategories] = useState<Category[]>([])
   const [covers, setCovers] = useState<Record<string, string>>({})
 
+  // Las categorías ahora son editables desde el admin (crear, editar, borrar), así que
+  // se cargan siempre desde el servidor en vez de venir fijas en el código.
   useEffect(() => {
-    const saved = localStorage.getItem('dronesur_categories')
-    if (saved) {
-      try {
-        setCategories(JSON.parse(saved))
-      } catch (e) {
-        console.error(e)
-      }
-    }
+    fetch('/api/categories', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setCategories(data.filter((c: Category) => c.visible !== false))
+      })
+      .catch(() => {})
   }, [])
 
   // Portadas de cada tarjeta, subidas desde el admin (categoría "cover-<slug>").
@@ -34,7 +34,7 @@ export function Categories() {
         if (!Array.isArray(all)) return
         const next: Record<string, string> = {}
         for (const item of all) {
-          if (item.category?.startsWith('cover-') && item.type !== 'video') {
+          if (item.category?.startsWith('cover-') && (item.type === 'image' || !item.type)) {
             const slug = item.category.replace('cover-', '')
             next[slug] = item.url // el último subido gana, por eso no usamos "if (!next[slug])"
           }
@@ -43,6 +43,8 @@ export function Categories() {
       })
       .catch(() => {})
   }, [])
+
+  if (categories.length === 0) return null
 
   return (
     <section id="servicios" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
