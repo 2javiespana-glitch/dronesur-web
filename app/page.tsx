@@ -64,7 +64,7 @@ export default function HomePage() {
     <>
       <SiteHeader />
       <main>
-        <Hero videos={videos.filter((v) => v.category === 'hero' && v.type !== 'image')} />
+        <Hero videos={videos.filter((v) => v.category === 'hero' && (v.type === 'video' || !v.type))} />
         {settings.promo && <WelcomePromo />}
         <Categories />
         {settings.coverage && <CoverageServices />}
