@@ -6,7 +6,7 @@ export interface VideoItem {
   title: string
   url: string
   category?: string
-  type?: 'image' | 'video'
+  type?: 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
   poster?: string
   albumId?: string
 }
@@ -75,6 +75,7 @@ export type Category = {
   title: Localized
   short: Localized
   description: Localized
+  visible?: boolean // false = oculta de la portada (pero sigue existiendo, no se borra nada)
 }
 
 export const CATEGORIES: Category[] = [
