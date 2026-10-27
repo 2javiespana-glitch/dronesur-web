@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readJSON, writeJSON, isAdmin, adminPasswordConfigured } from '@/lib/kv'
+import { CATEGORIES as SEED_CATEGORIES } from '@/lib/content'
+import { isAllowedEmbed } from '@/lib/media-url'
 
 // Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría, y opcionalmente
 // su álbum) en una base de datos Upstash Redis, para que TODOS los visitantes vean lo
@@ -13,19 +15,31 @@ import { readJSON, writeJSON, isAdmin, adminPasswordConfigured } from '@/lib/kv'
 export const dynamic = 'force-dynamic'
 
 const KEY = 'dronesur:media'
+const CATEGORIES_KEY = 'dronesur:categories'
 
-// Categorías de "trabajo" (las que tienen subpágina propia con álbumes)
-const JOB_CATEGORIES = ['inmobiliaria', 'eventos', 'fotogrametria', 'obra', 'aerea']
-// Categorías especiales: el carrusel de inicio, y la "portada" de cada tarjeta de servicio
-const SPECIAL_CATEGORIES = ['hero', ...JOB_CATEGORIES.map((c) => `cover-${c}`)]
-const ALLOWED_CATEGORIES = [...JOB_CATEGORIES, ...SPECIAL_CATEGORIES]
+// Las categorías de servicio ahora se crean/borran desde el admin, así que comprobamos
+// contra la lista real guardada en la base de datos (o las 5 de siempre si nunca se ha
+// guardado nada todavía), en vez de una lista fija en el código.
+async function categorySlugs(): Promise<string[]> {
+  const saved = await readJSON<{ slug: string }[] | null>(CATEGORIES_KEY, null)
+  const list = saved === null ? SEED_CATEGORIES : saved
+  return list.map((c) => c.slug)
+}
+
+async function isAllowedCategory(category: string): Promise<boolean> {
+  if (category === 'hero') return true
+  const slugs = await categorySlugs()
+  if (slugs.includes(category)) return true
+  if (category.startsWith('cover-') && slugs.includes(category.replace('cover-', ''))) return true
+  return false
+}
 
 type MediaItem = {
   id: string
   title: string
   url: string
   category: string
-  type: 'image' | 'video'
+  type: 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
   albumId?: string
 }
 
@@ -78,8 +92,13 @@ export async function POST(req: Request) {
     if (!item || typeof item.url !== 'string' || !item.url.startsWith('https://')) {
       return fail('La URL debe empezar por https://', 400)
     }
-    if (!item.category || !ALLOWED_CATEGORIES.includes(item.category)) {
+    if (!item.category || !(await isAllowedCategory(item.category))) {
       return fail('Categoría no válida', 400)
+    }
+    const ALLOWED_TYPES = ['image', 'video', 'panorama', 'model3d', 'embed'] as const
+    const mediaType = ALLOWED_TYPES.find((t) => t === item.type) ?? 'video'
+    if (mediaType === 'embed' && !isAllowedEmbed(item.url)) {
+      return fail('Solo se admiten enlaces de Sketchfab, Kuula o Matterport.', 400)
     }
     try {
       const items = await readAll()
@@ -88,7 +107,7 @@ export async function POST(req: Request) {
         title: String(item.title ?? '').slice(0, 200),
         url: item.url,
         category: item.category,
-        type: item.type === 'image' ? 'image' : 'video',
+        type: mediaType,
         ...(item.albumId ? { albumId: String(item.albumId) } : {}),
       }
       const updated = [...items, newItem]
