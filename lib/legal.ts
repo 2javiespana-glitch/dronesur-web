@@ -7,12 +7,12 @@
 // para que no se te olvide (desaparece solo cuando los completes todos).
 
 export const LEGAL = {
-  titular: '[COMPLETAR] Nombre y apellidos (o razón social)',
+  titular: 'Javier Lopez Villena',
   // Como autónomo tu NIF es tu mismo DNI: no cambia el día que te des de alta.
-  nif: '[COMPLETAR] NIF / CIF',
-  domicilio: '[COMPLETAR] Dirección completa (calle, número, CP, localidad, provincia)',
-  email: '[COMPLETAR] correo electrónico de contacto',
-  telefono: '[COMPLETAR] teléfono de contacto',
+  nif: '75917102J',
+  domicilio: 'C/Monaco R 1, 129',
+  email: 'dronesur@gmail.com',
+  telefono: '+34 644424448',
 
   // Tu dirección web, sin "https://". Cámbiala cuando tengas dominio propio.
   web: 'dronesur.vercel.app',
@@ -22,7 +22,7 @@ export const LEGAL = {
   registroMercantil: '',
 
   // Tu número de operador de drones en AESA (empieza por ESP...). Si no lo quieres mostrar, déjalo ''.
-  operadorAesa: '[COMPLETAR] Nº de operador UAS de AESA',
+  operadorAesa: 'ESPgg7k96dmo3jua',
 
   // Aseguradora o póliza de responsabilidad civil. Déjalo '' mientras NO tengas seguro:
   // así la web no dirá en ningún sitio que estás asegurado. Cuando lo contrates, rellénalo.
