@@ -33,9 +33,9 @@ const EMPTY_CATEGORY_DRAFT = {
   priceEn: '',
 }
 
-type Draft = Omit<Review, 'id'>
+type Draft = Omit<Review, 'id'> & { date?: string } // date = 'YYYY-MM-DD' (vacío = hoy)
 
-const EMPTY: Draft = { name: '', role: '', rating: 0, text: '' }
+const EMPTY: Draft = { name: '', role: '', rating: 0, text: '', date: '' }
 
 export default function AdminPage() {
   const { t } = useSite()
@@ -608,7 +608,13 @@ export default function AdminPage() {
 
   const startEdit = (r: Review) => {
     setEditingId(r.id)
-    setDraft({ name: r.name, role: r.role, rating: r.rating, text: r.text })
+    setDraft({
+      name: r.name,
+      role: r.role,
+      rating: r.rating,
+      text: r.text,
+      date: r.createdAt ? new Date(r.createdAt).toISOString().slice(0, 10) : '',
+    })
     setShowForm(true)
   }
 
@@ -731,6 +737,24 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-4">
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="a-date">
+                Fecha de la reseña
+              </label>
+              <input
+                id="a-date"
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                value={draft.date ?? ''}
+                onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)] sm:w-60"
+              />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Pon el día real en que el cliente te escribió la opinión. La web muestra
+                «Hace X días» calculado desde esta fecha. Si lo dejas vacío, se usa hoy.
+              </p>
+            </div>
+
+            <div className="mt-4">
               <label className="mb-1.5 block text-sm font-medium">{t('admin.rating')}</label>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((n) => (
@@ -828,7 +852,10 @@ export default function AdminPage() {
                   ))}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">{r.role}</p>
+              <p className="text-xs text-muted-foreground">
+                {r.role}
+                {r.createdAt ? `${r.role ? ' · ' : ''}${new Date(r.createdAt).toLocaleDateString('es-ES')}` : ''}
+              </p>
               <p className="mt-1.5 whitespace-pre-line text-sm text-foreground/90">{r.text}</p>
             </div>
             <div className="flex shrink-0 gap-2">
