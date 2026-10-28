@@ -255,8 +255,8 @@ export const T: Dict = {
     en: 'Technical and audiovisual drone coverage in 4K.',
   },
   'cover.inc2': {
-    es: 'Edición de un vídeo corto optimizado para redes (Reels / TikTok / Youtube Shorts).',
-    en: 'Editing of a short video optimized for social media (Reels / TikTok / Youtube Shorts).',
+    es: 'Edición de un vídeo corto optimizado para redes (Reels / TikTok).',
+    en: 'Editing of a short video optimized for social media (Reels / TikTok).',
   },
   'cover.inc3': {
     es: 'Tramitación completa de licencias, permisos y coordinaciones para volar en España (normativa AESA/EASA).',
