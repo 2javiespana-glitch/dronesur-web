@@ -93,12 +93,12 @@ export const CATEGORIES: Category[] = [
       en: 'Real Estate, Hotels & Land',
     },
     short: {
-      es: 'Muestra propiedades, hoteles y parcelas desde el cielo con imágenes que venden.',
-      en: 'Showcase properties, hotels and plots from the sky with imagery that sells.',
+      es: 'Muestra propiedades, hoteles y parcelas desde el cielo con imágenes que venden',
+      en: 'Showcase properties, hotels and plots from the sky with imagery that sells',
     },
     description: {
-      es: 'Vistas aéreas que revalorizan cualquier inmueble: villas, hoteles, complejos turísticos y terrenos. Destacamos ubicación, entorno y dimensiones reales con tomas cinematográficas en 4K listas para portales y redes.',
-      en: 'Aerial views that add value to any property: villas, hotels, resorts and land. We highlight location, surroundings and real dimensions with cinematic 4K footage ready for listings and social media.',
+      es: 'Vistas aéreas que revalorizan cualquier inmueble: villas, hoteles, complejos turísticos y terrenos. Destacamos ubicación, entorno y dimensiones reales con tomas cinematográficas en 4K listas para portales y redes',
+      en: 'Aerial views that add value to any property: villas, hotels, resorts and land. We highlight location, surroundings and real dimensions with cinematic 4K footage ready for listings and social media',
     },
   },
   {
@@ -115,12 +115,12 @@ export const CATEGORIES: Category[] = [
       en: 'Weddings, Graduations & Events',
     },
     short: {
-      es: 'El recuerdo de tu gran día desde una perspectiva única e inolvidable.',
-      en: 'The memory of your big day from a unique, unforgettable perspective.',
+      es: 'El recuerdo de tu gran día desde una perspectiva única e inolvidable',
+      en: 'The memory of your big day from a unique, unforgettable perspective',
     },
     description: {
-      es: 'Capturamos la emoción de bodas, graduaciones y celebraciones con planos aéreos espectaculares. Un recuerdo diferente que combina con la cobertura tradicional para contar tu historia completa.',
-      en: 'We capture the emotion of weddings, graduations and celebrations with spectacular aerial shots. A different keepsake that pairs with traditional coverage to tell your full story.',
+      es: 'Capturamos la emoción de bodas, graduaciones y celebraciones con planos aéreos espectaculares. Un recuerdo diferente que combina con la cobertura tradicional para contar tu historia completa',
+      en: 'We capture the emotion of weddings, graduations and celebrations with spectacular aerial shots. A different keepsake that pairs with traditional coverage to tell your full story',
     },
   },
   {
@@ -137,12 +137,12 @@ export const CATEGORIES: Category[] = [
       en: 'Photogrammetry & 3D Modeling',
     },
     short: {
-      es: 'Modelado 3D, mediciones precisas y conteo de unidades. Entrega en 48 h.',
-      en: '3D modeling, precise measurements and unit counting. Delivered in 48h.',
+      es: 'Modelado 3D, mediciones precisas y conteo de unidades. Entrega en 48h',
+      en: '3D modeling, precise measurements and unit counting. Delivered in 48h',
     },
     description: {
-      es: 'Generamos modelos 3D, ortomosaicos y mediciones precisas del terreno y estructuras. Ideal para topografía, agricultura, inventario y conteo de unidades. Entregamos los proyectos en un máximo de 48 horas.',
-      en: 'We generate 3D models, orthomosaics and precise measurements of terrain and structures. Ideal for surveying, agriculture, inventory and unit counting. Projects delivered within 48 hours.',
+      es: 'Generamos modelos 3D, ortomosaicos y mediciones precisas del terreno y estructuras. Ideal para topografía, agricultura, inventario y conteo de unidades. Entregamos los proyectos en un máximo de 48 horas',
+      en: 'We generate 3D models, orthomosaics and precise measurements of terrain and structures. Ideal for surveying, agriculture, inventory and unit counting. Projects delivered within 48 hours',
     },
   },
   {
@@ -159,12 +159,12 @@ export const CATEGORIES: Category[] = [
       en: 'Exterior Construction Monitoring',
     },
     short: {
-      es: 'Documenta el avance de tu obra sesión a sesión con precisión profesional.',
-      en: 'Document your project progress session by session with professional precision.',
+      es: 'Documenta el avance de tu obra sesión a sesión con precisión profesional',
+      en: 'Document your project progress session by session with professional precision',
     },
     description: {
-      es: 'Seguimiento periódico del avance de obra desde el aire. Documentación visual para promotores, constructoras y comunidades, con comparativas de progreso y material listo para informes.',
-      en: 'Periodic aerial monitoring of construction progress. Visual documentation for developers, builders and communities, with progress comparisons and report-ready material.',
+      es: 'Seguimiento periódico del avance de obra desde el aire. Documentación visual para promotores, constructoras y comunidades, con comparativas de progreso y material listo para informes',
+      en: 'Periodic aerial monitoring of construction progress. Visual documentation for developers, builders and communities, with progress comparisons and report-ready material',
     },
   },
   {
@@ -181,12 +181,12 @@ export const CATEGORIES: Category[] = [
       en: 'General Aerial Photo & Video',
     },
     short: {
-      es: 'Proyectos audiovisuales aéreos a medida para cualquier necesidad.',
-      en: 'Custom aerial audiovisual projects for any need.',
+      es: 'Proyectos audiovisuales aéreos a medida para cualquier necesidad',
+      en: 'Custom aerial audiovisual projects for any need',
     },
     description: {
-      es: 'Cualquier proyecto que imagines desde el aire: turismo, publicidad, deporte, naturaleza o contenido para redes. Adaptamos equipo, estilo y edición a tu marca y objetivos.',
-      en: 'Any project you can imagine from above: tourism, advertising, sport, nature or social content. We adapt gear, style and editing to your brand and goals.',
+      es: 'Cualquier proyecto que imagines desde el aire: turismo, publicidad, deporte, naturaleza o contenido para redes. Adaptamos equipo, estilo y edición a tu marca y objetivos',
+      en: 'Any project you can imagine from above: tourism, advertising, sport, nature or social content. We adapt gear, style and editing to your brand and goals',
     },
   },
 ]
@@ -214,8 +214,8 @@ export const T: Dict = {
     en: 'We elevate the image of your project',
   },
   'hero.subtitle': {
-    es: 'Perspectivas aéreas de alto impacto en el sur de España.',
-    en: 'High-impact aerial perspectives across southern Spain.',
+    es: 'Perspectivas aéreas de alto impacto en el sur de España',
+    en: 'High-impact aerial perspectives across southern Spain',
   },
   'hero.cta': { es: 'Pide tu presupuesto', en: 'Get your quote' },
   'hero.services': { es: 'Ver servicios', en: 'See services' },
@@ -251,43 +251,43 @@ export const T: Dict = {
   },
   'cover.includedTitle': { es: 'Incluido en el precio', en: 'Included in the price' },
   'cover.inc1': {
-    es: 'Cobertura técnica y audiovisual con dron en 4K.',
-    en: 'Technical and audiovisual drone coverage in 4K.',
+    es: 'Cobertura técnica y audiovisual con dron en 4K',
+    en: 'Technical and audiovisual drone coverage in 4K',
   },
   'cover.inc2': {
-    es: 'Edición de un vídeo corto optimizado para redes (Reels / TikTok / YouTube).',
-    en: 'Editing of a short video optimized for social media (Reels / TikTok / YouTube).',
+    es: 'Edición de un vídeo corto optimizado para redes (Reels / TikTok / YouTube)',
+    en: 'Editing of a short video optimized for social media (Reels / TikTok / YouTube)',
   },
   'cover.inc3': {
-    es: 'Tramitación completa de licencias, permisos y coordinaciones para volar en España (normativa AESA/EASA).',
-    en: 'Full processing of licenses, permits and coordination to fly in Spain (AESA/EASA regulations).',
+    es: 'Tramitación completa de licencias, permisos y coordinaciones para volar en España (normativa AESA/EASA)',
+    en: 'Full processing of licenses, permits and coordination to fly in Spain (AESA/EASA regulations)',
   },
   'cover.inc4': {
-    es: 'Entrega inmediata del material bruto en USB (incluido) y/o enlace digital sin pérdida de calidad (SwissTransfer / Telegram).',
-    en: 'Immediate delivery of raw footage on USB (included) and/or lossless digital link (SwissTransfer / Telegram).',
+    es: 'Entrega inmediata del material bruto en USB (incluido) y/o enlace digital sin pérdida de calidad (SwissTransfer / Telegram / Airdrop)',
+    en: 'Immediate delivery of raw footage on USB (included) and/or lossless digital link (SwissTransfer / Telegram / Airdrop)',
   },
   'cover.inc5': {
-    es: 'Entrega de proyectos 3D / fotogrametría en un máximo de 48 horas.',
-    en: '3D / photogrammetry projects delivered within 48 hours.',
+    es: 'Entrega de proyectos 3D / fotogrametría en un máximo de 48 horas',
+    en: '3D / photogrammetry projects delivered within 48 hours',
   },
 
   'guarantee.title': { es: 'Garantía de Satisfacción', en: 'Satisfaction Guarantee' },
   'guarantee.text': {
-    es: 'No pagas por el servicio si no te gusta el resultado.',
-    en: "You don't pay for the service if you don't like the result.",
+    es: 'No pagas por el servicio si no te gusta el resultado',
+    en: "You don't pay for the service if you don't like the result",
   },
 
   'reviews.title': { es: 'Reseñas de Clientes', en: 'Client Reviews' },
   'reviews.subtitle': {
-    es: 'La confianza de quienes ya han volado con nosotros.',
-    en: 'The trust of those who have already flown with us.',
+    es: 'La confianza de quienes ya han volado con nosotros',
+    en: 'The trust of those who have already flown with us',
   },
   'reviews.admin': { es: 'Panel de administración', en: 'Admin panel' },
 
   'legal.title': { es: 'Seguridad y Garantía Legal', en: 'Safety & Legal Compliance' },
   'legal.text': {
-    es: 'Operamos según la normativa aérea para un vuelo 100% legal y seguro. Todos nuestros vuelos están coordinados y autorizados según los requisitos de AESA y EASA con pilotos certificados.',
-    en: 'We operate under aviation regulations for a 100% legal and safe flight. All our flights are coordinated and authorized according to AESA and EASA requirements with certified pilots.',
+    es: 'Operamos según la normativa aérea para un vuelo 100% legal y seguro. Todos nuestros vuelos están coordinados y autorizados según los requisitos de AESA y EASA con pilotos certificados',
+    en: 'We operate under aviation regulations for a 100% legal and safe flight. All our flights are coordinated and authorized according to AESA and EASA requirements with certified pilots',
   },
   'legal.aesa': { es: 'Operador registrado AESA', en: 'AESA registered operator' },
   'legal.easa': { es: 'Normativa EASA', en: 'EASA compliant' },
@@ -296,12 +296,12 @@ export const T: Dict = {
 
   'about.title': { es: 'Sobre Dronesur', en: 'About Dronesur' },
   'about.p1': {
-    es: 'Dronesur nace de la pasión por la imagen aérea y el detalle profesional. Somos un equipo especializado en captar el sur de España desde una perspectiva única, combinando tecnología de última generación con una mirada cinematográfica.',
-    en: 'Dronesur was born from a passion for aerial imagery and professional detail. We are a team specialized in capturing southern Spain from a unique perspective, combining state-of-the-art technology with a cinematic eye.',
+    es: 'Dronesur nace de la pasión por la imagen aérea y el detalle profesional. Somos un equipo especializado en captar el sur de España desde una perspectiva única, combinando tecnología de última generación con una mirada cinematográfica',
+    en: 'Dronesur was born from a passion for aerial imagery and professional detail. We are a team specialized in capturing southern Spain from a unique perspective, combining state-of-the-art technology with a cinematic eye',
   },
   'about.p2': {
-    es: 'Trabajamos con particulares, empresas e instituciones ofreciendo un servicio integral: desde la planificación y los permisos hasta la edición final. Nuestro objetivo es simple: que tu proyecto brille desde el aire.',
-    en: 'We work with individuals, companies and institutions offering an all-in-one service: from planning and permits to final editing. Our goal is simple: to make your project shine from above.',
+    es: 'Trabajamos con particulares, empresas e instituciones ofreciendo un servicio integral: desde la planificación y los permisos hasta la edición final. Nuestro objetivo es simple: que tu proyecto brille desde el aire',
+    en: 'We work with individuals, companies and institutions offering an all-in-one service: from planning and permits to final editing. Our goal is simple: to make your project shine from above',
   },
   'about.stat1': { es: 'Provincias cubiertas', en: 'Provinces covered' },
   'about.stat2': { es: 'Calidad de grabación', en: 'Recording quality' },
@@ -309,15 +309,15 @@ export const T: Dict = {
 
   'contact.title': { es: 'Contacto', en: 'Contact' },
   'contact.subtitle': {
-    es: '¿Listo para elevar tu proyecto? Pide tu presupuesto sin compromiso.',
-    en: 'Ready to elevate your project? Request a no-obligation quote.',
+    es: '¿Listo para elevar tu proyecto? Pide tu presupuesto sin compromiso',
+    en: 'Ready to elevate your project? Request a no-obligation quote',
   },
   'contact.whatsapp': { es: 'Escríbenos por WhatsApp', en: 'Message us on WhatsApp' },
   'contact.instagram': { es: 'Síguenos en Instagram', en: 'Follow us on Instagram' },
 
   'footer.tagline': {
-    es: 'Perspectivas aéreas de alto impacto en el sur de España.',
-    en: 'High-impact aerial perspectives across southern Spain.',
+    es: 'Perspectivas aéreas de alto impacto en el sur de España',
+    en: 'High-impact aerial perspectives across southern Spain',
   },
   'footer.rights': { es: 'Todos los derechos reservados.', en: 'All rights reserved.' },
 
@@ -330,8 +330,8 @@ export const T: Dict = {
 
   'wa.title': { es: 'Solicitar presupuesto', en: 'Request a quote' },
   'wa.intro': {
-    es: 'Cuéntanos qué necesitas y te preparamos un presupuesto a medida.',
-    en: 'Tell us what you need and we will prepare a custom quote.',
+    es: 'Cuéntanos qué necesitas y te preparamos un presupuesto a medida',
+    en: 'Tell us what you need and we will prepare a custom quote',
   },
   'wa.service': { es: 'Servicio de interés', en: 'Service of interest' },
   'wa.location': { es: 'Localidad / provincia', en: 'Town / province' },
@@ -361,7 +361,7 @@ export const T: Dict = {
   'admin.delete': { es: 'Borrar', en: 'Delete' },
   'admin.reset': { es: 'Restaurar ejemplos', en: 'Reset samples' },
   'admin.back': { es: 'Volver al inicio', en: 'Back to home' },
-  'admin.empty': { es: 'No hay reseñas todavía.', en: 'No reviews yet.' },
+  'admin.empty': { es: 'No hay reseñas todavía', en: 'No reviews yet' },
 }
 
 export function translate(key: string, lang: Lang): string {
