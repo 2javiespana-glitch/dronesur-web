@@ -35,6 +35,16 @@ async function writeAll(reviews: Review[]) {
   await writeJSON(KEY, reviews)
 }
 
+// Fecha de la reseña (la elige el admin): 'YYYY-MM-DD'. Devuelve milisegundos o null si no es válida.
+function parseReviewDate(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const ts = new Date(`${value}T12:00:00Z`).getTime()
+  if (!Number.isFinite(ts)) return null
+  if (ts > Date.now()) return null // no se permiten fechas futuras
+  if (ts < new Date('2020-01-01T00:00:00Z').getTime()) return null
+  return ts
+}
+
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
@@ -120,7 +130,7 @@ export async function POST(req: Request) {
         ...clean,
         source: 'admin',
         approved: true,
-        createdAt: Date.now(),
+        createdAt: parseReviewDate(body.review?.date) ?? Date.now(),
       }
       const updated = [...reviews, newReview]
       await writeAll(updated)
@@ -135,7 +145,10 @@ export async function POST(req: Request) {
     if (!clean || !body.id) return fail('Datos no válidos.', 400)
     try {
       const reviews = await readAll()
-      const updated = reviews.map((r) => (r.id === body.id ? { ...r, ...clean } : r))
+      const newDate = parseReviewDate(body.review?.date)
+      const updated = reviews.map((r) =>
+        r.id === body.id ? { ...r, ...clean, ...(newDate ? { createdAt: newDate } : {}) } : r,
+      )
       await writeAll(updated)
       return NextResponse.json({ reviews: updated })
     } catch (e) {
