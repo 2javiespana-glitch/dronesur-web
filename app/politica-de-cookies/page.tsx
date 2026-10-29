@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { LegalPage, H2, P, UL } from '@/components/legal-page'
+import { LangText } from '@/components/lang-text'
 import { CookieSettingsButton } from '@/components/cookie-settings-button'
 
 export const metadata: Metadata = {
@@ -44,9 +45,47 @@ const ITEMS = [
   },
 ]
 
+// Same table in English (the website’s English version).
+const ITEMS_EN = [
+  {
+    name: 'dronesur-theme',
+    purpose: 'Remembers whether you prefer light or dark mode.',
+    type: 'Technical (preference)',
+    duration: 'Until you delete it',
+  },
+  {
+    name: 'dronesur-lang',
+    purpose: 'Remembers your language (Spanish or English).',
+    type: 'Technical (preference)',
+    duration: 'Until you delete it',
+  },
+  {
+    name: 'dronesur-cookie-consent',
+    purpose: 'Stores your cookie choice so we do not ask you again.',
+    type: 'Technical (necessary)',
+    duration: '12 months',
+  },
+  {
+    name: 'dronesur_desktop_notice',
+    purpose: 'Avoids repeating an informational notice during your visit.',
+    type: 'Technical',
+    duration: 'Session only',
+  },
+  {
+    name: 'Vercel Analytics',
+    purpose:
+      'Anonymous, aggregated visit statistics. They are only activated if you click “Accept” in the cookie notice.',
+    type: 'Analytics (optional)',
+    duration: 'According to Vercel; does not use cookies',
+  },
+]
+
 export default function PoliticaCookiesPage() {
   return (
-    <LegalPage title="Política de cookies">
+    <LegalPage title="Política de cookies" titleEn="Cookie policy">
+      <LangText
+        es={
+          <>
       <H2>1. ¿Qué son las cookies?</H2>
       <P>
         Las cookies y tecnologías similares (como el almacenamiento local del navegador) son
@@ -116,6 +155,88 @@ export default function PoliticaCookiesPage() {
         Si añadimos nuevas herramientas, actualizaremos esta página y volveremos a pedirte tu
         elección cuando proceda.
       </P>
+          </>
+        }
+        en={
+          <>
+
+      <P>
+        <strong>Courtesy translation.</strong> This English version is provided for convenience. If
+        there is any discrepancy, the Spanish version prevails.
+      </P>
+
+      <H2>1. What are cookies?</H2>
+      <P>
+        Cookies and similar technologies (such as the browser’s local storage) are small files that
+        a website saves on your device to remember information. Some are essential for the website
+        to work and others are optional.
+      </P>
+
+      <H2>2. What this website uses</H2>
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full min-w-[34rem] text-left text-xs">
+          <thead className="bg-muted/50 text-muted-foreground">
+            <tr>
+              <th className="p-3 font-semibold">Name</th>
+              <th className="p-3 font-semibold">Purpose</th>
+              <th className="p-3 font-semibold">Type</th>
+              <th className="p-3 font-semibold">Duration</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ITEMS_EN.map((it) => (
+              <tr key={it.name} className="border-t border-border align-top">
+                <td className="p-3 font-mono">{it.name}</td>
+                <td className="p-3">{it.purpose}</td>
+                <td className="p-3">{it.type}</td>
+                <td className="p-3">{it.duration}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <P>
+        Technical storage does not require your consent because it is essential for the website to
+        work or to remember a choice you have made. Statistics are optional and are only activated
+        if you accept them.
+      </P>
+
+      <H2>3. Third-party content</H2>
+      <P>
+        Photos and videos are served from Cloudinary, and the website is hosted on Vercel. When
+        loading them, these providers receive basic technical data such as your IP address. Links to
+        Instagram and WhatsApp take you to third-party websites with their own policies.
+      </P>
+      <P>
+        The 360° photo and 3D model viewers load their libraries from jsDelivr and cdnjs
+        (Cloudflare), which also receive your IP address. Some interactive content may be displayed
+        from Sketchfab, Kuula or Matterport: it is only loaded if you click the “Load interactive
+        content” button, and those services may use their own cookies.
+      </P>
+
+      <H2>4. How to change or withdraw your choice</H2>
+      <P>You can change your decision at any time with this button:</P>
+      <div>
+        <CookieSettingsButton />
+      </div>
+      <P>You can also delete the stored data from your browser settings:</P>
+      <UL
+        items={[
+          <>Chrome: Settings → Privacy and security → Cookies and other site data.</>,
+          <>Safari: Settings → Safari → Advanced → Website data.</>,
+          <>Firefox: Settings → Privacy &amp; Security → Cookies and Site Data.</>,
+          <>Edge: Settings → Cookies and site permissions.</>,
+        ]}
+      />
+
+      <H2>5. Changes to this policy</H2>
+      <P>
+        If we add new tools, we will update this page and ask for your choice again when
+        appropriate.
+      </P>
+          </>
+        }
+      />
     </LegalPage>
   )
 }
