@@ -48,6 +48,9 @@ export default function PoliticaPrivacidadPage() {
           <>
             <strong>Datos técnicos.</strong> Como cualquier web, el servidor recibe tu dirección IP y
             datos básicos del navegador para poder entregarte las páginas y garantizar la seguridad.
+            Si envías una opinión, de tu IP guardamos únicamente una huella cifrada (no la IP en
+            claro) durante 24 horas, para limitar el número de opiniones por persona y evitar el
+            spam.
           </>,
         ]}
       />
@@ -66,7 +69,8 @@ export default function PoliticaPrivacidadPage() {
         Las solicitudes de presupuesto, durante el tiempo necesario para atenderlas y, si hay
         contratación, durante los plazos legales aplicables. Las opiniones, mientras estén
         publicadas o hasta que pidas su retirada. Después, los datos se bloquean durante los plazos
-        legales de prescripción y se eliminan.
+        legales de prescripción y se eliminan. La huella cifrada de la IP que se usa para limitar
+        los envíos de opiniones se elimina automáticamente a las 24 horas.
       </P>
 
       <H2>5. Destinatarios y proveedores</H2>
@@ -78,6 +82,10 @@ export default function PoliticaPrivacidadPage() {
         items={[
           <>Vercel Inc. — alojamiento de la web.</>,
           <>Upstash — base de datos (opiniones y contenidos de la web).</>,
+          <>
+            Telegram — aviso interno al titular cuando se recibe una nueva opinión pendiente de
+            revisar (incluye el nombre, la profesión o empresa y el texto que hayas escrito).
+          </>,
           <>Cloudinary — almacenamiento y entrega de fotos y vídeos.</>,
           <>jsDelivr y cdnjs (Cloudflare) — librerías de los visores de fotos 360° y modelos 3D.</>,
           <>
