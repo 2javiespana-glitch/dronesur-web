@@ -83,8 +83,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="antialiased">
-        <Providers>{children}</Providers>
-        <LegalLinks />
+        <Providers>
+          {children}
+          <LegalLinks />
+        </Providers>
         <AnalyticsGate />
       </body>
     </html>
