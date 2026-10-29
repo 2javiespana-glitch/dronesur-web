@@ -39,10 +39,41 @@ export default function AvisoLegalPage() {
 
       <H2>3. Condiciones de uso</H2>
       <P>
-        Te comprometes a usar la web conforme a la ley, a la buena fe y al orden público. Queda
-        prohibido: realizar actividades ilícitas, introducir virus o código dañino, intentar acceder
-        a zonas restringidas (por ejemplo, el panel de administración) y publicar contenidos
-        ofensivos, falsos o que vulneren derechos de terceros.
+        Te comprometes a usar la web conforme a la ley, a la buena fe y al orden público. En
+        particular, queda prohibido:
+      </P>
+      <UL
+        items={[
+          <>Realizar actividades ilícitas o contrarias a los derechos de terceros.</>,
+          <>
+            Introducir virus, código dañino o cualquier elemento que pueda dañar, sobrecargar o
+            interrumpir la web o sus servidores.
+          </>,
+          <>
+            Intentar acceder a zonas restringidas (por ejemplo, el panel de administración) o
+            eludir las medidas de seguridad, incluidos los límites de envío del formulario de
+            opiniones.
+          </>,
+          <>
+            Usar programas automáticos (bots, scrapers) para extraer contenidos de la web o para
+            enviar formularios de forma masiva.
+          </>,
+          <>
+            Publicar contenidos ofensivos, falsos o que vulneren derechos de terceros, suplantar a
+            otra persona o incluir datos personales de otras personas sin su permiso.
+          </>,
+          <>
+            Usar los datos personales de otras personas que aparezcan en la web (por ejemplo, el
+            nombre y la profesión o empresa de quienes dejan una opinión) para enviar publicidad o
+            comunicaciones comerciales, hacer llamadas de venta, elaborar listas de contactos o
+            cualquier otro fin distinto de leer la web.
+          </>,
+        ]}
+      />
+      <P>
+        Si incumples estas condiciones, el titular podrá retirar los contenidos afectados, bloquear
+        tu acceso y, cuando proceda, poner los hechos en conocimiento de las autoridades o reclamar
+        los daños causados.
       </P>
 
       <H2>4. Servicios y presupuestos</H2>
@@ -83,6 +114,11 @@ export default function AvisoLegalPage() {
       <P>
         El titular no escribe opiniones inventadas, no las encarga a terceros ni ofrece pagos a
         cambio de ellas. Puede retirar las que sean ofensivas, falsas o ilegales.
+      </P>
+      <P>
+        El nombre y la profesión o empresa de quienes dejan una opinión se muestran únicamente
+        para que se pueda leer esa opinión. Está prohibido copiarlos, recopilarlos o usarlos para
+        enviar publicidad, hacer llamadas comerciales o cualquier otro fin distinto.
       </P>
 
       <H2>6. Propiedad intelectual e industrial</H2>
