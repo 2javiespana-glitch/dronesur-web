@@ -45,6 +45,33 @@ function parseReviewDate(value: unknown): number | null {
   return ts
 }
 
+// Aviso por Telegram cuando llega una reseña nueva pendiente de aprobar.
+// Necesita las variables TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Vercel.
+// Si faltan o Telegram falla, no pasa nada: la reseña se guarda igualmente.
+async function notifyTelegram(review: { name: string; role: string; rating: number; text: string }) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_CHAT_ID
+  if (!token || !chatId) return
+  const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://dronesur.vercel.app'
+  const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating)
+  const text =
+    `Nueva reseña pendiente de aprobar\n\n` +
+    `${review.name}${review.role ? ` (${review.role})` : ''}\n` +
+    `${stars}\n\n` +
+    `${review.text}\n\n` +
+    `Apruébala en: ${site}/admin`
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+      signal: AbortSignal.timeout(4000),
+    })
+  } catch {
+    // Se ignora: el aviso es un extra y nunca debe impedir guardar la reseña.
+  }
+}
+
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
@@ -108,6 +135,7 @@ export async function POST(req: Request) {
         createdAt: Date.now(),
       }
       await writeAll([...reviews, newReview])
+      await notifyTelegram(clean)
       return NextResponse.json({ ok: true, pending: true })
     } catch (e) {
       return serverError(e)
