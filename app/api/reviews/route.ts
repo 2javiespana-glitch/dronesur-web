@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { readJSON, writeJSON, isAdmin, adminPasswordConfigured } from '@/lib/kv'
+import { readJSON, writeJSON, redis, isAdmin, adminPasswordConfigured } from '@/lib/kv'
 
 // Opiniones de clientes.
 // - GET    -> devuelve las opiniones. El público solo ve las aprobadas; el admin
@@ -16,6 +16,8 @@ export const dynamic = 'force-dynamic'
 const KEY = 'dronesur:reviews'
 const MAX_NAME = 80
 const MAX_TEXT = 600
+const MAX_PUBLIC_PER_DAY = 3 // reseñas que puede enviar una misma persona (IP) cada 24 horas
+const WINDOW_SECONDS = 24 * 60 * 60
 
 export type Review = {
   id: string
@@ -72,6 +74,25 @@ async function notifyTelegram(review: { name: string; role: string; rating: numb
   }
 }
 
+// Limita los envíos públicos por persona. Se identifica por la IP, pero no se guarda la IP
+// en claro: solo una huella (hash) que caduca a las 24 horas.
+// Devuelve true si todavía puede enviar, false si ya llegó al límite.
+async function allowPublicSubmit(req: Request): Promise<boolean> {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    'desconocida'
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
+  const hash = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 32)
+  const key = `dronesur:reviews:rl:${hash}`
+  const count = Number(await redis(['INCR', key]))
+  if (count === 1) await redis(['EXPIRE', key, String(WINDOW_SECONDS)])
+  return count <= MAX_PUBLIC_PER_DAY
+}
+
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
@@ -126,6 +147,9 @@ export async function POST(req: Request) {
     const clean = sanitizeReview(body.review ?? {}, false)
     if (!clean) return fail('Revisa el nombre, la puntuación y el texto de la opinión.', 400)
     try {
+      if (!(await allowPublicSubmit(req))) {
+        return fail('Has alcanzado el límite de opiniones enviadas. Inténtalo de nuevo mañana.', 429)
+      }
       const reviews = await readAll()
       const newReview: Review = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
