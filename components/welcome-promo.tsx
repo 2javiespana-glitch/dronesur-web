@@ -21,7 +21,8 @@ export function WelcomePromo() {
   const { open } = useQuote()
   const [override, setOverride] = useState<PromoOverride | null>(null)
 
-  // Si has editado el texto del banner desde el admin, se usa ese; si no, el de siempre.
+  // Insignia, título y botón: si los dejas en blanco en el admin, se usa el texto de siempre.
+  // Texto descriptivo (el de debajo del título): solo aparece si lo escribes tú. En blanco = no se muestra.
   useEffect(() => {
     fetch('/api/settings', { cache: 'no-store' })
       .then((r) => r.json())
@@ -36,7 +37,7 @@ export function WelcomePromo() {
 
   const badge = pick(lang === 'en' ? override?.badgeEn : override?.badgeEs, 'promo.badge')
   const title = pick(lang === 'en' ? override?.titleEn : override?.titleEs, 'promo.title')
-  const text = pick(lang === 'en' ? override?.textEn : override?.textEs, 'promo.text')
+  const text = ((lang === 'en' ? override?.textEn : override?.textEs) ?? '').trim()
   const cta = pick(lang === 'en' ? override?.ctaEn : override?.ctaEs, 'promo.cta')
 
   return (
@@ -53,9 +54,11 @@ export function WelcomePromo() {
               <h2 className="mt-4 text-3xl font-extrabold sm:text-4xl">
                 <span className="text-gold">{title}</span>
               </h2>
-              <p className="mt-3 text-pretty text-base text-muted-foreground sm:text-lg">
-                {text}
-              </p>
+              {text && (
+                <p className="mt-3 text-pretty text-base text-muted-foreground sm:text-lg">
+                  {text}
+                </p>
+              )}
             </div>
             <button
               onClick={() => open({ discount: true })}
