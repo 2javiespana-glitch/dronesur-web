@@ -32,13 +32,17 @@ export function WelcomePromo() {
       .catch(() => {})
   }, [])
 
-  const pick = (custom: string | undefined, fallbackKey: string) =>
-    custom && custom.trim() ? custom : t(fallbackKey)
+  const pick = (custom: string | undefined, fallback: string) =>
+    custom && custom.trim() ? custom : fallback
 
-  const badge = pick(lang === 'en' ? override?.badgeEn : override?.badgeEs, 'promo.badge')
-  const title = pick(lang === 'en' ? override?.titleEn : override?.titleEs, 'promo.title')
+  const badge = pick(lang === 'en' ? override?.badgeEn : override?.badgeEs, t('promo.badge'))
+  const title = pick(lang === 'en' ? override?.titleEn : override?.titleEs, t('promo.title'))
   const text = ((lang === 'en' ? override?.textEn : override?.textEs) ?? '').trim()
-  const cta = pick(lang === 'en' ? override?.ctaEn : override?.ctaEs, 'promo.cta')
+  // Botón: si lo dejas en blanco en el admin, sale «¡Vamos allá!» / «Let’s go!».
+  const cta = pick(
+    lang === 'en' ? override?.ctaEn : override?.ctaEs,
+    lang === 'en' ? 'Let’s go!' : '¡Vamos allá!',
+  )
 
   return (
     <section id="promociones" className="relative px-4 py-16 sm:px-6 lg:px-8">
