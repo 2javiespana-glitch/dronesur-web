@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
-import { readJSON, writeJSON, redis, isAdmin, adminPasswordConfigured } from '@/lib/kv'
+import { readJSON, updateJSON, redis, isAdmin, clientHash } from '@/lib/kv'
+import { fail, serverError, requireAdmin } from '@/lib/api'
+import { notifyTelegram } from '@/lib/telegram'
 
 // Opiniones de clientes.
 // - GET    -> devuelve las opiniones. El público solo ve las aprobadas; el admin
@@ -33,8 +35,10 @@ export type Review = {
 async function readAll(): Promise<Review[]> {
   return readJSON<Review[]>(KEY, [])
 }
-async function writeAll(reviews: Review[]) {
-  await writeJSON(KEY, reviews)
+
+// Cualquier cambio en la lista pasa por aquí, para que dos cambios simultáneos no se pisen.
+function changeAll(mutate: (reviews: Review[]) => Review[]): Promise<Review[]> {
+  return updateJSON<Review[]>(KEY, [], mutate)
 }
 
 // Fecha de la reseña (la elige el admin): 'YYYY-MM-DD'. Devuelve milisegundos o null si no es válida.
@@ -47,61 +51,29 @@ function parseReviewDate(value: unknown): number | null {
   return ts
 }
 
-// Aviso por Telegram cuando llega una reseña nueva pendiente de aprobar.
-// Necesita las variables TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Vercel.
-// Si faltan o Telegram falla, no pasa nada: la reseña se guarda igualmente.
-async function notifyTelegram(review: { name: string; role: string; rating: number; text: string }) {
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID
-  if (!token || !chatId) return
+// Aviso por Telegram de una reseña nueva pendiente de aprobar (ver lib/telegram.ts).
+async function notifyNewReview(review: { name: string; role: string; rating: number; text: string }) {
   const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://dronesur.vercel.app'
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating)
-  const text =
+  await notifyTelegram(
     `Nueva reseña pendiente de aprobar\n\n` +
-    `${review.name}${review.role ? ` (${review.role})` : ''}\n` +
-    `${stars}\n\n` +
-    `${review.text}\n\n` +
-    `Apruébala en: ${site}/admin`
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
-      signal: AbortSignal.timeout(4000),
-    })
-  } catch {
-    // Se ignora: el aviso es un extra y nunca debe impedir guardar la reseña.
-  }
+      `${review.name}${review.role ? ` (${review.role})` : ''}\n` +
+      `${stars}\n\n` +
+      `${review.text}\n\n` +
+      `Apruébala en: ${site}/admin`,
+  )
 }
 
 // Limita los envíos públicos por persona. Se identifica por la IP, pero no se guarda la IP
 // en claro: solo una huella (hash) que caduca a las 24 horas.
 // Devuelve true si todavía puede enviar, false si ya llegó al límite.
 async function allowPublicSubmit(req: Request): Promise<boolean> {
-  const ip =
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    'desconocida'
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
-  const hash = Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, 32)
-  const key = `dronesur:reviews:rl:${hash}`
+  const key = `dronesur:reviews:rl:${clientHash(req)}`
+  // Primero se crea el contador con caducidad (solo si no existía) y luego se suma 1.
+  // Así la caducidad queda siempre fijada, aunque algo falle a medias.
+  await redis(['SET', key, '0', 'EX', String(WINDOW_SECONDS), 'NX'])
   const count = Number(await redis(['INCR', key]))
-  if (count === 1) await redis(['EXPIRE', key, String(WINDOW_SECONDS)])
   return count <= MAX_PUBLIC_PER_DAY
-}
-
-function fail(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status })
-}
-
-function serverError(e: unknown) {
-  if (e instanceof Error && e.message === 'DB_NOT_CONFIGURED') {
-    return fail('Falta conectar la base de datos (Upstash) en Vercel.', 500)
-  }
-  return fail('Error en el servidor al guardar los datos.', 500)
 }
 
 function sanitizeReview(
@@ -122,7 +94,7 @@ export async function GET(req: Request) {
   try {
     const reviews = await readAll()
     reviews.sort((a, b) => b.createdAt - a.createdAt)
-    const visible = isAdmin(req) ? reviews : reviews.filter((r) => r.approved !== false)
+    const visible = (await isAdmin(req)) ? reviews : reviews.filter((r) => r.approved !== false)
     return NextResponse.json(visible, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json([])
@@ -150,7 +122,6 @@ export async function POST(req: Request) {
       if (!(await allowPublicSubmit(req))) {
         return fail('Has alcanzado el límite de opiniones enviadas. Inténtalo de nuevo mañana.', 429)
       }
-      const reviews = await readAll()
       const newReview: Review = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         ...clean,
@@ -158,8 +129,8 @@ export async function POST(req: Request) {
         approved: false,
         createdAt: Date.now(),
       }
-      await writeAll([...reviews, newReview])
-      await notifyTelegram(clean)
+      await changeAll((reviews) => [...reviews, newReview])
+      await notifyNewReview(clean)
       return NextResponse.json({ ok: true, pending: true })
     } catch (e) {
       return serverError(e)
@@ -167,16 +138,13 @@ export async function POST(req: Request) {
   }
 
   // El resto de acciones son solo para el admin.
-  if (!adminPasswordConfigured()) {
-    return fail('Falta configurar ADMIN_PASSWORD en Vercel.', 500)
-  }
-  if (!isAdmin(req)) return fail('Contraseña incorrecta', 401)
+  const denied = await requireAdmin(req)
+  if (denied) return denied
 
   if (body.action === 'add') {
     const clean = sanitizeReview(body.review ?? {}, true)
     if (!clean) return fail('Revisa el nombre y el texto de la opinión.', 400)
     try {
-      const reviews = await readAll()
       const newReview: Review = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         ...clean,
@@ -184,8 +152,7 @@ export async function POST(req: Request) {
         approved: true,
         createdAt: parseReviewDate(body.review?.date) ?? Date.now(),
       }
-      const updated = [...reviews, newReview]
-      await writeAll(updated)
+      const updated = await changeAll((reviews) => [...reviews, newReview])
       return NextResponse.json({ reviews: updated })
     } catch (e) {
       return serverError(e)
@@ -196,12 +163,12 @@ export async function POST(req: Request) {
     const clean = sanitizeReview(body.review ?? {}, true)
     if (!clean || !body.id) return fail('Datos no válidos.', 400)
     try {
-      const reviews = await readAll()
       const newDate = parseReviewDate(body.review?.date)
-      const updated = reviews.map((r) =>
-        r.id === body.id ? { ...r, ...clean, ...(newDate ? { createdAt: newDate } : {}) } : r,
+      const updated = await changeAll((reviews) =>
+        reviews.map((r) =>
+          r.id === body.id ? { ...r, ...clean, ...(newDate ? { createdAt: newDate } : {}) } : r,
+        ),
       )
-      await writeAll(updated)
       return NextResponse.json({ reviews: updated })
     } catch (e) {
       return serverError(e)
@@ -211,11 +178,9 @@ export async function POST(req: Request) {
   if (body.action === 'approve') {
     if (!body.id || typeof body.approved !== 'boolean') return fail('Datos no válidos.', 400)
     try {
-      const reviews = await readAll()
-      const updated = reviews.map((r) =>
-        r.id === body.id ? { ...r, approved: body.approved } : r,
+      const updated = await changeAll((reviews) =>
+        reviews.map((r) => (r.id === body.id ? { ...r, approved: body.approved } : r)),
       )
-      await writeAll(updated)
       return NextResponse.json({ reviews: updated })
     } catch (e) {
       return serverError(e)
@@ -226,12 +191,11 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  if (!isAdmin(req)) return fail('Contraseña incorrecta', 401)
+  const denied = await requireAdmin(req)
+  if (denied) return denied
   try {
     const { id } = await req.json()
-    const reviews = await readAll()
-    const updated = reviews.filter((r) => r.id !== id)
-    await writeAll(updated)
+    const updated = await changeAll((reviews) => reviews.filter((r) => r.id !== id))
     return NextResponse.json({ reviews: updated })
   } catch (e) {
     return serverError(e)
