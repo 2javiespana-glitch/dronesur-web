@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
-import { readJSON, updateJSON, redis, isAdmin, clientHash } from '@/lib/kv'
-import { fail, serverError, requireAdmin } from '@/lib/api'
-import { notifyTelegram } from '@/lib/telegram'
+import { readJSON, writeJSON, redis, isAdmin, adminPasswordConfigured } from '@/lib/kv'
 
 // Opiniones de clientes.
 // - GET    -> devuelve las opiniones. El público solo ve las aprobadas; el admin
@@ -18,8 +16,32 @@ export const dynamic = 'force-dynamic'
 const KEY = 'dronesur:reviews'
 const MAX_NAME = 80
 const MAX_TEXT = 600
-const MAX_PUBLIC_PER_DAY = 3 // reseñas que puede enviar una misma persona (IP) cada 24 horas
-const WINDOW_SECONDS = 24 * 60 * 60
+
+// Límite de reseñas que puede enviar el público. Lo cambia el admin desde su panel.
+// - max: cuántas reseñas (0 = sin límite)
+// - scope: 'ip' = cada persona (IP) tiene las suyas · 'global' = total entre todos los visitantes
+// - period: 'hour' = por hora · 'day' = por día (24 h desde la primera reseña)
+const LIMITS_KEY = 'dronesur:reviews:limits'
+export type ReviewLimits = { max: number; period: 'hour' | 'day'; scope: 'ip' | 'global' }
+const DEFAULT_LIMITS: ReviewLimits = { max: 3, period: 'day', scope: 'ip' }
+
+function cleanLimits(input: unknown): ReviewLimits {
+  const i = (input ?? {}) as Record<string, unknown>
+  const n = Math.round(Number(i.max))
+  return {
+    max: Number.isFinite(n) ? Math.min(Math.max(n, 0), 1000) : DEFAULT_LIMITS.max,
+    period: i.period === 'hour' ? 'hour' : 'day',
+    scope: i.scope === 'global' ? 'global' : 'ip',
+  }
+}
+
+async function readLimits(): Promise<ReviewLimits> {
+  try {
+    return cleanLimits(await readJSON<ReviewLimits>(LIMITS_KEY, DEFAULT_LIMITS))
+  } catch {
+    return DEFAULT_LIMITS
+  }
+}
 
 export type Review = {
   id: string
@@ -35,10 +57,8 @@ export type Review = {
 async function readAll(): Promise<Review[]> {
   return readJSON<Review[]>(KEY, [])
 }
-
-// Cualquier cambio en la lista pasa por aquí, para que dos cambios simultáneos no se pisen.
-function changeAll(mutate: (reviews: Review[]) => Review[]): Promise<Review[]> {
-  return updateJSON<Review[]>(KEY, [], mutate)
+async function writeAll(reviews: Review[]) {
+  await writeJSON(KEY, reviews)
 }
 
 // Fecha de la reseña (la elige el admin): 'YYYY-MM-DD'. Devuelve milisegundos o null si no es válida.
@@ -51,29 +71,108 @@ function parseReviewDate(value: unknown): number | null {
   return ts
 }
 
-// Aviso por Telegram de una reseña nueva pendiente de aprobar (ver lib/telegram.ts).
-async function notifyNewReview(review: { name: string; role: string; rating: number; text: string }) {
+// Aviso por Telegram cuando llega una reseña nueva pendiente de aprobar.
+// Necesita las variables TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Vercel.
+// Si faltan o Telegram falla, no pasa nada: la reseña se guarda igualmente.
+async function notifyTelegram(review: { name: string; role: string; rating: number; text: string }) {
+  const token = process.env.TELEGRAM_BOT_TOKEN
+  const chatId = process.env.TELEGRAM_CHAT_ID
+  if (!token || !chatId) return
   const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://dronesur.vercel.app'
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating)
-  await notifyTelegram(
+  const text =
     `Nueva reseña pendiente de aprobar\n\n` +
-      `${review.name}${review.role ? ` (${review.role})` : ''}\n` +
-      `${stars}\n\n` +
-      `${review.text}\n\n` +
-      `Apruébala en: ${site}/admin`,
-  )
+    `${review.name}${review.role ? ` (${review.role})` : ''}\n` +
+    `${stars}\n\n` +
+    `${review.text}\n\n` +
+    `Apruébala en: ${site}/admin`
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+      signal: AbortSignal.timeout(4000),
+    })
+  } catch {
+    // Se ignora: el aviso es un extra y nunca debe impedir guardar la reseña.
+  }
 }
 
-// Limita los envíos públicos por persona. Se identifica por la IP, pero no se guarda la IP
-// en claro: solo una huella (hash) que caduca a las 24 horas.
-// Devuelve true si todavía puede enviar, false si ya llegó al límite.
-async function allowPublicSubmit(req: Request): Promise<boolean> {
-  const key = `dronesur:reviews:rl:${clientHash(req)}`
-  // Primero se crea el contador con caducidad (solo si no existía) y luego se suma 1.
-  // Así la caducidad queda siempre fijada, aunque algo falle a medias.
-  await redis(['SET', key, '0', 'EX', String(WINDOW_SECONDS), 'NX'])
+// Normaliza la IP para contar a una misma conexión como una sola persona:
+// - IPv4: se queda tal cual.
+// - IPv4 escrita como IPv6 (::ffff:1.2.3.4): se convierte a IPv4.
+// - IPv6: nos quedamos solo con los primeros 64 bits (la «red» de la conexión), porque los
+//   últimos 64 bits cambian cada cierto tiempo en muchos dispositivos (direcciones temporales).
+function normalizeIp(raw: string): string {
+  const ip = raw.trim().replace(/^\[|\]$/g, '').split('%')[0]
+  const mapped = ip.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i)
+  if (mapped) return mapped[1]
+  if (!ip.includes(':')) return ip
+
+  let groups: string[]
+  if (ip.includes('::')) {
+    const [head, tail] = ip.split('::')
+    const left = head ? head.split(':') : []
+    const right = tail ? tail.split(':') : []
+    const fill = 8 - left.length - right.length
+    if (fill < 0) return ip
+    groups = [...left, ...Array(fill).fill('0'), ...right]
+  } else {
+    groups = ip.split(':')
+  }
+  if (groups.length !== 8) return ip
+
+  const prefix = groups.slice(0, 4).map((g) => parseInt(g || '0', 16))
+  if (prefix.some((n) => !Number.isFinite(n))) return ip
+  return `${prefix.map((n) => n.toString(16)).join(':')}::/64`
+}
+
+// Comprueba el límite de envíos públicos que el admin ha configurado.
+// Con scope 'ip' se identifica a la persona por su IP, pero no se guarda la IP en claro:
+// solo una huella (hash) que caduca sola cuando termina el periodo (1 hora o 24 horas).
+async function allowPublicSubmit(req: Request): Promise<{ ok: true } | { ok: false; message: string }> {
+  const limits = await readLimits()
+  if (limits.max <= 0) return { ok: true }
+
+  let who = 'all'
+  if (limits.scope === 'ip') {
+    const ip = normalizeIp(
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+        req.headers.get('x-real-ip') ||
+        'desconocida',
+    )
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip))
+    who = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, 32)
+  }
+
+  const seconds = limits.period === 'hour' ? 60 * 60 : 24 * 60 * 60
+  const key = `dronesur:reviews:rl:${limits.scope}:${limits.period}:${who}`
   const count = Number(await redis(['INCR', key]))
-  return count <= MAX_PUBLIC_PER_DAY
+  if (count === 1) await redis(['EXPIRE', key, String(seconds)])
+  if (count <= limits.max) return { ok: true }
+
+  const when = limits.period === 'hour' ? 'dentro de un rato' : 'mañana'
+  return {
+    ok: false,
+    message:
+      limits.scope === 'ip'
+        ? `Has alcanzado el límite de opiniones enviadas. Inténtalo de nuevo ${when}.`
+        : `Ahora mismo no podemos recibir más opiniones. Inténtalo de nuevo ${when}.`,
+  }
+}
+
+function fail(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status })
+}
+
+function serverError(e: unknown) {
+  if (e instanceof Error && e.message === 'DB_NOT_CONFIGURED') {
+    return fail('Falta conectar la base de datos (Upstash) en Vercel.', 500)
+  }
+  return fail('Error en el servidor al guardar los datos.', 500)
 }
 
 function sanitizeReview(
@@ -94,7 +193,7 @@ export async function GET(req: Request) {
   try {
     const reviews = await readAll()
     reviews.sort((a, b) => b.createdAt - a.createdAt)
-    const visible = (await isAdmin(req)) ? reviews : reviews.filter((r) => r.approved !== false)
+    const visible = isAdmin(req) ? reviews : reviews.filter((r) => r.approved !== false)
     return NextResponse.json(visible, { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return NextResponse.json([])
@@ -107,6 +206,7 @@ export async function POST(req: Request) {
     review?: Record<string, unknown>
     id?: string
     approved?: boolean
+    limits?: Record<string, unknown>
   }
   try {
     body = await req.json()
@@ -119,9 +219,9 @@ export async function POST(req: Request) {
     const clean = sanitizeReview(body.review ?? {}, false)
     if (!clean) return fail('Revisa el nombre, la puntuación y el texto de la opinión.', 400)
     try {
-      if (!(await allowPublicSubmit(req))) {
-        return fail('Has alcanzado el límite de opiniones enviadas. Inténtalo de nuevo mañana.', 429)
-      }
+      const gate = await allowPublicSubmit(req)
+      if (!gate.ok) return fail(gate.message, 429)
+      const reviews = await readAll()
       const newReview: Review = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         ...clean,
@@ -129,8 +229,8 @@ export async function POST(req: Request) {
         approved: false,
         createdAt: Date.now(),
       }
-      await changeAll((reviews) => [...reviews, newReview])
-      await notifyNewReview(clean)
+      await writeAll([...reviews, newReview])
+      await notifyTelegram(clean)
       return NextResponse.json({ ok: true, pending: true })
     } catch (e) {
       return serverError(e)
@@ -138,13 +238,30 @@ export async function POST(req: Request) {
   }
 
   // El resto de acciones son solo para el admin.
-  const denied = await requireAdmin(req)
-  if (denied) return denied
+  if (!adminPasswordConfigured()) {
+    return fail('Falta configurar ADMIN_PASSWORD en Vercel.', 500)
+  }
+  if (!isAdmin(req)) return fail('Contraseña incorrecta', 401)
+
+  // Límite de reseñas del público (solo admin): leer y guardar.
+  if (body.action === 'getLimits') {
+    return NextResponse.json({ limits: await readLimits() })
+  }
+  if (body.action === 'setLimits') {
+    try {
+      const limits = cleanLimits(body.limits)
+      await writeJSON(LIMITS_KEY, limits)
+      return NextResponse.json({ limits })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
 
   if (body.action === 'add') {
     const clean = sanitizeReview(body.review ?? {}, true)
     if (!clean) return fail('Revisa el nombre y el texto de la opinión.', 400)
     try {
+      const reviews = await readAll()
       const newReview: Review = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         ...clean,
@@ -152,7 +269,8 @@ export async function POST(req: Request) {
         approved: true,
         createdAt: parseReviewDate(body.review?.date) ?? Date.now(),
       }
-      const updated = await changeAll((reviews) => [...reviews, newReview])
+      const updated = [...reviews, newReview]
+      await writeAll(updated)
       return NextResponse.json({ reviews: updated })
     } catch (e) {
       return serverError(e)
@@ -163,12 +281,12 @@ export async function POST(req: Request) {
     const clean = sanitizeReview(body.review ?? {}, true)
     if (!clean || !body.id) return fail('Datos no válidos.', 400)
     try {
+      const reviews = await readAll()
       const newDate = parseReviewDate(body.review?.date)
-      const updated = await changeAll((reviews) =>
-        reviews.map((r) =>
-          r.id === body.id ? { ...r, ...clean, ...(newDate ? { createdAt: newDate } : {}) } : r,
-        ),
+      const updated = reviews.map((r) =>
+        r.id === body.id ? { ...r, ...clean, ...(newDate ? { createdAt: newDate } : {}) } : r,
       )
+      await writeAll(updated)
       return NextResponse.json({ reviews: updated })
     } catch (e) {
       return serverError(e)
@@ -178,9 +296,11 @@ export async function POST(req: Request) {
   if (body.action === 'approve') {
     if (!body.id || typeof body.approved !== 'boolean') return fail('Datos no válidos.', 400)
     try {
-      const updated = await changeAll((reviews) =>
-        reviews.map((r) => (r.id === body.id ? { ...r, approved: body.approved } : r)),
+      const reviews = await readAll()
+      const updated = reviews.map((r) =>
+        r.id === body.id ? { ...r, approved: body.approved } : r,
       )
+      await writeAll(updated)
       return NextResponse.json({ reviews: updated })
     } catch (e) {
       return serverError(e)
@@ -191,11 +311,12 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const denied = await requireAdmin(req)
-  if (denied) return denied
+  if (!isAdmin(req)) return fail('Contraseña incorrecta', 401)
   try {
     const { id } = await req.json()
-    const updated = await changeAll((reviews) => reviews.filter((r) => r.id !== id))
+    const reviews = await readAll()
+    const updated = reviews.filter((r) => r.id !== id)
+    await writeAll(updated)
     return NextResponse.json({ reviews: updated })
   } catch (e) {
     return serverError(e)
