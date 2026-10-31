@@ -1,3 +1,6 @@
+// Aviso por Telegram (por ejemplo, cuando llega una reseña nueva pendiente de aprobar).
+// Necesita las variables TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID en Vercel.
+// Si faltan o Telegram falla, no pasa nada: nunca debe impedir guardar lo que se estaba haciendo.
 export async function notifyTelegram(text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN
   const chatId = process.env.TELEGRAM_CHAT_ID
@@ -8,8 +11,9 @@ export async function notifyTelegram(text: string) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text }),
+      signal: AbortSignal.timeout(4000),
     })
   } catch {
-    // Si Telegram falla, que no se rompa el envío de la reseña
+    // Se ignora a propósito.
   }
 }
