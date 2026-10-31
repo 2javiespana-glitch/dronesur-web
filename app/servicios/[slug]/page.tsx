@@ -4,18 +4,19 @@ import { CategoryDetail } from '@/components/category-detail'
 import { SiteFooter } from '@/components/contact-footer'
 import { WhatsAppFab } from '@/components/whatsapp-fab'
 import { CookieBanner } from '@/components/cookie-banner'
-import { getCategory } from '@/lib/content'
-import { readJSON } from '@/lib/kv'
+import { CATEGORIES, type Category } from '@/lib/content'
+import { readCategories } from '@/lib/categories-db'
 
-// La página lee cada vez qué categorías están ocultas (panel de admin), así que no se genera fija.
+// La página lee cada vez las categorías guardadas desde el panel de admin (crear / ocultar),
+// así que no se genera fija.
 export const dynamic = 'force-dynamic'
 
-async function getHiddenCategories(): Promise<string[]> {
+async function loadCategories(): Promise<Category[]> {
   try {
-    const settings = await readJSON<{ hiddenCategories?: string[] }>('dronesur:settings', {})
-    return Array.isArray(settings.hiddenCategories) ? settings.hiddenCategories : []
+    return await readCategories()
   } catch {
-    return []
+    // Si la base de datos no responde, la web sigue funcionando con las categorías de siempre.
+    return CATEGORIES
   }
 }
 
@@ -25,12 +26,11 @@ export default async function CategoryPage({
   params: Promise<{ slug: string }>
 }) {
   const { slug } = await params
-  const category = getCategory(slug)
-  if (!category) notFound()
+  const categories = await loadCategories()
+  const category = categories.find((c) => c.slug === slug)
 
-  // Categoría oculta desde el admin: la dirección deja de funcionar.
-  const hidden = await getHiddenCategories()
-  if (hidden.includes(slug)) notFound()
+  // Si no existe, o está oculta desde el admin, la dirección deja de funcionar.
+  if (!category || category.visible === false) notFound()
 
   return (
     <>
