@@ -7,10 +7,11 @@ import {
   useEffect,
   useState,
 } from 'react'
-import { X } from 'lucide-react'
+import { Mail, X } from 'lucide-react'
 import { CATEGORIES, SITE, type Category } from '@/lib/content'
 import { useSite } from '@/components/site-provider'
 import { WhatsAppIcon } from '@/components/icons'
+import { LEGAL } from '@/lib/legal'
 
 type QuoteContextValue = {
   open: (opts?: { service?: string; discount?: boolean }) => void
@@ -87,6 +88,13 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     e.preventDefault()
     const url = `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(buildMessage())}`
     window.open(url, '_blank', 'noopener,noreferrer')
+    setIsOpen(false)
+  }
+
+  // Misma solicitud, pero abriendo el programa de correo con el mensaje ya escrito.
+  const sendByEmail = () => {
+    const subject = lang === 'es' ? 'Solicitud de presupuesto' : 'Quote request'
+    window.location.href = `mailto:${LEGAL.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildMessage())}`
     setIsOpen(false)
   }
 
@@ -185,6 +193,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
               >
                 <WhatsAppIcon className="h-4 w-4" />
                 {t('wa.send')}
+              </button>
+
+              <button
+                type="button"
+                onClick={sendByEmail}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-3 text-sm font-semibold transition hover:border-[var(--gold)] hover:text-gold"
+              >
+                <Mail className="h-4 w-4" />
+                {lang === 'es' ? 'Enviar por correo' : 'Send by email'}
               </button>
             </form>
           </div>
