@@ -1,13 +1,18 @@
 'use client'
 
 import Link from 'next/link'
+import { Mail } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { InstagramIcon, WhatsAppIcon } from '@/components/icons'
 import { SITE } from '@/lib/content'
+import { LEGAL } from '@/lib/legal'
+
+// Correo al que escribe la gente. Es el de lib/legal.ts (el mismo del aviso legal): si cambia ahí, cambia aquí.
+const CONTACT_EMAIL = LEGAL.email
 
 export function ContactSection() {
-  const { t } = useSite()
+  const { t, lang } = useSite()
   const { open } = useQuote()
 
   return (
@@ -35,7 +40,16 @@ export function ContactSection() {
               <InstagramIcon className="h-5 w-5" />
               {t('contact.instagram')}
             </a>
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-border px-7 py-3.5 text-sm font-semibold transition hover:border-[var(--gold)] hover:text-gold"
+            >
+              <Mail className="h-5 w-5" />
+              {lang === 'es' ? 'Escríbenos por correo' : 'Email us'}
+            </a>
           </div>
+          {/* La dirección escrita, por si alguien no tiene programa de correo configurado */}
+          <p className="mt-5 text-sm text-muted-foreground">{CONTACT_EMAIL}</p>
         </div>
       </div>
     </section>
@@ -58,6 +72,13 @@ export function SiteFooter() {
         </div>
 
         <div className="flex items-center gap-4">
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            aria-label={`Email ${CONTACT_EMAIL}`}
+            className="rounded-full border border-border p-2.5 transition hover:border-[var(--gold)] hover:text-gold"
+          >
+            <Mail className="h-5 w-5" />
+          </a>
           <a
             href={SITE.instagramUrl}
             target="_blank"
