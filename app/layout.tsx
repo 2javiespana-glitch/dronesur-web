@@ -25,7 +25,6 @@ export const metadata: Metadata = {
   title: 'Dronesur | Perspectivas aéreas de alto impacto en el sur de España',
   description:
     'Dronesur — Servicios profesionales de dron en Almería, Granada, Málaga, Jaén, Cádiz y Murcia. Vídeo y fotografía aérea 4K, fotogrametría, eventos, inmobiliaria y seguimiento de obra.',
-  generator: 'v0.app',
   keywords: [
     'dron',
     'drone',
