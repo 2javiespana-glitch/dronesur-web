@@ -168,8 +168,8 @@ export default function AdminPage() {
     pilot: true,
     promoOverride: EMPTY_PROMO_OVERRIDE,
   }
-  const SETTINGS_LABELS: { key: keyof SiteSettings; label: string }[] = [
-    { key: 'promo', label: 'Banner de bienvenida / descuento' },
+const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; label: string }[] = [    
+  { key: 'promo', label: 'Banner de bienvenida / descuento' },
     { key: 'coverage', label: 'Zonas de cobertura' },
     { key: 'guarantee', label: 'Garantía legal' },
     { key: 'reviews', label: 'Reseñas de clientes' },
