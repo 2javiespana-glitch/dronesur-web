@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2, UploadCloud } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
+import { ReviewLimitsPanel } from '@/components/review-limits-panel'
 import { type VideoItem, CATEGORIES, type Category } from '@/lib/content'
 type Review = {
   id: string
@@ -887,6 +888,8 @@ const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; labe
       </div>
 
       {reviewsError && <p className="mt-2 text-sm text-destructive">{reviewsError}</p>}
+
+      <ReviewLimitsPanel password={pass} />
 
       {/* Panel: Qué se ve en la web */}
       <div className="mt-10">
