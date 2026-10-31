@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { readJSON, writeJSON, isAdmin, adminPasswordConfigured } from '@/lib/kv'
+import { readJSON, updateJSON } from '@/lib/kv'
+import { fail, serverError, requireAdmin } from '@/lib/api'
 
 // Guarda qué secciones de la web están visibles u ocultas (lo que se controla desde
 // el panel de admin, apartado "Qué se ve en la web").
@@ -55,8 +56,25 @@ const DEFAULT_SETTINGS: SiteSettings = {
   promoOverride: EMPTY_PROMO_OVERRIDE,
 }
 
-function fail(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status })
+const BOOLEAN_KEYS = ['promo', 'coverage', 'guarantee', 'reviews', 'legal', 'about', 'pilot'] as const
+
+// Solo se guardan los ajustes conocidos (y con el tipo correcto). Así nadie puede colar
+// campos raros en la base de datos aunque envíe una petición a mano.
+function sanitizeSettings(input: unknown): Partial<SiteSettings> {
+  const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+  const out: Partial<SiteSettings> = {}
+  for (const key of BOOLEAN_KEYS) {
+    if (typeof src[key] === 'boolean') out[key] = src[key] as boolean
+  }
+  if (src.promoOverride && typeof src.promoOverride === 'object') {
+    const po = src.promoOverride as Record<string, unknown>
+    const clean = { ...EMPTY_PROMO_OVERRIDE }
+    for (const field of Object.keys(EMPTY_PROMO_OVERRIDE) as (keyof PromoOverride)[]) {
+      if (typeof po[field] === 'string') clean[field] = (po[field] as string).slice(0, 400)
+    }
+    out.promoOverride = clean
+  }
+  return out
 }
 
 export async function GET() {
@@ -74,12 +92,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!adminPasswordConfigured()) {
-    return fail('Falta configurar ADMIN_PASSWORD en Vercel.', 500)
-  }
-  if (!isAdmin(req)) return fail('Contraseña incorrecta', 401)
+  const denied = await requireAdmin(req)
+  if (denied) return denied
 
-  let body: { action?: string; settings?: Partial<SiteSettings> }
+  let body: { action?: string; settings?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -88,15 +104,16 @@ export async function POST(req: Request) {
 
   if (body.action !== 'set' || !body.settings) return fail('Acción no válida', 400)
 
+  const clean = sanitizeSettings(body.settings)
+
   try {
-    const current = await readJSON<Partial<SiteSettings>>(KEY, {})
-    const updated = { ...DEFAULT_SETTINGS, ...current, ...body.settings }
-    await writeJSON(KEY, updated)
+    const updated = await updateJSON<Partial<SiteSettings>>(KEY, {}, (current) => ({
+      ...DEFAULT_SETTINGS,
+      ...current,
+      ...clean,
+    }))
     return NextResponse.json(updated)
   } catch (e) {
-    if (e instanceof Error && e.message === 'DB_NOT_CONFIGURED') {
-      return fail('Falta conectar la base de datos (Upstash) en Vercel.', 500)
-    }
-    return fail('Error en el servidor al guardar los datos.', 500)
+    return serverError(e)
   }
 }
