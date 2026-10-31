@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 import { X } from 'lucide-react'
-import { CATEGORIES, SITE } from '@/lib/content'
+import { CATEGORIES, SITE, type Category } from '@/lib/content'
 import { useSite } from '@/components/site-provider'
 import { WhatsAppIcon } from '@/components/icons'
 
@@ -25,7 +25,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useState('')
   const [details, setDetails] = useState('')
   const [discount, setDiscount] = useState(true)
-  const [hiddenCategories, setHiddenCategories] = useState<string[]>([])
+  const [categories, setCategories] = useState<Category[]>(CATEGORIES)
 
   const open = (opts?: { service?: string; discount?: boolean }) => {
     if (opts?.service) setService(opts.service)
@@ -33,19 +33,17 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     setIsOpen(true)
   }
 
-  // Al abrir el formulario, lee qué categorías están ocultas desde el panel de admin.
+  // Al abrir el formulario, carga las categorías reales (las creadas u ocultadas desde el admin).
   useEffect(() => {
     if (!isOpen) return
     let cancelled = false
-    fetch('/api/settings', { cache: 'no-store' })
+    fetch('/api/categories', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!cancelled && Array.isArray(data?.hiddenCategories)) {
-          setHiddenCategories(data.hiddenCategories)
-        }
+        if (!cancelled && Array.isArray(data)) setCategories(data)
       })
       .catch(() => {
-        // Si falla, se muestran todas las categorías.
+        // Si falla, se muestran las categorías de siempre.
       })
     return () => {
       cancelled = true
@@ -135,7 +133,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                   className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
                 >
                   <option value="">{t('wa.selectPlaceholder')}</option>
-                  {CATEGORIES.filter((c) => !hiddenCategories.includes(c.slug)).map((c) => (
+                  {categories.filter((c) => c.visible !== false).map((c) => (
                     <option key={c.slug} value={tl(c.title)}>
                       {tl(c.title)}
                     </option>
