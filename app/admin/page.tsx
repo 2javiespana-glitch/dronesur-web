@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { ArrowLeft, Lock, Pencil, Plus, RotateCcw, Star, Trash2, UploadCloud } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { ReviewLimitsPanel } from '@/components/review-limits-panel'
+import { ContentPanel } from '@/components/content-panel'
+import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '@/lib/cloudinary'
 import { type VideoItem, CATEGORIES, type Category } from '@/lib/content'
 type Review = {
   id: string
@@ -17,9 +19,7 @@ type Review = {
   createdAt?: number
 }
 
-// ⬅️ SUSTITUYE estos dos valores por los tuyos de Cloudinary (no son secretos, es normal que estén aquí)
-const CLOUDINARY_CLOUD_NAME = 'bar5rrho'
-const CLOUDINARY_UPLOAD_PRESET = 'dronesur videos'
+// Los datos de tu cuenta de Cloudinary (cloud name y preset) están ahora en lib/cloudinary.ts.
 
 type Album = { id: string; category: string; title: string; createdAt: number }
 
@@ -890,6 +890,8 @@ const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; labe
       {reviewsError && <p className="mt-2 text-sm text-destructive">{reviewsError}</p>}
 
       <ReviewLimitsPanel password={pass} />
+
+      <ContentPanel password={pass} />
 
       {/* Panel: Qué se ve en la web */}
       <div className="mt-10">
