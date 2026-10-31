@@ -4,20 +4,24 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
-import { HERO_AUDIO, type VideoItem } from '@/lib/content'
+import type { VideoItem } from '@/lib/content'
 import { playableVideoUrl } from '@/lib/media-url'
 
 type HeroProps = {
   videos: VideoItem[]
+  music?: string // dirección de la música (se pone desde el admin); vacío = sin música
 }
 
-export function Hero({ videos }: HeroProps) {
+export function Hero({ videos, music }: HeroProps) {
   const { t } = useSite()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
   const [muted, setMuted] = useState(true)
   const [showDesktopNotice, setShowDesktopNotice] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  // Si el archivo de música no carga (enlace roto), se oculta el botón en vez de dejar uno que no hace nada.
+  const [musicBroken, setMusicBroken] = useState(false)
+  const hasMusic = !!music && !musicBroken
 
   // Solo se muestran los vídeos que has subido tú desde el admin con categoría "hero".
   // Ya no se usan las fotos de stock que trajo la plantilla de V0.
@@ -161,13 +165,15 @@ export function Hero({ videos }: HeroProps) {
         {renderSlides(true)}
         <div className="pointer-events-none absolute inset-0 bg-black/10" />
         {controls(true)}
-        <button
-          onClick={toggleMute}
-          className="absolute bottom-3 right-3 z-20 rounded-full border border-white/30 bg-black/40 p-2 text-white backdrop-blur-sm transition hover:bg-black/70"
-          aria-label={muted ? t('hero.mute') : t('hero.unmute')}
-        >
-          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
+        {hasMusic && (
+          <button
+            onClick={toggleMute}
+            className="absolute bottom-3 right-3 z-20 rounded-full border border-white/30 bg-black/40 p-2 text-white backdrop-blur-sm transition hover:bg-black/70"
+            aria-label={muted ? t('hero.mute') : t('hero.unmute')}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+        )}
       </div>
 
       {/* ---------- MÓVIL: contenido debajo del vídeo, ya no encima ---------- */}
@@ -223,13 +229,15 @@ export function Hero({ videos }: HeroProps) {
 
         {controls(false)}
 
-        <button
-          onClick={toggleMute}
-          className="absolute bottom-6 right-6 z-20 rounded-full border border-white/30 bg-black/40 p-3 text-white backdrop-blur-sm transition hover:bg-black/70"
-          aria-label={muted ? t('hero.mute') : t('hero.unmute')}
-        >
-          {muted ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-        </button>
+        {hasMusic && (
+          <button
+            onClick={toggleMute}
+            className="absolute bottom-6 right-6 z-20 rounded-full border border-white/30 bg-black/40 p-3 text-white backdrop-blur-sm transition hover:bg-black/70"
+            aria-label={muted ? t('hero.mute') : t('hero.unmute')}
+          >
+            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </button>
+        )}
 
         <a
           href="#promociones"
@@ -244,7 +252,16 @@ export function Hero({ videos }: HeroProps) {
       </div>
 
       {/* Música de fondo cinematográfica (común a móvil y escritorio) */}
-      <audio ref={audioRef} src={HERO_AUDIO} loop muted preload="none" />
+      {hasMusic && (
+        <audio
+          ref={audioRef}
+          src={music}
+          loop
+          muted
+          preload="none"
+          onError={() => setMusicBroken(true)}
+        />
+      )}
 
       {/* Aviso: "optimizado para ordenador" — solo en móvil, se puede cerrar */}
       {showDesktopNotice && (
