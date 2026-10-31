@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { VideoItem } from '@/lib/content'
+import { EMPTY_CONTENT, normalizeContent, type SiteContent } from '@/lib/site-content'
 import { SiteHeader } from '@/components/site-header'
 import { Hero } from '@/components/hero'
 import { WelcomePromo } from '@/components/welcome-promo'
@@ -39,6 +40,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
 export default function HomePage() {
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
+  const [content, setContent] = useState<SiteContent>(EMPTY_CONTENT)
 
   // Lee los vídeos del servidor (los que subes desde el admin), para que los vean todos los visitantes.
   useEffect(() => {
@@ -60,19 +62,30 @@ export default function HomePage() {
       .catch(() => {})
   }, [])
 
+  // Lee la música y los textos/fotos de "Sobre Dronesur" y "Sobre el piloto" (los que pones en el admin).
+  useEffect(() => {
+    fetch('/api/content', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((data) => setContent(normalizeContent(data)))
+      .catch(() => {})
+  }, [])
+
   return (
     <>
       <SiteHeader />
       <main>
-        <Hero videos={videos.filter((v) => v.category === 'hero' && (v.type === 'video' || !v.type))} />
+        <Hero
+          videos={videos.filter((v) => v.category === 'hero' && (v.type === 'video' || !v.type))}
+          music={content.music.url}
+        />
         {settings.promo && <WelcomePromo />}
         <Categories />
         {settings.coverage && <CoverageServices />}
         {settings.guarantee && <GuaranteeBanner />}
         {settings.reviews && <ReviewsSection />}
         {settings.legal && <LegalSection />}
-        {settings.about && <AboutSection />}
-        {settings.pilot && <PilotSection />}
+        {settings.about && <AboutSection content={content.about} />}
+        {settings.pilot && <PilotSection content={content.pilot} />}
         <ContactSection />
       </main>
       <SiteFooter />
