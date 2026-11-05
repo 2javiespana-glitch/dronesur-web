@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { openCookieSettings } from '@/lib/consent'
 import { useSite } from '@/components/site-provider'
 
@@ -9,7 +10,9 @@ import { useSite } from '@/components/site-provider'
 // desde cualquier sitio, y poder cambiar la elección de cookies cuando se quiera.
 export function LegalLinks() {
   const { lang } = useSite()
-  const en = lang === 'en'
+  const pathname = usePathname()
+  // Este pie está fuera de las páginas /en, así que el idioma también se deduce de la dirección.
+  const en = lang === 'en' || pathname === '/en' || pathname.startsWith('/en/')
   return (
     <nav
       aria-label={en ? 'Legal information' : 'Información legal'}
