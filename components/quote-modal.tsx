@@ -12,6 +12,7 @@ import { Mail, X } from 'lucide-react'
 import { CATEGORIES, SITE, type Category } from '@/lib/content'
 import { useSite } from '@/components/site-provider'
 import { WhatsAppIcon } from '@/components/icons'
+import { openEmail } from '@/lib/email-link'
 import { LEGAL } from '@/lib/legal'
 
 type QuoteContextValue = {
@@ -137,7 +138,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const sendByEmail = () => {
     recordQuote('email')
     const subject = lang === 'es' ? 'Solicitud de presupuesto' : 'Quote request'
-    window.location.href = `mailto:${LEGAL.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildMessage())}`
+    openEmail(LEGAL.email, subject, buildMessage())
     setIsOpen(false)
   }
 
