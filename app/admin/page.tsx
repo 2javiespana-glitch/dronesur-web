@@ -6,6 +6,7 @@ import { ArrowLeft, Lock, Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { ReviewLimitsPanel } from '@/components/review-limits-panel'
 import { ContentPanel } from '@/components/content-panel'
+import { QuotesPanel } from '@/components/quotes-panel'
 import { MediaManager } from '@/components/media-manager'
 
 type Review = {
@@ -528,6 +529,8 @@ const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; labe
       {reviewsError && <p className="mt-2 text-sm text-destructive">{reviewsError}</p>}
 
       <ReviewLimitsPanel password={pass} />
+
+      <QuotesPanel password={pass} />
 
       <ContentPanel password={pass} />
 
