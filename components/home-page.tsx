@@ -81,12 +81,12 @@ export function HomePage() {
         />
         {settings.promo && <WelcomePromo />}
         <Categories />
+        {settings.about && <AboutSection content={content.about} />}
+        {settings.pilot && <PilotSection content={content.pilot} />}
         {settings.coverage && <CoverageServices />}
         {settings.guarantee && <GuaranteeBanner />}
         {settings.reviews && <ReviewsSection />}
         {settings.legal && <LegalSection />}
-        {settings.about && <AboutSection content={content.about} />}
-        {settings.pilot && <PilotSection content={content.pilot} />}
         <ContactSection />
       </main>
       <SiteFooter />
