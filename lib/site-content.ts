@@ -1,21 +1,26 @@
 import type { Lang, Localized } from '@/lib/content'
+import { CITIES } from '@/lib/cities'
 
 // Textos y fotos que se editan desde el panel de admin (ver components/content-panel.tsx):
 // - la música del carrusel
 // - la sección "Sobre Dronesur"
 // - la sección "Sobre el piloto"
+// - el texto de cada página de ciudad (dronesur.es/dron/<ciudad>)
 // Todo lo que esté vacío ('') significa "usa lo de siempre" (o no muestres nada).
 
 export type SiteContent = {
   music: { url: string }
   about: { image: string; p1: Localized; p2: Localized }
   pilot: { name: string; image: string; text: Localized }
+  // Texto de cada página de ciudad, por "slug" (ej. { granada: '...' }). Sin texto = la página no existe.
+  cities: Record<string, string>
 }
 
 export const EMPTY_CONTENT: SiteContent = {
   music: { url: '' },
   about: { image: '', p1: { es: '', en: '' }, p2: { es: '', en: '' } },
   pilot: { name: '', image: '', text: { es: '', en: '' } },
+  cities: {},
 }
 
 function str(value: unknown, max: number): string {
@@ -42,10 +47,17 @@ export function normalizeContent(raw: unknown): SiteContent {
   const music = section('music')
   const about = section('about')
   const pilot = section('pilot')
+  const citiesRaw = section('cities')
+  const cities: Record<string, string> = {}
+  for (const city of CITIES) {
+    const text = str(citiesRaw[city.slug], 3000)
+    if (text) cities[city.slug] = text
+  }
   return {
     music: { url: url(music.url) },
     about: { image: url(about.image), p1: loc(about.p1, 1200), p2: loc(about.p2, 1200) },
     pilot: { name: str(pilot.name, 80), image: url(pilot.image), text: loc(pilot.text, 2000) },
+    cities,
   }
 }
 
