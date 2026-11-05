@@ -183,8 +183,17 @@ function ConfirmDialog({ state, onClose }: { state: ConfirmState; onClose: () =>
 
 // Una foto o vídeo con su miniatura. Al pasar el ratón aparece el cuadradito para eliminarlo
 // (en el móvil, que no tiene ratón, se ve siempre).
-function MediaTile({ item, onDelete }: { item: MediaItem; onDelete: () => void }) {
+function MediaTile({
+  item,
+  onDelete,
+  onEdit,
+}: {
+  item: MediaItem
+  onDelete: () => void
+  onEdit?: () => void // abre la descripción de la foto (solo para fotos)
+}) {
   const kind = kindOf(item)
+  const missingAlt = !!onEdit && !item.alt
   return (
     <div
       className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-muted"
@@ -201,6 +210,23 @@ function MediaTile({ item, onDelete }: { item: MediaItem; onDelete: () => void }
           360°
         </span>
       )}
+      {onEdit && (
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label="Descripción de la foto"
+          title={missingAlt ? 'Sin descripción: pulsa para escribirla' : 'Editar la descripción de la foto'}
+          className="absolute left-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-md bg-black/70 text-white opacity-0 transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
+      {missingAlt && (
+        <span
+          className="pointer-events-none absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-[var(--gold)] shadow"
+          title="Sin descripción"
+        />
+      )}
       <button
         type="button"
         onClick={onDelete}
@@ -211,6 +237,73 @@ function MediaTile({ item, onDelete }: { item: MediaItem; onDelete: () => void }
         <X className="h-4 w-4" />
       </button>
     </div>
+  )
+}
+
+// Ventana para escribir la descripción de una foto (lo que lee Google y los lectores de pantalla).
+function AltDialog({
+  item,
+  onClose,
+  onSave,
+}: {
+  item: MediaItem
+  onClose: () => void
+  onSave: (alt: string, altEn: string) => Promise<string | null>
+}) {
+  const [alt, setAlt] = useState(item.alt ?? '')
+  const [altEn, setAltEn] = useState(item.altEn ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  return (
+    <Modal title="Descripción de la foto" onClose={onClose}>
+      <div className="mb-4 h-32 w-48 overflow-hidden rounded-lg border border-border">
+        <Thumb src={thumbnailOf(item)} kind={kindOf(item)} alt="" />
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        No se ve en la web: la leen Google (para entender la foto y poder mostrarla en Google Imágenes) y los
+        lectores de pantalla. Describe lo que se ve y dónde, en una frase corta y natural.
+        <br />
+        <span className="text-foreground">Ejemplo:</span> «Vista aérea de un hotel frente al mar en Roquetas de Mar,
+        Almería». Evita repetir palabras clave y no empieces con «Foto de…».
+      </p>
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setSaving(true)
+          setError('')
+          const problem = await onSave(alt, altEn)
+          setSaving(false)
+          if (problem) setError(problem)
+          else onClose()
+        }}
+      >
+        <div>
+          <label className="mb-1 flex justify-between text-xs font-medium">
+            <span>Descripción en español</span>
+            <span className="text-muted-foreground">{alt.length}/200</span>
+          </label>
+          <input value={alt} onChange={(e) => setAlt(e.target.value)} maxLength={200} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1 flex justify-between text-xs font-medium">
+            <span>Descripción en inglés (opcional)</span>
+            <span className="text-muted-foreground">{altEn.length}/200</span>
+          </label>
+          <input value={altEn} onChange={(e) => setAltEn(e.target.value)} maxLength={200} className={inputClass} />
+        </div>
+        {error && <Message tone="error">{error}</Message>}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className={secondaryButton}>
+            Cancelar
+          </button>
+          <button type="submit" disabled={saving} className={primaryButton}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 
@@ -305,7 +398,13 @@ function Section({
 // ---------------------------------------------------------------------------
 // Formulario de textos de una categoría (sirve para crear una nueva y para editar una existente)
 // ---------------------------------------------------------------------------
-type CategoryTexts = { title: Localized; short: Localized; description: Localized; price: Localized }
+type CategoryTexts = {
+  title: Localized
+  short: Localized
+  description: Localized
+  includes: Localized // los puntos de «qué incluye», una línea por punto
+  price: Localized
+}
 
 function CategoryForm({
   initial,
@@ -366,14 +465,39 @@ function CategoryForm({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">Descripción (dentro de la categoría)</label>
+              <label className="mb-1 flex justify-between text-xs font-medium">
+                <span>Descripción (dentro de la categoría)</span>
+                <span className="text-muted-foreground">{t.description[col.lang].length}/4000</span>
+              </label>
               <textarea
-                rows={4}
+                rows={8}
                 value={t.description[col.lang]}
                 onChange={(e) => set('description', col.lang, e.target.value)}
-                maxLength={1200}
+                maxLength={4000}
+                placeholder={
+                  col.lang === 'es'
+                    ? 'Explica qué haces, para quién, cómo trabajas y en cuánto tiempo entregas. Deja una línea en blanco entre párrafos.'
+                    : 'Explain what you do, who it is for, how you work and the delivery time. Leave a blank line between paragraphs.'
+                }
                 className={inputClass}
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Qué incluye (una línea por punto, máximo 10)</label>
+              <textarea
+                rows={5}
+                value={t.includes[col.lang]}
+                onChange={(e) => set('includes', col.lang, e.target.value)}
+                placeholder={
+                  col.lang === 'es'
+                    ? 'Ej.:\nVuelo con dron en 4K con piloto certificado\n30 fotos editadas en alta resolución\nVídeo de 60 segundos listo para redes\nEntrega en 48 horas'
+                    : 'E.g.:\n4K drone flight with a certified pilot\n30 edited high-resolution photos\n60-second video ready for social media\n48-hour delivery'
+                }
+                className={inputClass}
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Si lo dejas vacío, se muestran los 4 puntos de siempre, iguales para todas las categorías.
+              </p>
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium">Precio (ej. «desde 30 €/hora»)</label>
@@ -532,6 +656,7 @@ export function MediaManager({ password }: { password: string }) {
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [special, setSpecial] = useState<Target | null>(null)
+  const [altItem, setAltItem] = useState<MediaItem | null>(null)
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [showTexts, setShowTexts] = useState(false)
   const [newAlbumTitle, setNewAlbumTitle] = useState('')
@@ -581,6 +706,13 @@ export function MediaManager({ password }: { password: string }) {
     }
     setMedia(res.data.items)
     return true
+  }
+
+  const saveAlt = async (id: string, alt: string, altEn: string): Promise<string | null> => {
+    const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, { action: 'update', id, alt, altEn })
+    if (!res.ok) return res.error
+    setMedia(res.data.items)
+    return null
   }
 
   const removeMedia = async (id: string): Promise<boolean> => {
@@ -784,6 +916,8 @@ export function MediaManager({ password }: { password: string }) {
 
   // ----- pantalla -----
   const mediaOf = (category: string) => media.filter((m) => m.category === category)
+  // Solo las fotos se describen (los vídeos y modelos 3D no llevan texto alternativo).
+  const describable = (item: MediaItem) => kindOf(item) === 'image' || kindOf(item) === 'panorama'
   const coverOf = (slug: string) => {
     const covers = mediaOf(`cover-${slug}`)
     return covers[covers.length - 1] ?? null
@@ -791,6 +925,13 @@ export function MediaManager({ password }: { password: string }) {
 
   const dialogs = (
     <>
+      {altItem && (
+        <AltDialog
+          item={altItem}
+          onClose={() => setAltItem(null)}
+          onSave={(alt, altEn) => saveAlt(altItem.id, alt, altEn)}
+        />
+      )}
       {confirm && <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />}
       {special && (
         <SpecialDialog
@@ -806,6 +947,7 @@ export function MediaManager({ password }: { password: string }) {
               title: EMPTY_LOCALIZED,
               short: EMPTY_LOCALIZED,
               description: EMPTY_LOCALIZED,
+              includes: EMPTY_LOCALIZED,
               price: EMPTY_LOCALIZED,
             }}
             submitLabel="Crear categoría"
@@ -918,6 +1060,10 @@ export function MediaManager({ password }: { password: string }) {
                 title: openCategory.title,
                 short: openCategory.short,
                 description: openCategory.description,
+                includes: {
+                  es: openCategory.includes?.es.join('\n') ?? '',
+                  en: openCategory.includes?.en.join('\n') ?? '',
+                },
                 price: openCategory.price,
               }}
               submitLabel="Guardar textos"
@@ -969,7 +1115,12 @@ export function MediaManager({ password }: { password: string }) {
           }
         >
           {loose.map((item) => (
-            <MediaTile key={item.id} item={item} onDelete={() => askDeleteMedia(item)} />
+            <MediaTile
+              key={item.id}
+              item={item}
+              onDelete={() => askDeleteMedia(item)}
+              onEdit={describable(item) ? () => setAltItem(item) : undefined}
+            />
           ))}
           <AddTile
             accept="image/*,video/*"
@@ -1005,7 +1156,12 @@ export function MediaManager({ password }: { password: string }) {
               }
             >
               {albumItems.map((item) => (
-                <MediaTile key={item.id} item={item} onDelete={() => askDeleteMedia(item)} />
+                <MediaTile
+                  key={item.id}
+                  item={item}
+                  onDelete={() => askDeleteMedia(item)}
+                  onEdit={describable(item) ? () => setAltItem(item) : undefined}
+                />
               ))}
               <AddTile
                 accept="image/*,video/*"
