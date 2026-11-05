@@ -15,7 +15,7 @@ export const LEGAL = {
   telefono: '+34 644424448',
 
   // Tu dirección web, sin "https://". Cámbiala cuando tengas dominio propio.
-  web: 'dronesur.vercel.app',
+  web: 'dronesur.es',
 
   // Solo si eres sociedad. Ejemplo: 'Inscrita en el Registro Mercantil de Almería, Tomo X, Folio Y, Hoja Z'.
   // Si eres autónomo, déjalo vacío: ''
