@@ -17,14 +17,16 @@ import {
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { WhatsAppIcon } from '@/components/icons'
-import type { Category, VideoItem } from '@/lib/content'
+import type { Category } from '@/lib/content'
+import type { MediaItem } from '@/lib/media-admin'
+import { useLocalePath } from '@/components/use-locale-path'
 import { playableVideoUrl, thumbUrl } from '@/lib/media-url'
 import { PanoramaViewer } from '@/components/panorama-viewer'
 import { Model3DViewer } from '@/components/model-3d-viewer'
 import { EmbedViewer } from '@/components/embed-viewer'
 
 type GalleryKind = 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
-type GalleryItem = { id: string; url: string; type: GalleryKind }
+type GalleryItem = { id: string; url: string; type: GalleryKind; alt?: string; altEn?: string }
 type Album = { id: string; category: string; title: string; createdAt: number }
 type Folder = { id: string; title: string; items: GalleryItem[] }
 
@@ -42,12 +44,12 @@ function previewOf(item: GalleryItem): string | null {
   return null
 }
 
-function kindLabel(type: GalleryKind) {
-  if (type === 'video') return 'Vídeo'
-  if (type === 'panorama') return 'Foto 360°'
-  if (type === 'model3d') return 'Modelo 3D'
-  if (type === 'embed') return 'Contenido interactivo'
-  return 'Imagen'
+function kindLabel(type: GalleryKind, es: boolean) {
+  if (type === 'video') return es ? 'Vídeo' : 'Video'
+  if (type === 'panorama') return es ? 'Foto 360°' : '360° photo'
+  if (type === 'model3d') return es ? 'Modelo 3D' : '3D model'
+  if (type === 'embed') return es ? 'Contenido interactivo' : 'Interactive content'
+  return es ? 'Imagen' : 'Image'
 }
 
 function toKind(type?: string): GalleryKind {
@@ -55,15 +57,48 @@ function toKind(type?: string): GalleryKind {
   return 'video' // los elementos antiguos sin tipo eran vídeos
 }
 
-export function CategoryDetail({ category }: { category: Category }) {
-  const { t, tl } = useSite()
+function toGalleryItem(m: MediaItem): GalleryItem {
+  return { id: m.id, url: m.url, type: toKind(m.type), alt: m.alt, altEn: m.altEn }
+}
+
+// Ordena las fotos/vídeos y álbumes de UNA categoría (los sueltos, y los de cada álbum).
+function buildGallery(allMedia: MediaItem[], allAlbums: Album[], slug: string) {
+  const forCategory = allMedia.filter((m) => m.category === slug)
+  return {
+    custom: forCategory.map(toGalleryItem),
+    looseItems: forCategory.filter((m) => !m.albumId).map(toGalleryItem),
+    albums: allAlbums.filter((a) => a.category === slug),
+    mediaByAlbum: forCategory.reduce<Record<string, GalleryItem[]>>((acc, m) => {
+      if (m.albumId) acc[m.albumId] = [...(acc[m.albumId] ?? []), toGalleryItem(m)]
+      return acc
+    }, {}),
+  }
+}
+
+// initialMedia / initialAlbums llegan ya desde el servidor: así las fotos (y su descripción) están en el
+// HTML que lee Google, en vez de aparecer solo después de cargar la página.
+export function CategoryDetail({
+  category,
+  initialMedia,
+  initialAlbums,
+}: {
+  category: Category
+  initialMedia?: MediaItem[]
+  initialAlbums?: Album[]
+}) {
+  const { t, tl, lang } = useSite()
+  const es = lang === 'es'
+  const localePath = useLocalePath()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
-  const [custom, setCustom] = useState<GalleryItem[]>([])
-  const [looseItems, setLooseItems] = useState<GalleryItem[]>([])
-  const [albums, setAlbums] = useState<Album[]>([])
-  const [mediaByAlbum, setMediaByAlbum] = useState<Record<string, GalleryItem[]>>({})
+  const [gallery, setGallery] = useState(() =>
+    buildGallery(initialMedia ?? [], initialAlbums ?? [], category.slug),
+  )
+  const { custom, looseItems, albums, mediaByAlbum } = gallery
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+
+  // La descripción de una foto en el idioma de la página (la del otro idioma si falta).
+  const altOf = (item: GalleryItem) => (lang === 'en' ? item.altEn || item.alt || '' : item.alt || '')
 
   // Carga las fotos/vídeos y los álbumes (carpetas) que has subido desde el admin
   // para ESTA categoría.
@@ -76,29 +111,12 @@ export function CategoryDetail({ category }: { category: Category }) {
     ])
       .then(([allMedia, allAlbums]) => {
         if (cancelled) return
-        const media: VideoItem[] = Array.isArray(allMedia) ? allMedia : []
-        const forCategory = media.filter((m) => m.category === category.slug)
-
-        const toGalleryItem = (m: VideoItem): GalleryItem => ({
-          id: m.id,
-          url: m.url,
-          type: toKind(m.type),
-        })
-
-        setCustom(forCategory.map(toGalleryItem))
-        setLooseItems(forCategory.filter((m) => !m.albumId).map(toGalleryItem))
-        setAlbums(
-          Array.isArray(allAlbums)
-            ? allAlbums.filter((a: Album) => a.category === category.slug)
-            : [],
-        )
-        setMediaByAlbum(
-          forCategory.reduce<Record<string, GalleryItem[]>>((acc, m) => {
-            if (m.albumId) {
-              acc[m.albumId] = [...(acc[m.albumId] ?? []), toGalleryItem(m)]
-            }
-            return acc
-          }, {}),
+        setGallery(
+          buildGallery(
+            Array.isArray(allMedia) ? allMedia : [],
+            Array.isArray(allAlbums) ? allAlbums : [],
+            category.slug,
+          ),
         )
       })
       .catch(() => {})
@@ -128,12 +146,17 @@ export function CategoryDetail({ category }: { category: Category }) {
   const next = () => setIndex((i) => (i + 1) % items.length)
   const prev = () => setIndex((i) => (i - 1 + items.length) % items.length)
 
-  const included = ['cover.inc1', 'cover.inc2', 'cover.inc3', 'cover.inc4']
+  // Los puntos con «tick»: los propios de la categoría (si los has escrito en el admin) o los de siempre.
+  const ownIncludes = category.includes ? (lang === 'en' ? category.includes.en : category.includes.es) : []
+  const included: string[] =
+    ownIncludes.length > 0
+      ? ownIncludes
+      : ['cover.inc1', 'cover.inc2', 'cover.inc3', 'cover.inc4'].map((key) => t(key))
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6 lg:px-8">
       <Link
-        href="/#servicios"
+        href={localePath('/#servicios')}
         className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-gold"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -167,7 +190,7 @@ export function CategoryDetail({ category }: { category: Category }) {
                   >
                     <div className="relative aspect-video w-full bg-black/20">
                       {cover ? (
-                        <img src={cover} alt="" className="h-full w-full object-cover" />
+                        <img src={cover} alt={coverItem ? altOf(coverItem) : ''} className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
                           <FolderIcon className="h-8 w-8 text-muted-foreground" />
@@ -191,11 +214,11 @@ export function CategoryDetail({ category }: { category: Category }) {
           {/* Visor grande: si hay carpetas pero no se ha elegido ninguna, se pide elegir */}
           {hasFolders && !selectedFolder ? (
             <div className="flex aspect-[4/3] items-center justify-center rounded-2xl border border-dashed border-border text-center text-sm text-muted-foreground">
-              Elige un álbum arriba para ver sus fotos y vídeos
+              {es ? 'Elige un álbum arriba para ver sus fotos y vídeos' : 'Choose an album above to see its photos and videos'}
             </div>
           ) : items.length === 0 ? (
             <div className="flex aspect-[4/3] items-center justify-center rounded-2xl border border-dashed border-border text-center text-sm text-muted-foreground">
-              Este álbum todavía no tiene contenido
+              {es ? 'Este álbum todavía no tiene contenido' : 'This album has no content yet'}
             </div>
           ) : (
             <>
@@ -227,7 +250,7 @@ export function CategoryDetail({ category }: { category: Category }) {
                   <img
                     key={current.id}
                     src={current.url || '/placeholder.svg'}
-                    alt={`${tl(category.title)} ${index + 1}`}
+                    alt={altOf(current) || `${tl(category.title)} ${index + 1}`}
                     className="h-full w-full object-cover"
                   />
                 )}
@@ -254,7 +277,9 @@ export function CategoryDetail({ category }: { category: Category }) {
 
               {(current.type === 'panorama' || current.type === 'model3d') && (
                 <p className="mt-2 text-center text-xs text-muted-foreground">
-                  Arrastra para girar · rueda del ratón o pellizco para acercar
+                  {es
+                    ? 'Arrastra para girar · rueda del ratón o pellizco para acercar'
+                    : 'Drag to rotate · mouse wheel or pinch to zoom'}
                 </p>
               )}
 
@@ -269,9 +294,9 @@ export function CategoryDetail({ category }: { category: Category }) {
                         className={`relative aspect-video overflow-hidden rounded-lg border-2 bg-muted transition ${
                           i === index ? 'border-[var(--gold)]' : 'border-transparent opacity-70'
                         }`}
-                        aria-label={`${kindLabel(item.type)} ${i + 1}`}
+                        aria-label={`${kindLabel(item.type, es)} ${i + 1}`}
                       >
-                        {thumb && <img src={thumb} alt="" className="h-full w-full object-cover" />}
+                        {thumb && <img src={thumb} alt={altOf(item)} className="h-full w-full object-cover" />}
                         {item.type === 'video' && (
                           <span className="absolute inset-0 flex items-center justify-center bg-black/30">
                             <Play className="h-6 w-6 fill-white text-white" />
@@ -287,7 +312,7 @@ export function CategoryDetail({ category }: { category: Category }) {
                           <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/40 text-white">
                             <Box className="h-6 w-6" />
                             <span className="text-[10px] font-bold">
-                              {item.type === 'model3d' ? '3D' : 'Interactivo'}
+                              {item.type === 'model3d' ? '3D' : es ? 'Interactivo' : 'Interactive'}
                             </span>
                           </span>
                         )}
@@ -306,17 +331,17 @@ export function CategoryDetail({ category }: { category: Category }) {
             {tl(category.price)}
           </span>
           <h1 className="mt-4 text-3xl font-extrabold sm:text-4xl">{tl(category.title)}</h1>
-          <p className="mt-5 leading-relaxed text-muted-foreground">
+          <p className="mt-5 whitespace-pre-line leading-relaxed text-muted-foreground">
             {tl(category.description)}
           </p>
 
           <ul className="mt-7 space-y-3">
-            {included.map((key) => (
-              <li key={key} className="flex items-start gap-3">
+            {included.map((line) => (
+              <li key={line} className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--gold)] text-[var(--gold-foreground)]">
                   <Check className="h-4 w-4" />
                 </span>
-                <span className="text-sm text-foreground/90">{t(key)}</span>
+                <span className="text-sm text-foreground/90">{line}</span>
               </li>
             ))}
           </ul>
