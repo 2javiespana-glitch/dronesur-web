@@ -5,11 +5,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
+import { useLocalePath } from '@/components/use-locale-path'
 import { useQuote } from '@/components/quote-modal'
 import type { Category } from '@/lib/content'
 
 export function Categories() {
   const { t, tl } = useSite()
+  const localePath = useLocalePath()
   const { open } = useQuote()
   const [categories, setCategories] = useState<Category[]>([])
   const [covers, setCovers] = useState<Record<string, string>>({})
@@ -61,7 +63,7 @@ export function Categories() {
             className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-[var(--gold)]/50 hover:shadow-lg"
           >
             <Link
-              href={`/servicios/${cat.slug}`}
+              href={localePath(`/servicios/${cat.slug}`)}
               className="relative block aspect-[4/3] overflow-hidden"
             >
               <Image
@@ -84,7 +86,7 @@ export function Categories() {
               </p>
               <div className="mt-5 flex items-center gap-2">
                 <Link
-                  href={`/servicios/${cat.slug}`}
+                  href={localePath(`/servicios/${cat.slug}`)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-semibold transition hover:border-[var(--gold)] hover:text-gold"
                 >
                   {t('cat.view')}
