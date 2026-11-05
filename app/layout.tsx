@@ -4,6 +4,7 @@ import { Providers } from '@/components/providers'
 import { AnalyticsGate } from '@/components/analytics-gate'
 import { LegalLinks } from '@/components/legal-links'
 import { LEGAL } from '@/lib/legal'
+import { businessJsonLd, jsonLd } from '@/lib/seo'
 import './globals.css'
 
 const inter = Inter({
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
   // Dirección base para que la imagen de vista previa salga completa al compartir el enlace.
   // Se toma de lib/legal.ts: cámbiala allí cuando tengas dominio propio.
   metadataBase: new URL(`https://${LEGAL.web}`),
-  title: 'Dronesur | Perspectivas aéreas de alto impacto en el sur de España',
+  // El título que sale en Google: lleva el servicio y las ciudades principales.
+  title: 'Dron en Almería, Granada y Málaga | Foto y vídeo aéreo — Dronesur',
   description:
     'Dronesur — Servicios profesionales de dron en Almería, Granada, Málaga, Jaén, Cádiz y Murcia. Vídeo y fotografía aérea 4K, fotogrametría, eventos, inmobiliaria y seguimiento de obra.',
   keywords: [
@@ -36,7 +38,7 @@ export const metadata: Metadata = {
     'Dronesur',
   ],
   openGraph: {
-    title: 'Dronesur | Perspectivas aéreas de alto impacto en el sur de España',
+    title: 'Dron en Almería, Granada y Málaga | Foto y vídeo aéreo — Dronesur',
     description:
       'Elevamos la imagen de tu proyecto. Fotografía y vídeo aéreo con dron en Andalucía y Murcia.',
     type: 'website',
@@ -80,6 +82,8 @@ export default function RootLayout({
     <html lang="es" className={`dark ${inter.variable} ${manrope.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {/* Datos estructurados: le explican a Google qué es Dronesur y dónde trabaja (no se ven en la web). */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(businessJsonLd()) }} />
       </head>
       <body className="antialiased">
         <Providers>
