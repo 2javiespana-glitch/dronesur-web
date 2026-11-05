@@ -16,9 +16,13 @@ export function Hero({ videos, music }: HeroProps) {
   const { t } = useSite()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
-  // Id del vídeo que ya tiene imagen lista para reproducirse. Mientras no coincida con el
-  // vídeo actual, se muestra el círculo de carga (y el carrusel no avanza).
-  const [readyId, setReadyId] = useState<string | null>(null)
+  // ready = el vídeo ya puede empezar a verse. full = ya está descargado lo suficiente
+  // como para verse entero sin cortes (o ha fallado); entonces se pasa a descargar el siguiente.
+  const [ready, setReady] = useState<Record<string, boolean>>({})
+  const [full, setFull] = useState<Record<string, boolean>>({})
+  // Id del vídeo actual si se ha quedado a medias cargando (círculo de carga a mitad de vídeo).
+  const [stalledId, setStalledId] = useState<string | null>(null)
+  const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
   // true = móvil, false = escritorio, null = aún no se sabe. Solo se carga el vídeo de UNA
   // de las dos versiones (antes se cargaban las dos, aunque una estuviera oculta).
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
@@ -51,21 +55,6 @@ export function Hero({ videos, music }: HeroProps) {
     }
   }, [])
 
-  // Arregla un fallo típico de Safari/iPhone: React no siempre marca el vídeo como
-  // "silenciado" a nivel del navegador (solo a nivel de atributo), y eso hace que a
-  // veces el vídeo no arranque solo y haga falta pulsar play. Esto lo fuerza siempre.
-  const forcePlay = useCallback((el: HTMLVideoElement | null) => {
-    if (!el) return
-    el.muted = true
-    void el.play().catch(() => {})
-    // Respaldo por si el atributo "loop" falla en algún navegador/vídeo: al terminar,
-    // lo reiniciamos nosotros mismos en vez de depender solo del navegador.
-    el.onended = () => {
-      el.currentTime = 0
-      void el.play().catch(() => {})
-    }
-  }, [])
-
   const next = useCallback(
     () => setIndex((i) => (i + 1) % slideCount),
     [slideCount],
@@ -77,10 +66,39 @@ export function Hero({ videos, music }: HeroProps) {
 
   const safeIndex = slideCount > 0 ? index % slideCount : 0
   const current = videos[safeIndex]
-  const loading = !!current && readyId !== current.id
+  const loading = !!current && ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
+
+  // Cola de descarga: primero el vídeo actual, luego el siguiente, el siguiente...
+  // Un vídeo solo empieza a descargarse cuando todos los que van antes ya terminaron.
+  // Así se descargan de uno en uno (sin pelearse por la conexión) y no hay que esperar al pasarlos.
+  const canLoad = (i: number) => {
+    const offset = (i - safeIndex + slideCount) % slideCount
+    if (offset === 0) return true
+    for (let o = 0; o < offset; o++) {
+      const v = videos[(safeIndex + o) % slideCount]
+      if (!full[v.id]) return false
+    }
+    return true
+  }
+
+  // Solo el vídeo actual se reproduce; los demás se quedan en pausa, ya cargados y listos.
+  useEffect(() => {
+    videos.forEach((v) => {
+      const el = videoRefs.current[v.id]
+      if (!el) return
+      if (v.id === current?.id) {
+        el.muted = true
+        void el.play().catch(() => {})
+      } else {
+        el.pause()
+        try {
+          el.currentTime = 0
+        } catch {}
+      }
+    })
+  }, [videos, current?.id, isMobile])
 
   // El carrusel avanza 6 segundos DESPUÉS de que el vídeo actual esté listo, no antes.
-  // Así un vídeo lento no se salta mientras todavía está cargando.
   useEffect(() => {
     if (slideCount < 2 || loading) return
     const id = setTimeout(next, 6000)
@@ -115,35 +133,57 @@ export function Hero({ videos, music }: HeroProps) {
       )
     }
     // Solo se pinta la versión (móvil o escritorio) que corresponde a esta pantalla.
-    if (isMobile === null || mobile !== isMobile || !current) return null
+    if (isMobile === null || mobile !== isMobile) return null
 
     return (
-      <div className="absolute inset-0">
-        {/* Solo hay UN vídeo en la página a la vez. Al cambiar de vídeo, el anterior se
-            quita y se descarga el siguiente (por eso el "key"). */}
-        <video
-          key={current.id}
-          ref={forcePlay}
-          className={`h-full w-full transition-opacity duration-700 ${
-            mobile ? 'object-contain' : 'object-cover'
-          } ${loading ? 'opacity-0' : 'opacity-100'}`}
-          src={playableVideoUrl(current.url)}
-          poster={current.poster}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          onLoadedData={() => setReadyId(current.id)}
-          onCanPlay={() => setReadyId(current.id)}
-          onPlaying={() => setReadyId(current.id)}
-          onWaiting={() => setReadyId(null)}
-          onError={() => {
-            // Si un vídeo falla, se quita el círculo y se pasa al siguiente.
-            setReadyId(current.id)
-            if (slideCount > 1) next()
-          }}
-        />
+      <>
+        {videos.map((v, i) => {
+          const isCurrent = i === safeIndex
+          return (
+            <div
+              key={v.id}
+              className={`absolute inset-0 transition-opacity duration-1000 ${
+                isCurrent ? 'opacity-100' : 'opacity-0'
+              }`}
+              aria-hidden={!isCurrent}
+            >
+              <video
+                ref={(el) => {
+                  videoRefs.current[v.id] = el
+                  if (el) el.muted = true
+                }}
+                className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
+                // Sin "src" = todavía no le toca descargarse. Al tocarle, se pone el enlace.
+                src={canLoad(i) ? playableVideoUrl(v.url) : undefined}
+                poster={v.poster}
+                muted
+                loop
+                playsInline
+                preload="auto"
+                onCanPlay={(e) => {
+                  setReady((r) => (r[v.id] ? r : { ...r, [v.id]: true }))
+                  if (stalledId === v.id) setStalledId(null)
+                  if (isCurrent) void e.currentTarget.play().catch(() => {})
+                }}
+                onCanPlayThrough={() => setFull((f) => (f[v.id] ? f : { ...f, [v.id]: true }))}
+                onPlaying={() => {
+                  if (stalledId === v.id) setStalledId(null)
+                }}
+                onWaiting={() => {
+                  if (isCurrent) setStalledId(v.id)
+                }}
+                onError={(e) => {
+                  // Si un vídeo falla, se da por terminado para que siga la cola y,
+                  // si era el que se estaba viendo, se salta al siguiente.
+                  if (!e.currentTarget.getAttribute('src')) return
+                  setReady((r) => ({ ...r, [v.id]: true }))
+                  setFull((f) => ({ ...f, [v.id]: true }))
+                  if (isCurrent && slideCount > 1) next()
+                }}
+              />
+            </div>
+          )
+        })}
         {loading && (
           <div
             className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
@@ -153,7 +193,7 @@ export function Hero({ videos, music }: HeroProps) {
             <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/25 border-t-[var(--gold)] sm:h-14 sm:w-14" />
           </div>
         )}
-      </div>
+      </>
     )
   }
 
