@@ -6,12 +6,12 @@ import { EMPTY_CONTENT, normalizeContent, type SiteContent } from '@/lib/site-co
 // Textos y fotos editables desde el admin: música del carrusel, "Sobre Dronesur" y "Sobre el piloto".
 //
 // - GET  -> devuelve el contenido guardado (público, lo usa la página principal)
-// - POST -> { section: 'music' | 'about' | 'pilot', data: {...} }  guarda esa sección (solo admin)
+// - POST -> { section: 'music' | 'about' | 'pilot' | 'cities', data: {...} }  guarda esa sección (solo admin)
 
 export const dynamic = 'force-dynamic'
 
 const KEY = 'dronesur:content'
-const SECTIONS = ['music', 'about', 'pilot'] as const
+const SECTIONS = ['music', 'about', 'pilot', 'cities'] as const
 type Section = (typeof SECTIONS)[number]
 
 export async function GET() {
