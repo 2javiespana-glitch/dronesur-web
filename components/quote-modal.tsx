@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from 'react'
+import Link from 'next/link'
 import { Mail, X } from 'lucide-react'
 import { CATEGORIES, SITE, type Category } from '@/lib/content'
 import { useSite } from '@/components/site-provider'
@@ -14,7 +15,7 @@ import { WhatsAppIcon } from '@/components/icons'
 import { LEGAL } from '@/lib/legal'
 
 type QuoteContextValue = {
-  open: (opts?: { service?: string; discount?: boolean }) => void
+  open: (opts?: { service?: string; discount?: boolean; location?: string }) => void
 }
 
 const QuoteContext = createContext<QuoteContextValue | null>(null)
@@ -25,11 +26,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [service, setService] = useState('')
   const [location, setLocation] = useState('')
   const [details, setDetails] = useState('')
+  const [contact, setContact] = useState('') // teléfono o correo (opcional)
+  const [website, setWebsite] = useState('') // cuadro trampa para programas spam: debe quedar vacío
+  const [quotesEnabled, setQuotesEnabled] = useState(false) // ¿se guardan las solicitudes? (lo decide el admin)
   const [discount, setDiscount] = useState(true)
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
 
-  const open = (opts?: { service?: string; discount?: boolean }) => {
+  const open = (opts?: { service?: string; discount?: boolean; location?: string }) => {
     if (opts?.service) setService(opts.service)
+    if (opts?.location) setLocation(opts.location)
     if (typeof opts?.discount === 'boolean') setDiscount(opts.discount)
     setIsOpen(true)
   }
@@ -45,6 +50,23 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         // Si falla, se muestran las categorías de siempre.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  // ¿Está activado guardar las solicitudes? (interruptor del admin). Si no, no se menciona ni se envía nada.
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch('/api/quotes?config=1', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setQuotesEnabled(data?.enabled === true)
+      })
+      .catch(() => {
+        if (!cancelled) setQuotesEnabled(false)
       })
     return () => {
       cancelled = true
@@ -84,8 +106,28 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     return lines.join('\n')
   }
 
+  // Guarda la solicitud en el servidor (y te avisa por Telegram), aunque luego el cliente no envíe el mensaje.
+  // Es "disparar y olvidar": si falla, no afecta a que se abra WhatsApp o el correo.
+  const recordQuote = (channel: 'whatsapp' | 'email') => {
+    if (!quotesEnabled) return
+    try {
+      void fetch('/api/quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'submit',
+          quote: { service, location, details, contact, discount, lang, channel, website },
+        }),
+        keepalive: true,
+      }).catch(() => {})
+    } catch {
+      // Se ignora a propósito.
+    }
+  }
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
+    recordQuote('whatsapp')
     const url = `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(buildMessage())}`
     window.open(url, '_blank', 'noopener,noreferrer')
     setIsOpen(false)
@@ -93,6 +135,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
 
   // Misma solicitud, pero abriendo el programa de correo con el mensaje ya escrito.
   const sendByEmail = () => {
+    recordQuote('email')
     const subject = lang === 'es' ? 'Solicitud de presupuesto' : 'Quote request'
     window.location.href = `mailto:${LEGAL.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(buildMessage())}`
     setIsOpen(false)
@@ -175,6 +218,38 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                 />
               </div>
 
+              <div>
+                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-contact">
+                  {lang === 'es' ? 'Tu teléfono o correo (opcional)' : 'Your phone or email (optional)'}
+                </label>
+                <input
+                  id="q-contact"
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                  maxLength={120}
+                  autoComplete="tel"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                  placeholder={lang === 'es' ? '600 000 000 o tu@correo.com' : '600 000 000 or you@email.com'}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {lang === 'es'
+                    ? 'Así podemos responderte aunque no llegues a enviar el mensaje.'
+                    : "So we can reply even if you don't end up sending the message."}
+                </p>
+              </div>
+
+              {/* Cuadro trampa: una persona no lo ve. Si un programa spam lo rellena, la solicitud se descarta. */}
+              <input
+                type="text"
+                name="website"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                className="absolute -left-[9999px] h-0 w-0 opacity-0"
+              />
+
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-3">
                 <input
                   type="checkbox"
@@ -186,6 +261,22 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                   {t('wa.discount')}
                 </span>
               </label>
+
+              {quotesEnabled && (
+                <p className="text-xs text-muted-foreground">
+                  {lang === 'es'
+                    ? 'Al continuar, guardamos tu solicitud para poder responderte, aunque no llegues a enviar el mensaje. Más información en la '
+                    : "By continuing, we save your request so we can reply, even if you don't end up sending the message. More information in the "}
+                  <Link
+                    href="/politica-de-privacidad"
+                    onClick={() => setIsOpen(false)}
+                    className="underline underline-offset-2 hover:text-gold"
+                  >
+                    {lang === 'es' ? 'Política de privacidad' : 'Privacy policy'}
+                  </Link>
+                  .
+                </p>
+              )}
 
               <button
                 type="submit"
