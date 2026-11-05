@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { InstagramIcon } from '@/components/icons'
-import { SITE } from '@/lib/content'
+import { SITE, type Lang } from '@/lib/content'
+import { alternatePath } from '@/lib/i18n-routes'
+import { useLocalePath } from '@/components/use-locale-path'
 
 // Claves de /api/settings que controlan secciones con enlace en el menú.
 type SectionKey = 'promo' | 'guarantee' | 'reviews' | 'legal' | 'about'
@@ -27,6 +30,17 @@ const LINKS: { key: string; href: string; section?: SectionKey }[] = [
 
 export function SiteHeader() {
   const { theme, toggleTheme, lang, setLang, t } = useSite()
+  const localePath = useLocalePath()
+  const pathname = usePathname()
+  const router = useRouter()
+
+  // Cambiar de idioma: si la página tiene versión en el otro idioma, se va a ella (cada idioma tiene su
+  // propia dirección, /en/...); si no (por ejemplo, las páginas legales), solo cambia el texto.
+  const switchLang = (next: Lang) => {
+    setLang(next)
+    const target = alternatePath(pathname, next)
+    if (target && target !== pathname) router.push(target)
+  }
   const { open } = useQuote()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -67,7 +81,7 @@ export function SiteHeader() {
       }`}
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <Link href="/#top" className="flex items-center gap-2.5" aria-label="Dronesur inicio">
+        <Link href={localePath('/#top')} className="flex items-center gap-2.5" aria-label={lang === 'es' ? 'Dronesur inicio' : 'Dronesur home'}>
           <Image
             src="/logo-dronesur.png"
             alt="Dronesur"
@@ -85,7 +99,7 @@ export function SiteHeader() {
           {visibleLinks.map((l) => (
             <Link
               key={l.key}
-              href={l.href}
+              href={localePath(l.href)}
               className="rounded-md px-3 py-2 text-sm font-medium text-foreground/80 transition hover:text-gold"
             >
               {t(l.key)}
@@ -106,7 +120,7 @@ export function SiteHeader() {
 
           <div className="flex overflow-hidden rounded-full border border-border text-xs font-semibold">
             <button
-              onClick={() => setLang('es')}
+              onClick={() => switchLang('es')}
               className={`px-2.5 py-1 transition ${
                 lang === 'es'
                   ? 'bg-[var(--gold)] text-[var(--gold-foreground)]'
@@ -117,7 +131,7 @@ export function SiteHeader() {
               ES
             </button>
             <button
-              onClick={() => setLang('en')}
+              onClick={() => switchLang('en')}
               className={`px-2.5 py-1 transition ${
                 lang === 'en'
                   ? 'bg-[var(--gold)] text-[var(--gold-foreground)]'
@@ -165,7 +179,7 @@ export function SiteHeader() {
             {visibleLinks.map((l) => (
               <Link
                 key={l.key}
-                href={l.href}
+                href={localePath(l.href)}
                 onClick={() => setMobileOpen(false)}
                 className="rounded-md px-3 py-3 text-sm font-medium text-foreground/80 transition hover:bg-muted hover:text-gold"
               >
