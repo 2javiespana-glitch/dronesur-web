@@ -11,7 +11,7 @@ export const LEGAL = {
   // Como autónomo tu NIF es tu mismo DNI: no cambia el día que te des de alta.
   nif: '75917102J',
   domicilio: 'C/Monaco R 1, 129',
-  email: 'dronesur@gmail.com',
+  email: 'info@dronesur.es',
   telefono: '+34 644424448',
 
   // Tu dirección web, sin "https://". Cámbiala cuando tengas dominio propio.
