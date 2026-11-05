@@ -37,8 +37,9 @@ export default function PoliticaPrivacidadPage() {
           <>
             <strong>Solicitudes de presupuesto y contacto.</strong> Datos que nos facilites (por
             ejemplo, nombre, correo, teléfono y descripción del trabajo), por el canal que elijas
-            (formulario, WhatsApp o correo). Finalidad: responder a tu solicitud y preparar el
-            presupuesto.
+            (formulario, WhatsApp o correo). Si rellenas el formulario, guardamos tu solicitud
+            aunque no llegues a enviar el mensaje. Finalidad: responder a tu solicitud y preparar
+            el presupuesto.
           </>,
           <>
             <strong>Opiniones de clientes.</strong> Nombre, profesión o empresa (opcional),
@@ -85,7 +86,8 @@ export default function PoliticaPrivacidadPage() {
       <UL
         items={[
           <>Vercel Inc. — alojamiento de la web.</>,
-          <>Upstash — base de datos (opiniones y contenidos de la web).</>,
+          <>Upstash — base de datos (opiniones, solicitudes de presupuesto y contenidos de la web).</>,
+          <>Telegram — aviso interno al titular cuando llega una solicitud o una opinión nueva.</>,
           <>
             Telegram — aviso interno al titular cuando se recibe una nueva opinión pendiente de
             revisar (incluye el nombre, la profesión o empresa y el texto que hayas escrito).
@@ -169,7 +171,8 @@ export default function PoliticaPrivacidadPage() {
           <>
             <strong>Quote and contact requests.</strong> Data you give us (for example, name,
             email, phone and a description of the job), through the channel you choose (form,
-            WhatsApp or email). Purpose: to reply to your request and prepare the quote.
+            WhatsApp or email). If you fill in the form, we save your request even if you do not end up
+            sending the message. Purpose: to reply to your request and prepare the quote.
           </>,
           <>
             <strong>Customer reviews.</strong> Name, profession or company (optional), rating and
@@ -215,7 +218,8 @@ export default function PoliticaPrivacidadPage() {
       <UL
         items={[
           <>Vercel Inc. — website hosting.</>,
-          <>Upstash — database (reviews and website content).</>,
+          <>Upstash — database (reviews, quote requests and website content).</>,
+          <>Telegram — internal notification to the owner when a new request or review arrives.</>,
           <>
             Telegram — internal notice to the owner when a new review is pending approval (includes
             the name, profession or company and the text you wrote).
