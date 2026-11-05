@@ -12,6 +12,8 @@ export type MediaItem = {
   category: string // 'hero', el slug de una categoría, o 'cover-<slug>' (portada de la tarjeta)
   type?: MediaKind // los elementos antiguos sin tipo eran vídeos
   albumId?: string
+  alt?: string // descripción de la foto en español (para Google y lectores de pantalla)
+  altEn?: string // lo mismo en inglés
 }
 
 export type AlbumItem = { id: string; category: string; title: string; createdAt: number }
