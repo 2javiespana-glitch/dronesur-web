@@ -9,7 +9,7 @@ import { fail, serverError, requireAdmin } from '@/lib/api'
 //
 // - GET  -> devuelve todas las categorías (pública; la portada oculta las que tengan visible=false)
 // - POST -> { action: 'add', category: { title, short, description, price } }  crea una (solo admin)
-//           { action: 'update', slug, category: { visible?, title?, short?, description?, price? } }
+//           { action: 'update', slug, category: { visible?, title?, short?, description?, price?, includes? } }
 //                                                                              edita una (solo admin)
 //
 // No hay "borrar" a propósito: para quitar una categoría se oculta, y así no se pierde
@@ -42,6 +42,22 @@ function uniqueSlug(base: string, taken: string[]) {
 
 // Limpia un texto bilingüe. Si falta la versión en inglés, se reutiliza la española
 // para que la web en inglés nunca muestre un hueco vacío.
+// "Qué incluye": llega como texto con una línea por punto y se guarda como lista.
+// Máximo 10 puntos de 160 caracteres. Si el inglés está vacío, se usa el español.
+function cleanLines(input: unknown): { es: string[]; en: string[] } | undefined {
+  const obj = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
+  const toList = (value: unknown) =>
+    String(value ?? '')
+      .split('\n')
+      .map((line) => line.trim().slice(0, 160))
+      .filter(Boolean)
+      .slice(0, 10)
+  const es = toList(obj.es)
+  const en = toList(obj.en)
+  if (es.length === 0 && en.length === 0) return undefined
+  return { es, en: en.length > 0 ? en : es }
+}
+
 function cleanLocalized(input: unknown, max: number): Localized {
   const obj = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
   const es = String(obj.es ?? '').trim().slice(0, max)
@@ -89,9 +105,11 @@ export async function POST(req: Request) {
           price: cleanLocalized(input.price, 80),
           title,
           short: cleanLocalized(input.short, 300),
-          description: cleanLocalized(input.description, 1200),
+          description: cleanLocalized(input.description, 4000),
           visible: true,
         }
+        const includes = cleanLines(input.includes)
+        if (includes) created.includes = includes
         return [...current, created]
       })
       return NextResponse.json({ categories })
@@ -117,7 +135,12 @@ export async function POST(req: Request) {
             if (title.es) next.title = title
           }
           if (input.short) next.short = cleanLocalized(input.short, 300)
-          if (input.description) next.description = cleanLocalized(input.description, 1200)
+          if (input.description) next.description = cleanLocalized(input.description, 4000)
+          if (input.includes) {
+            const includes = cleanLines(input.includes)
+            if (includes) next.includes = includes
+            else delete next.includes // vacío = vuelven los puntos de siempre
+          }
           if (input.price) next.price = cleanLocalized(input.price, 80)
           return next
         })
