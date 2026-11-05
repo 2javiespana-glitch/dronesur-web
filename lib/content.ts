@@ -75,6 +75,8 @@ export type Category = {
   title: Localized
   short: Localized
   description: Localized
+  // Los puntos con «tick» de «qué incluye». Si está vacío se usan los 4 de siempre, iguales para todas.
+  includes?: { es: string[]; en: string[] }
   visible?: boolean // false = oculta de la portada (pero sigue existiendo, no se borra nada)
 }
 
