@@ -16,6 +16,12 @@ export function Hero({ videos, music }: HeroProps) {
   const { t } = useSite()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
+  // Id del vídeo que ya tiene imagen lista para reproducirse. Mientras no coincida con el
+  // vídeo actual, se muestra el círculo de carga (y el carrusel no avanza).
+  const [readyId, setReadyId] = useState<string | null>(null)
+  // true = móvil, false = escritorio, null = aún no se sabe. Solo se carga el vídeo de UNA
+  // de las dos versiones (antes se cargaban las dos, aunque una estuviera oculta).
+  const [isMobile, setIsMobile] = useState<boolean | null>(null)
   const [muted, setMuted] = useState(true)
   const [showDesktopNotice, setShowDesktopNotice] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -26,6 +32,14 @@ export function Hero({ videos, music }: HeroProps) {
   // Solo se muestran los vídeos que has subido tú desde el admin con categoría "hero".
   // Ya no se usan las fotos de stock que trajo la plantilla de V0.
   const slideCount = videos.length
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
 
   // Aviso de "optimizado para ordenador", solo en móvil y solo una vez por visita.
   useEffect(() => {
@@ -61,10 +75,17 @@ export function Hero({ videos, music }: HeroProps) {
     [slideCount],
   )
 
+  const safeIndex = slideCount > 0 ? index % slideCount : 0
+  const current = videos[safeIndex]
+  const loading = !!current && readyId !== current.id
+
+  // El carrusel avanza 6 segundos DESPUÉS de que el vídeo actual esté listo, no antes.
+  // Así un vídeo lento no se salta mientras todavía está cargando.
   useEffect(() => {
-    const id = setInterval(next, 6000)
-    return () => clearInterval(id)
-  }, [next])
+    if (slideCount < 2 || loading) return
+    const id = setTimeout(next, 6000)
+    return () => clearTimeout(id)
+  }, [next, loading, slideCount, safeIndex])
 
   const toggleMute = () => {
     const audio = audioRef.current
@@ -83,35 +104,58 @@ export function Hero({ videos, music }: HeroProps) {
   // Cada vídeo de fondo, reutilizado tanto en la caja móvil como en el fondo de escritorio.
   // Si todavía no has subido ningún vídeo con categoría "hero", se muestra un fondo
   // neutro con el logo en vez de fotos de stock.
-  const renderSlides = (mobile: boolean) =>
-    videos.length > 0 ? (
-      videos.map((v, i) => (
-        <div
-          key={v.id}
-          className={`absolute inset-0 transition-opacity duration-1000 ${
-            i === index ? 'opacity-100' : 'opacity-0'
-          }`}
-          aria-hidden={i !== index}
-        >
-          <video
-            ref={forcePlay}
-            className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
-            src={playableVideoUrl(v.url)}
-            poster={v.poster}
-            autoPlay
-            muted
-            loop
-            playsInline
-          />
+  const renderSlides = (mobile: boolean) => {
+    if (videos.length === 0) {
+      return (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#0b0e14] to-[#1a1f2b]">
+          <span className="text-2xl font-extrabold tracking-wide text-white/60 sm:text-3xl">
+            Drone<span className="text-[var(--gold)]">sur</span>
+          </span>
         </div>
-      ))
-    ) : (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#0b0e14] to-[#1a1f2b]">
-        <span className="text-2xl font-extrabold tracking-wide text-white/60 sm:text-3xl">
-          Drone<span className="text-[var(--gold)]">sur</span>
-        </span>
+      )
+    }
+    // Solo se pinta la versión (móvil o escritorio) que corresponde a esta pantalla.
+    if (isMobile === null || mobile !== isMobile || !current) return null
+
+    return (
+      <div className="absolute inset-0">
+        {/* Solo hay UN vídeo en la página a la vez. Al cambiar de vídeo, el anterior se
+            quita y se descarga el siguiente (por eso el "key"). */}
+        <video
+          key={current.id}
+          ref={forcePlay}
+          className={`h-full w-full transition-opacity duration-700 ${
+            mobile ? 'object-contain' : 'object-cover'
+          } ${loading ? 'opacity-0' : 'opacity-100'}`}
+          src={playableVideoUrl(current.url)}
+          poster={current.poster}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onLoadedData={() => setReadyId(current.id)}
+          onCanPlay={() => setReadyId(current.id)}
+          onPlaying={() => setReadyId(current.id)}
+          onWaiting={() => setReadyId(null)}
+          onError={() => {
+            // Si un vídeo falla, se quita el círculo y se pasa al siguiente.
+            setReadyId(current.id)
+            if (slideCount > 1) next()
+          }}
+        />
+        {loading && (
+          <div
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+            role="status"
+            aria-label="Cargando vídeo"
+          >
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/25 border-t-[var(--gold)] sm:h-14 sm:w-14" />
+          </div>
+        )}
       </div>
     )
+  }
 
   // Flechas, puntos y botón de silenciar, reutilizados en las dos versiones (tamaño distinto en cada una).
   const controls = (compact: boolean) => (
