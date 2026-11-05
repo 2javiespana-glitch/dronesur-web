@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Star, Loader2, CheckCircle2 } from 'lucide-react'
 import { LEGAL } from '@/lib/legal'
+import { useSite } from '@/components/site-provider'
 
 type Review = {
   id: string
@@ -30,18 +31,20 @@ function Stars({ value }: { value: number }) {
   )
 }
 
-function timeAgo(ts: number) {
+function timeAgo(ts: number, es: boolean) {
   const days = Math.floor((Date.now() - ts) / 86400000)
-  if (days <= 0) return 'Hoy'
-  if (days === 1) return 'Hace 1 día'
-  if (days < 30) return `Hace ${days} días`
+  if (days <= 0) return es ? 'Hoy' : 'Today'
+  if (days === 1) return es ? 'Hace 1 día' : '1 day ago'
+  if (days < 30) return es ? `Hace ${days} días` : `${days} days ago`
   const months = Math.floor(days / 30)
-  if (months < 12) return `Hace ${months} mes${months > 1 ? 'es' : ''}`
+  if (months < 12) return es ? `Hace ${months} mes${months > 1 ? 'es' : ''}` : `${months} month${months > 1 ? 's' : ''} ago`
   const years = Math.floor(months / 12)
-  return `Hace ${years} año${years > 1 ? 's' : ''}`
+  return es ? `Hace ${years} año${years > 1 ? 's' : ''}` : `${years} year${years > 1 ? 's' : ''} ago`
 }
 
 export function ReviewsSection() {
+  const { lang } = useSite()
+  const es = lang === 'es'
   const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -74,7 +77,7 @@ export function ReviewsSection() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !text.trim()) {
-      setError('Rellena tu nombre y tu opinión.')
+      setError(es ? 'Rellena tu nombre y tu opinión.' : 'Please fill in your name and your review.')
       return
     }
     setSending(true)
@@ -87,7 +90,7 @@ export function ReviewsSection() {
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) {
-        setError(data?.error || 'No se pudo enviar la reseña.')
+        setError(data?.error || (es ? 'No se pudo enviar la reseña.' : 'Your review could not be sent.'))
         return
       }
       setSent(true)
@@ -100,7 +103,7 @@ export function ReviewsSection() {
         setShowForm(false)
       }, 2500)
     } catch {
-      setError('Error de conexión. Inténtalo de nuevo.')
+      setError(es ? 'Error de conexión. Inténtalo de nuevo.' : 'Connection error. Please try again.')
     } finally {
       setSending(false)
     }
@@ -109,12 +112,14 @@ export function ReviewsSection() {
   return (
     <section id="resenas" className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
       <div className="mx-auto mb-10 max-w-2xl text-center">
-        <h2 className="text-3xl font-extrabold sm:text-4xl">Reseñas de clientes</h2>
+        <h2 className="text-3xl font-extrabold sm:text-4xl">{es ? 'Reseñas de clientes' : 'Customer reviews'}</h2>
         {showAverage && (
           <div className="mt-3 flex items-center justify-center gap-2">
             <Stars value={Math.round(average)} />
             <span className="text-sm text-muted-foreground">
-              {average.toFixed(1)} de 5 · {rated.length} valoraciones
+              {es
+                ? `${average.toFixed(1)} de 5 · ${rated.length} valoraciones`
+                : `${average.toFixed(1)} out of 5 · ${rated.length} ratings`}
             </span>
           </div>
         )}
@@ -127,7 +132,9 @@ export function ReviewsSection() {
         </div>
       ) : reviews.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
-          Todavía no hay opiniones publicadas. ¡Sé el primero en dejar la tuya!
+          {es
+            ? 'Todavía no hay opiniones publicadas. ¡Sé el primero en dejar la tuya!'
+            : 'There are no published reviews yet. Be the first to leave yours!'}
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -148,7 +155,7 @@ export function ReviewsSection() {
                   )}
                 </div>
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {timeAgo(r.createdAt)}
+                  {timeAgo(r.createdAt, es)}
                 </span>
               </div>
             </div>
@@ -158,11 +165,13 @@ export function ReviewsSection() {
 
       {/* Nota de transparencia: dice la verdad sobre de dónde salen las opiniones */}
       <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-relaxed text-muted-foreground">
-        Opiniones recogidas de mensajes de clientes (por ejemplo, por WhatsApp) y publicadas con su
-        permiso, o enviadas con el formulario de esta web y revisadas antes de publicarse. No se
-        verifican de forma independiente.
+        {es
+          ? 'Opiniones recogidas de mensajes de clientes (por ejemplo, por WhatsApp) y publicadas con su permiso, o enviadas con el formulario de esta web y revisadas antes de publicarse. No se verifican de forma independiente.'
+          : 'Reviews collected from customer messages (for example, via WhatsApp) and published with their permission, or sent through the form on this website and checked before publication. They are not independently verified.'}
         {LEGAL.serviciosGratuitosHasta &&
-          ' Durante el lanzamiento, algunos trabajos se realizan sin coste, y parte de las opiniones puede referirse a ellos.'}
+          (es
+            ? ' Durante el lanzamiento, algunos trabajos se realizan sin coste, y parte de las opiniones puede referirse a ellos.'
+            : ' During the launch period, some jobs are carried out free of charge, and some of the reviews may refer to them.')}
       </p>
 
       <div className="mt-10 flex justify-center">
@@ -171,7 +180,7 @@ export function ReviewsSection() {
             onClick={() => setShowForm(true)}
             className="rounded-full border border-[var(--gold)] px-6 py-3 text-sm font-semibold text-gold transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)]"
           >
-            Deja tu reseña
+            {es ? 'Deja tu reseña' : 'Leave a review'}
           </button>
         ) : (
           <form
@@ -181,42 +190,44 @@ export function ReviewsSection() {
             {sent ? (
               <div className="flex flex-col items-center gap-2 py-6 text-center">
                 <CheckCircle2 className="h-10 w-10 text-[var(--gold)]" />
-                <p className="font-semibold">¡Gracias por tu opinión!</p>
-                <p className="text-xs text-muted-foreground">La publicaremos en cuanto la revisemos.</p>
+                <p className="font-semibold">{es ? '¡Gracias por tu opinión!' : 'Thank you for your review!'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {es ? 'La publicaremos en cuanto la revisemos.' : 'We will publish it as soon as we have checked it.'}
+                </p>
               </div>
             ) : (
               <>
-                <h3 className="text-lg font-bold">Cuéntanos tu experiencia</h3>
+                <h3 className="text-lg font-bold">{es ? 'Cuéntanos tu experiencia' : 'Tell us about your experience'}</h3>
 
-                <label className="mt-4 block text-sm font-medium">Tu nombre</label>
+                <label className="mt-4 block text-sm font-medium">{es ? 'Tu nombre' : 'Your name'}</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   maxLength={80}
                   className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                  placeholder="Tu nombre"
+                  placeholder={es ? 'Tu nombre' : 'Your name'}
                 />
 
                 <label className="mt-4 block text-sm font-medium">
-                  Profesión o empresa{' '}
-                  <span className="font-normal text-muted-foreground">(opcional)</span>
+                  {es ? 'Profesión o empresa' : 'Profession or company'}{' '}
+                  <span className="font-normal text-muted-foreground">{es ? '(opcional)' : '(optional)'}</span>
                 </label>
                 <input
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   maxLength={80}
                   className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                  placeholder="Ej. Agente inmobiliario, Hotel Costa Luz"
+                  placeholder={es ? 'Ej. Agente inmobiliario, Hotel Costa Luz' : 'E.g. Real estate agent, Costa Luz Hotel'}
                 />
 
-                <label className="mt-4 block text-sm font-medium">Puntuación</label>
+                <label className="mt-4 block text-sm font-medium">{es ? 'Puntuación' : 'Rating'}</label>
                 <div className="mt-1.5 flex gap-1">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
                       type="button"
                       key={n}
                       onClick={() => setRating(n)}
-                      aria-label={`${n} estrellas`}
+                      aria-label={es ? `${n} estrellas` : `${n} stars`}
                     >
                       <Star
                         className={`h-7 w-7 transition ${
@@ -229,14 +240,14 @@ export function ReviewsSection() {
                   ))}
                 </div>
 
-                <label className="mt-4 block text-sm font-medium">Tu opinión</label>
+                <label className="mt-4 block text-sm font-medium">{es ? 'Tu opinión' : 'Your review'}</label>
                 <textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   maxLength={600}
                   rows={4}
                   className="mt-1.5 w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                  placeholder="¿Qué tal fue tu experiencia con Dronesur?"
+                  placeholder={es ? '¿Qué tal fue tu experiencia con Dronesur?' : 'How was your experience with Dronesur?'}
                 />
 
                 {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
@@ -247,14 +258,14 @@ export function ReviewsSection() {
                     onClick={() => setShowForm(false)}
                     className="flex-1 rounded-full border border-border px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
                   >
-                    Cancelar
+                    {es ? 'Cancelar' : 'Cancel'}
                   </button>
                   <button
                     type="submit"
                     disabled={sending}
                     className="flex-1 rounded-full bg-[var(--gold)] px-4 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
                   >
-                    {sending ? 'Enviando…' : 'Enviar'}
+                    {sending ? (es ? 'Enviando…' : 'Sending…') : es ? 'Enviar' : 'Send'}
                   </button>
                 </div>
               </>
