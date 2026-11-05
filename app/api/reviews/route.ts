@@ -78,7 +78,7 @@ function parseReviewDate(value: unknown): number | null {
 
 // Aviso por Telegram de una reseña nueva pendiente de aprobar (ver lib/telegram.ts).
 async function notifyNewReview(review: { name: string; role: string; rating: number; text: string }) {
-  const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://dronesur.vercel.app'
+  const site = process.env.NEXT_PUBLIC_SITE_URL || 'https://dronesur.es'
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating)
   await notifyTelegram(
     `Nueva reseña pendiente de aprobar\n\n` +
