@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { type Lang, translate } from '@/lib/content'
 
 type Theme = 'light' | 'dark'
@@ -69,6 +69,29 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
       {children}
     </SiteContext.Provider>
   )
+}
+
+// Fuerza el idioma de una zona de la web. Se usa en las páginas /en: el texto se genera ya en inglés
+// en el servidor (así Google ve inglés) y además se recuerda la preferencia del visitante.
+export function LangOverride({ lang, children }: { lang: Lang; children: React.ReactNode }) {
+  const parent = useSite()
+  const { setLang: setParentLang } = parent
+
+  useEffect(() => {
+    setParentLang(lang)
+  }, [lang, setParentLang])
+
+  const value = useMemo<SiteContextValue>(
+    () => ({
+      ...parent,
+      lang,
+      t: (key: string) => translate(key, lang),
+      tl: (v: { es: string; en: string }) => v[lang],
+    }),
+    [parent, lang],
+  )
+
+  return <SiteContext.Provider value={value}>{children}</SiteContext.Provider>
 }
 
 export function useSite() {
