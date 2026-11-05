@@ -10,6 +10,7 @@ import { isAllowedEmbed } from '@/lib/media-url'
 //
 // - GET     -> devuelve la lista (pública, la usan el hero, las portadas y las subpáginas)
 // - POST    -> { action: 'check' }  comprueba la contraseña del admin
+//              { action: 'update', id, alt, altEn } escribe la descripción de una foto (solo admin)
 //              { action: 'add', item } añade una foto o vídeo (solo admin)
 // - DELETE  -> { id } borra un elemento (solo admin)
 
@@ -34,6 +35,8 @@ type MediaItem = {
   category: string
   type: 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
   albumId?: string
+  alt?: string // descripción de la foto (para Google y lectores de pantalla)
+  altEn?: string
 }
 
 export async function GET() {
@@ -50,7 +53,7 @@ export async function POST(req: Request) {
   const denied = await requireAdmin(req)
   if (denied) return denied
 
-  let body: { action?: string; item?: Partial<MediaItem> }
+  let body: { action?: string; item?: Partial<MediaItem>; id?: string; alt?: unknown; altEn?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -58,6 +61,31 @@ export async function POST(req: Request) {
   }
 
   if (body.action === 'check') return NextResponse.json({ ok: true })
+
+  // La descripción ("texto alternativo") de una foto: es lo que lee Google y los lectores de pantalla.
+  if (body.action === 'update') {
+    const id = typeof body.id === 'string' ? body.id : ''
+    if (!id) return fail('Falta la foto.', 400)
+    const clean = (value: unknown) => (typeof value === 'string' ? value.trim().slice(0, 200) : '')
+    const alt = clean(body.alt)
+    const altEn = clean(body.altEn)
+    try {
+      const updated = await updateJSON<MediaItem[]>(KEY, [], (items) =>
+        items.map((m) => {
+          if (m.id !== id) return m
+          const next: MediaItem = { ...m }
+          if (alt) next.alt = alt
+          else delete next.alt
+          if (altEn) next.altEn = altEn
+          else delete next.altEn
+          return next
+        }),
+      )
+      return NextResponse.json({ items: updated })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
 
   if (body.action === 'add') {
     const item = body.item
