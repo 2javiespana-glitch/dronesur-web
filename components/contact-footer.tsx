@@ -7,6 +7,7 @@ import { useQuote } from '@/components/quote-modal'
 import { InstagramIcon, WhatsAppIcon } from '@/components/icons'
 import { SITE } from '@/lib/content'
 import { LEGAL } from '@/lib/legal'
+import { openEmail } from '@/lib/email-link'
 
 // Correo al que escribe la gente. Es el de lib/legal.ts (el mismo del aviso legal): si cambia ahí, cambia aquí.
 const CONTACT_EMAIL = LEGAL.email
@@ -42,6 +43,10 @@ export function ContactSection() {
             </a>
             <a
               href={`mailto:${CONTACT_EMAIL}`}
+              onClick={(e) => {
+                e.preventDefault()
+                openEmail(CONTACT_EMAIL)
+              }}
               className="inline-flex items-center justify-center gap-2 rounded-full border border-border px-7 py-3.5 text-sm font-semibold transition hover:border-[var(--gold)] hover:text-gold"
             >
               <Mail className="h-5 w-5" />
@@ -74,6 +79,10 @@ export function SiteFooter() {
         <div className="flex items-center gap-4">
           <a
             href={`mailto:${CONTACT_EMAIL}`}
+            onClick={(e) => {
+              e.preventDefault()
+              openEmail(CONTACT_EMAIL)
+            }}
             aria-label={`Email ${CONTACT_EMAIL}`}
             className="rounded-full border border-border p-2.5 transition hover:border-[var(--gold)] hover:text-gold"
           >
