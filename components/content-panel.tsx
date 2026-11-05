@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { T } from '@/lib/content'
 import { uploadToCloudinary } from '@/lib/cloudinary'
+import { CITIES } from '@/lib/cities'
 import {
   type SiteContent,
   EMPTY_CONTENT,
@@ -14,7 +15,7 @@ import {
 // "Sobre Dronesur" y "Sobre el piloto". Cada bloque se guarda por separado con su botón.
 // Habla con /api/content, que solo guarda si la contraseña de admin es correcta.
 
-type Section = 'music' | 'about' | 'pilot'
+type Section = 'music' | 'about' | 'pilot' | 'cities'
 type Message = { ok: boolean; text: string } | null
 
 const inputClass =
@@ -404,6 +405,96 @@ function PilotBlock({ password, initial }: { password: string; initial: SiteCont
 }
 
 // ---------------------------------------------------------------------------
+// Páginas por ciudad
+// ---------------------------------------------------------------------------
+function CitiesBlock({ password, initial }: { password: string; initial: SiteContent['cities'] }) {
+  const [saved, setSaved] = useState<Record<string, string>>(initial)
+  const [texts, setTexts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(CITIES.map((c) => [c.slug, initial[c.slug] ?? ''])),
+  )
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<Message>(null)
+
+  const save = async () => {
+    setSaving(true)
+    setMessage(null)
+    const result = await saveSection(password, 'cities', texts)
+    setSaving(false)
+    if (!result.ok) {
+      setMessage({ ok: false, text: result.error })
+      return
+    }
+    setSaved(result.content.cities)
+    setMessage({ ok: true, text: 'Guardado. Las ciudades con texto ya tienen su página.' })
+  }
+
+  return (
+    <Card
+      title="Páginas por ciudad"
+      description="Cada ciudad puede tener su propia página (tuweb/dron/granada) con su propio título en Google, por ejemplo «Dron en Granada: fotografía y vídeo aéreo | Dronesur». Todas son parte de tu misma web. Una ciudad solo tiene página cuando escribes su texto aquí: si lo dejas vacío, esa página no existe."
+    >
+      <div className="rounded-lg border border-border p-3 text-xs text-muted-foreground">
+        <p className="font-semibold text-foreground">Escribe solo lo que sea cierto y útil para alguien de esa ciudad.</p>
+        <p className="mt-1">
+          No copies el mismo texto cambiando el nombre: Google lo trata como spam y puede perjudicar a toda tu web.
+          Ideas de qué contar: desde dónde sales y cuánto tardas en llegar, si cobras desplazamiento, qué tipo de
+          trabajos haces allí (inmobiliaria, eventos, obra…), trabajos que hayas hecho cerca, y cualquier detalle
+          que sepas de volar en esa zona.
+        </p>
+      </div>
+
+      {CITIES.map((city) => {
+        const published = (saved[city.slug] ?? '').trim().length > 0
+        return (
+          <div key={city.slug}>
+            <div className="mb-1.5 flex flex-wrap items-center gap-2">
+              <label className="text-sm font-medium" htmlFor={`city-${city.slug}`}>
+                {city.name}
+              </label>
+              <span
+                className={
+                  published
+                    ? 'rounded-full bg-[var(--gold)] px-2 py-0.5 text-[10px] font-bold text-[var(--gold-foreground)]'
+                    : 'rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold text-muted-foreground'
+                }
+              >
+                {published ? 'Publicada' : 'Sin publicar'}
+              </span>
+              {published && (
+                <a
+                  href={`/dron/${city.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-muted-foreground underline underline-offset-2 hover:text-gold"
+                >
+                  Ver página
+                </a>
+              )}
+            </div>
+            <textarea
+              id={`city-${city.slug}`}
+              rows={5}
+              value={texts[city.slug] ?? ''}
+              onChange={(e) => setTexts((prev) => ({ ...prev, [city.slug]: e.target.value }))}
+              maxLength={3000}
+              placeholder={`Texto de la página de ${city.name} (déjalo vacío si no quieres esa página)`}
+              className={inputClass}
+            />
+          </div>
+        )
+      })}
+
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={() => void save()} disabled={saving} className={primaryButton}>
+          {saving ? 'Guardando...' : 'Guardar páginas por ciudad'}
+        </button>
+        <Status message={message} />
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 export function ContentPanel({ password }: { password: string }) {
   const [content, setContent] = useState<SiteContent | null>(null)
   const [failed, setFailed] = useState(false)
@@ -429,9 +520,10 @@ export function ContentPanel({ password }: { password: string }) {
 
   return (
     <div className="mt-10">
-      <h2 className="text-xl font-bold">Música, «Sobre Dronesur» y «Sobre el piloto»</h2>
+      <h2 className="text-xl font-bold">Música, textos y páginas por ciudad</h2>
       <p className="text-sm text-muted-foreground">
-        Cambia aquí la música del carrusel y los textos y fotos de estas dos secciones.
+        Cambia aquí la música del carrusel, los textos y fotos de «Sobre Dronesur» y «Sobre el piloto», y las
+        páginas por ciudad.
       </p>
 
       {!content ? (
@@ -446,6 +538,7 @@ export function ContentPanel({ password }: { password: string }) {
           <MusicBlock password={password} initial={content.music} />
           <AboutBlock password={password} initial={content.about} />
           <PilotBlock password={password} initial={content.pilot} />
+          <CitiesBlock password={password} initial={content.cities} />
         </>
       )}
     </div>
