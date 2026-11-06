@@ -8,6 +8,13 @@ import { ReviewLimitsPanel } from '@/components/review-limits-panel'
 import { ContentPanel } from '@/components/content-panel'
 import { QuotesPanel } from '@/components/quotes-panel'
 import { MediaManager } from '@/components/media-manager'
+import {
+  DEFAULT_QUOTE_DISCOUNT,
+  FALLBACK_DISCOUNT_MESSAGE,
+  normalizeQuoteDiscount,
+  type QuoteDiscount,
+} from '@/lib/quotes'
+import { translate } from '@/lib/content'
 
 type Review = {
   id: string
@@ -144,6 +151,7 @@ export default function AdminPage() {
     about: boolean
     pilot: boolean
     promoOverride: PromoOverride
+    quoteDiscount: QuoteDiscount
   }
   const DEFAULT_SETTINGS: SiteSettings = {
     promo: true,
@@ -154,8 +162,9 @@ export default function AdminPage() {
     about: true,
     pilot: true,
     promoOverride: EMPTY_PROMO_OVERRIDE,
+    quoteDiscount: DEFAULT_QUOTE_DISCOUNT,
   }
-const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; label: string }[] = [    
+const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride' | 'quoteDiscount'>; label: string }[] = [
   { key: 'promo', label: 'Banner de bienvenida / descuento' },
     { key: 'coverage', label: 'Zonas de cobertura' },
     { key: 'guarantee', label: 'Garantía legal' },
@@ -179,6 +188,7 @@ const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; labe
             ...DEFAULT_SETTINGS,
             ...data,
             promoOverride: { ...EMPTY_PROMO_OVERRIDE, ...(data.promoOverride ?? {}) },
+            quoteDiscount: normalizeQuoteDiscount(data.quoteDiscount),
           })
         }
       })
@@ -209,6 +219,10 @@ const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; labe
       setSettingsSaving(false)
     }
   }
+
+  // Cambia un campo de la casilla de descuento (todavía sin guardar: se guarda con el botón o el interruptor).
+  const setQuoteDiscount = (patch: Partial<QuoteDiscount>) =>
+    setSettings((prev) => ({ ...prev, quoteDiscount: { ...prev.quoteDiscount, ...patch } }))
 
   const [authed, setAuthed] = useState(false)
   const [pass, setPass] = useState('')
@@ -657,6 +671,116 @@ const SETTINGS_LABELS: { key: Exclude<keyof SiteSettings, 'promoOverride'>; labe
               {settingsSaving ? 'Guardando…' : 'Guardar texto del banner'}
             </button>
             {settingsSaved && <span className="ml-3 text-sm text-[var(--gold)]">Guardado ✓</span>}
+          </div>
+        </form>
+      </div>
+
+      {/* Panel: Casilla de descuento del formulario de presupuesto */}
+      <div className="mt-10">
+        <h2 className="text-xl font-bold">Casilla de descuento del formulario</h2>
+        <p className="text-sm text-muted-foreground">
+          Es el cuadro con la casilla que sale dentro del formulario de presupuesto («Aplicar mi 15% de
+          descuento de bienvenida…»). Puedes ocultarlo y cambiar sus textos. Es independiente del banner de
+          la página principal.
+        </p>
+
+        {/* Interruptor */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">
+              Mostrar la casilla de descuento en el formulario:{' '}
+              <span className={settings.quoteDiscount.enabled ? 'text-gold' : 'text-muted-foreground'}>
+                {settings.quoteDiscount.enabled ? 'ACTIVADA' : 'DESACTIVADA'}
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {settings.quoteDiscount.enabled
+                ? 'La casilla aparece en el formulario y, si el cliente la marca, el mensaje incluye la frase del descuento.'
+                : 'Desactivada: la casilla no aparece y el mensaje de WhatsApp o correo nunca menciona ningún descuento.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.quoteDiscount.enabled}
+            aria-label="Mostrar la casilla de descuento en el formulario de presupuesto"
+            onClick={() =>
+              saveSettings({
+                ...settings,
+                quoteDiscount: { ...settings.quoteDiscount, enabled: !settings.quoteDiscount.enabled },
+              })
+            }
+            disabled={settingsSaving}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-60 ${
+              settings.quoteDiscount.enabled ? 'bg-[var(--gold)]' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
+                settings.quoteDiscount.enabled ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Textos */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            saveSettings(settings)
+          }}
+          className="mt-4 grid gap-6 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
+        >
+          <p className="text-xs text-muted-foreground sm:col-span-2">
+            Deja un campo en blanco para usar el texto de siempre (el que ves en gris). Si cambias el 15% en
+            español, cámbialo también en inglés.
+          </p>
+          {(
+            [
+              { lang: 'Español', code: 'es', label: 'labelEs', message: 'messageEs' },
+              { lang: 'English', code: 'en', label: 'labelEn', message: 'messageEn' },
+            ] as const
+          ).map((col) => (
+            <div key={col.lang} className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground">{col.lang}</h3>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">Texto de la casilla</label>
+                <input
+                  value={settings.quoteDiscount[col.label]}
+                  onChange={(e) => setQuoteDiscount({ [col.label]: e.target.value })}
+                  maxLength={200}
+                  placeholder={translate('wa.discount', col.code)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-medium">
+                  Frase que se añade al mensaje de WhatsApp / correo
+                </label>
+                <textarea
+                  rows={2}
+                  value={settings.quoteDiscount[col.message]}
+                  onChange={(e) => setQuoteDiscount({ [col.message]: e.target.value })}
+                  maxLength={200}
+                  placeholder={FALLBACK_DISCOUNT_MESSAGE[col.code]}
+                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                />
+              </div>
+            </div>
+          ))}
+
+          <div className="sm:col-span-2">
+            <button
+              type="submit"
+              disabled={settingsSaving}
+              className="rounded-full bg-[var(--gold)] px-6 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
+            >
+              {settingsSaving ? 'Guardando…' : 'Guardar textos de la casilla'}
+            </button>
+            {settingsSaved && <span className="ml-3 text-sm text-[var(--gold)]">Guardado ✓</span>}
+            {settingsError && <span className="ml-3 text-sm text-destructive">{settingsError}</span>}
           </div>
         </form>
       </div>
