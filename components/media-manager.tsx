@@ -643,7 +643,14 @@ function SpecialDialog({
 // ---------------------------------------------------------------------------
 // El gestor
 // ---------------------------------------------------------------------------
-export function MediaManager({ password }: { password: string }) {
+// `only` permite colocar el carrusel de inicio y las categorías en sitios distintos del admin.
+export function MediaManager({
+  password,
+  only,
+}: {
+  password: string
+  only?: 'hero' | 'categories'
+}) {
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
   const [media, setMedia] = useState<MediaItem[]>([])
   const [albums, setAlbums] = useState<AlbumItem[]>([])
@@ -985,7 +992,7 @@ export function MediaManager({ password }: { password: string }) {
     return (
       <div ref={topRef} className="mt-10 scroll-mt-4">
         <button type="button" onClick={() => setOpenSlug(null)} className={secondaryButton}>
-          <ArrowLeft className="h-4 w-4" /> Volver a categorías
+          <ArrowLeft className="h-4 w-4" /> {only === 'hero' ? 'Volver' : 'Volver a categorías'}
         </button>
         <h2 className="mt-4 text-xl font-bold">Carrusel de inicio</h2>
         <p className="text-sm text-muted-foreground">
@@ -1206,11 +1213,22 @@ export function MediaManager({ password }: { password: string }) {
 
   return (
     <div ref={topRef} className="mt-10 scroll-mt-4">
-      <h2 className="text-xl font-bold">Categorías, fotos y vídeos</h2>
-      <p className="text-sm text-muted-foreground">
-        Entra en una categoría para ver su contenido, añadir fotos y vídeos o eliminarlos. También puedes
-        cambiar sus textos y su portada.
-      </p>
+      {only === 'hero' ? (
+        <>
+          <h2 className="text-xl font-bold">Vídeos del carrusel</h2>
+          <p className="text-sm text-muted-foreground">
+            Los vídeos que se ven al abrir la web, uno detrás de otro.
+          </p>
+        </>
+      ) : (
+        <>
+          <h2 className="text-xl font-bold">Categorías, fotos y vídeos</h2>
+          <p className="text-sm text-muted-foreground">
+            Entra en una categoría para ver su contenido, añadir fotos y vídeos o eliminarlos. También puedes
+            cambiar sus textos y su portada.
+          </p>
+        </>
+      )}
       {loadError && (
         <div className="mt-3">
           <Message tone="error">{loadError}</Message>
@@ -1223,6 +1241,7 @@ export function MediaManager({ password }: { password: string }) {
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {/* Carrusel de inicio */}
+          {only !== 'categories' && (
           <button
             type="button"
             onClick={() => setOpenSlug(HERO)}
@@ -1240,8 +1259,9 @@ export function MediaManager({ password }: { password: string }) {
               <p className="mt-1 text-xs text-muted-foreground">{heroItems.length} vídeo(s)</p>
             </div>
           </button>
+          )}
 
-          {categories.map((cat) => {
+          {only !== 'hero' && categories.map((cat) => {
             const cover = coverOf(cat.slug)
             const count = mediaOf(cat.slug).length
             const albumCount = albums.filter((a) => a.category === cat.slug).length
@@ -1280,6 +1300,7 @@ export function MediaManager({ password }: { password: string }) {
           })}
 
           {/* Nueva categoría */}
+          {only !== 'hero' && (
           <button
             type="button"
             onClick={() => setShowNewCategory(true)}
@@ -1288,6 +1309,7 @@ export function MediaManager({ password }: { password: string }) {
             <Plus className="h-8 w-8" />
             <span className="text-sm font-semibold">Nueva categoría</span>
           </button>
+          )}
         </div>
       )}
 
