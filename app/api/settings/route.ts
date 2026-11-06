@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readJSON, updateJSON } from '@/lib/kv'
 import { fail, serverError, requireAdmin } from '@/lib/api'
+import { DEFAULT_QUOTE_DISCOUNT, normalizeQuoteDiscount, type QuoteDiscount } from '@/lib/quotes'
 
 // Guarda qué secciones de la web están visibles u ocultas (lo que se controla desde
 // el panel de admin, apartado "Qué se ve en la web").
@@ -32,6 +33,7 @@ export type SiteSettings = {
   about: boolean
   pilot: boolean
   promoOverride: PromoOverride
+  quoteDiscount: QuoteDiscount // casilla de descuento del formulario de presupuesto
 }
 
 const EMPTY_PROMO_OVERRIDE: PromoOverride = {
@@ -54,6 +56,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
   about: true,
   pilot: true,
   promoOverride: EMPTY_PROMO_OVERRIDE,
+  quoteDiscount: DEFAULT_QUOTE_DISCOUNT,
 }
 
 const BOOLEAN_KEYS = ['promo', 'coverage', 'guarantee', 'reviews', 'legal', 'about', 'pilot'] as const
@@ -74,6 +77,9 @@ function sanitizeSettings(input: unknown): Partial<SiteSettings> {
     }
     out.promoOverride = clean
   }
+  if (src.quoteDiscount && typeof src.quoteDiscount === 'object') {
+    out.quoteDiscount = normalizeQuoteDiscount(src.quoteDiscount)
+  }
   return out
 }
 
@@ -83,7 +89,7 @@ export async function GET() {
     // Fusionamos con los valores por defecto para que, si en el futuro se añade una
     // sección nueva, aparezca activada aunque todavía no se haya guardado nada para ella.
     return NextResponse.json(
-      { ...DEFAULT_SETTINGS, ...saved },
+      { ...DEFAULT_SETTINGS, ...saved, quoteDiscount: normalizeQuoteDiscount(saved.quoteDiscount) },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch {
