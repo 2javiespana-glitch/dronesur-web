@@ -1,0 +1,64 @@
+/* Accesibilidad.
+   Por defecto NADA de esto cambia el aspecto de la web: solo se activa cuando el visitante
+   lo pide en el panel "Accesibilidad" (o lo tiene puesto en su sistema operativo). */
+
+/* El contenido principal recibe el foco desde el enlace "Saltar al contenido": sin borde. */
+main:focus {
+  outline: none;
+}
+
+/* Reducir animaciones: lo pide el sistema operativo o el panel. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  [role='status'] .animate-spin {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+html.a11y-reduce-motion *,
+html.a11y-reduce-motion *::before,
+html.a11y-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+/* El círculo de "cargando" sigue girando: es una señal necesaria, no decoración. */
+html.a11y-reduce-motion [role='status'] .animate-spin {
+  animation-duration: 1s !important;
+  animation-iteration-count: infinite !important;
+}
+
+/* Texto más grande (toda la web usa rem, así que escala entera). */
+html.a11y-large-text {
+  font-size: 118%;
+}
+
+/* Borde grueso y visible en el elemento que tiene el foco del teclado. */
+html.a11y-focus :focus-visible {
+  outline: 3px solid #d4af37 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px #0d0d0d !important;
+}
+
+/* Enlaces siempre subrayados. */
+html.a11y-underline a {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+
+/* Textos grises más contrastados. */
+html.a11y-contrast.dark {
+  --muted-foreground: #d9d6cc;
+}
+html.a11y-contrast.light {
+  --muted-foreground: #3d3d3d;
+}
