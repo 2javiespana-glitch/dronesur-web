@@ -84,9 +84,9 @@ export function HomePage() {
         {settings.about && <AboutSection content={content.about} />}
         {settings.pilot && <PilotSection content={content.pilot} />}
         {settings.coverage && <CoverageServices />}
+        {settings.legal && <LegalSection />}
         {settings.guarantee && <GuaranteeBanner />}
         {settings.reviews && <ReviewsSection />}
-        {settings.legal && <LegalSection />}
         <ContactSection />
       </main>
       <SiteFooter />
