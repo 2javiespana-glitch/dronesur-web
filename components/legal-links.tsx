@@ -4,12 +4,14 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { openCookieSettings } from '@/lib/consent'
 import { useSite } from '@/components/site-provider'
+import { useA11y } from '@/components/accessibility-provider'
 
 // Barra de enlaces legales al final de TODAS las páginas de la web.
 // Es lo que exige la ley: poder llegar al Aviso legal, a la Privacidad y a las Cookies
 // desde cualquier sitio, y poder cambiar la elección de cookies cuando se quiera.
 export function LegalLinks() {
   const { lang } = useSite()
+  const { openPanel } = useA11y()
   const pathname = usePathname()
   // Este pie está fuera de las páginas /en, así que el idioma también se deduce de la dirección.
   const en = lang === 'en' || pathname === '/en' || pathname.startsWith('/en/')
@@ -30,6 +32,9 @@ export function LegalLinks() {
         </Link>
         <button type="button" onClick={openCookieSettings} className="transition hover:text-gold">
           {en ? 'Cookie settings' : 'Configurar cookies'}
+        </button>
+        <button type="button" onClick={openPanel} className="transition hover:text-gold">
+          {en ? 'Accessibility' : 'Accesibilidad'}
         </button>
       </div>
     </nav>
