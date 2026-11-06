@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react'
 import Link from 'next/link'
@@ -13,6 +14,7 @@ import { CATEGORIES, SITE, type Category } from '@/lib/content'
 import { useSite } from '@/components/site-provider'
 import { WhatsAppIcon } from '@/components/icons'
 import { openEmail } from '@/lib/email-link'
+import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { LEGAL } from '@/lib/legal'
 
 type QuoteContextValue = {
@@ -24,6 +26,8 @@ const QuoteContext = createContext<QuoteContextValue | null>(null)
 export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const { t, tl, lang } = useSite()
   const [isOpen, setIsOpen] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(isOpen, dialogRef)
   const [service, setService] = useState('')
   const [location, setLocation] = useState('')
   const [details, setDetails] = useState('')
@@ -156,7 +160,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsOpen(false)}
           />
-          <div className="animate-fade-up relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl sm:p-8">
+          <div ref={dialogRef} className="animate-fade-up relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl sm:p-8">
             <button
               onClick={() => setIsOpen(false)}
               className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
