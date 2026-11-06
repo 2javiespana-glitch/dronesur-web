@@ -1,9 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Volume2, VolumeX } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
+import { useA11y } from '@/components/accessibility-provider'
 import type { VideoItem } from '@/lib/content'
 import { playableVideoUrl } from '@/lib/media-url'
 
@@ -13,9 +14,29 @@ type HeroProps = {
 }
 
 export function Hero({ videos, music }: HeroProps) {
-  const { t } = useSite()
+  const { t, lang } = useSite()
   const { open } = useQuote()
+  const { reduceMotion } = useA11y()
   const [index, setIndex] = useState(0)
+  // Pausa del carrusel. Mientras el visitante no pulse el botón, manda su ajuste de
+  // "reducir animaciones" (panel de accesibilidad o sistema operativo); si no, se reproduce como siempre.
+  const [userPaused, setUserPaused] = useState<boolean | null>(null)
+  const paused = userPaused ?? reduceMotion
+  // En pantallas táctiles no hay "pasar el ratón": el botón aparece 3 segundos al tocar el carrusel.
+  const [touchReveal, setTouchReveal] = useState(false)
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const revealOnTouch = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return
+    setTouchReveal(true)
+    if (touchTimer.current) clearTimeout(touchTimer.current)
+    touchTimer.current = setTimeout(() => setTouchReveal(false), 3000)
+  }
+  useEffect(
+    () => () => {
+      if (touchTimer.current) clearTimeout(touchTimer.current)
+    },
+    [],
+  )
   // ready = el vídeo ya puede empezar a verse. full = ya está descargado lo suficiente
   // como para verse entero sin cortes (o ha fallado); entonces se pasa a descargar el siguiente.
   const [ready, setReady] = useState<Record<string, boolean>>({})
@@ -88,7 +109,8 @@ export function Hero({ videos, music }: HeroProps) {
       if (!el) return
       if (v.id === current?.id) {
         el.muted = true
-        void el.play().catch(() => {})
+        if (paused) el.pause()
+        else void el.play().catch(() => {})
       } else {
         el.pause()
         try {
@@ -96,14 +118,14 @@ export function Hero({ videos, music }: HeroProps) {
         } catch {}
       }
     })
-  }, [videos, current?.id, isMobile])
+  }, [videos, current?.id, isMobile, paused])
 
   // El carrusel avanza 6 segundos DESPUÉS de que el vídeo actual esté listo, no antes.
   useEffect(() => {
-    if (slideCount < 2 || loading) return
+    if (slideCount < 2 || loading || paused) return
     const id = setTimeout(next, 6000)
     return () => clearTimeout(id)
-  }, [next, loading, slideCount, safeIndex])
+  }, [next, loading, paused, slideCount, safeIndex])
 
   const toggleMute = () => {
     const audio = audioRef.current
@@ -163,7 +185,7 @@ export function Hero({ videos, music }: HeroProps) {
                 onCanPlay={(e) => {
                   setReady((r) => (r[v.id] ? r : { ...r, [v.id]: true }))
                   if (stalledId === v.id) setStalledId(null)
-                  if (isCurrent) void e.currentTarget.play().catch(() => {})
+                  if (isCurrent && !paused) void e.currentTarget.play().catch(() => {})
                 }}
                 onCanPlayThrough={() => setFull((f) => (f[v.id] ? f : { ...f, [v.id]: true }))}
                 onPlaying={() => {
@@ -242,7 +264,8 @@ export function Hero({ videos, music }: HeroProps) {
   return (
     <section
       id="top"
-      className="relative mt-16 w-full overflow-hidden bg-black sm:h-[calc(100svh-4rem)]"
+      onPointerDown={revealOnTouch}
+      className="group relative mt-16 w-full overflow-hidden bg-black sm:h-[calc(100svh-4rem)]"
     >
       {/* ---------- MÓVIL: caja de vídeo horizontal (estilo YouTube), sin recortar ---------- */}
       <div className="relative aspect-video w-full sm:hidden">
@@ -334,6 +357,30 @@ export function Hero({ videos, music }: HeroProps) {
           <ChevronDown className="animate-scroll-bob h-5 w-5" />
         </a>
       </div>
+
+      {/* Pausa del carrusel y los vídeos: invisible hasta que pasas el ratón por encima (o tocas en el móvil).
+          Con el teclado también se puede alcanzar con Tab. */}
+      {slideCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setUserPaused(!paused)}
+          aria-pressed={paused}
+          aria-label={
+            lang === 'en'
+              ? paused
+                ? 'Resume carousel and videos'
+                : 'Pause carousel and videos'
+              : paused
+                ? 'Reanudar carrusel y vídeos'
+                : 'Pausar carrusel y vídeos'
+          }
+          className={`absolute right-3 top-3 z-30 rounded-full border border-white/30 bg-black/50 p-1.5 text-white backdrop-blur-sm transition hover:bg-black/80 focus-visible:opacity-100 group-hover:opacity-100 sm:right-4 sm:top-4 sm:p-2 ${
+            touchReveal ? 'opacity-100' : 'opacity-0 [@media(hover:none)]:pointer-events-none'
+          }`}
+        >
+          {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+        </button>
+      )}
 
       {/* Música de fondo cinematográfica (común a móvil y escritorio) */}
       {hasMusic && (
