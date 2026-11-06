@@ -240,7 +240,7 @@ export function QuotesPanel({ password }: { password: string }) {
                   {q.discount && (
                     <div className="flex gap-2">
                       <dt className="w-20 shrink-0 text-muted-foreground">Descuento</dt>
-                      <dd>Pide el 15 % de bienvenida</dd>
+                      <dd>Pide el descuento de bienvenida</dd>
                     </div>
                   )}
                 </dl>
