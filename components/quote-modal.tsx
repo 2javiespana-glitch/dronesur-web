@@ -16,6 +16,11 @@ import { WhatsAppIcon } from '@/components/icons'
 import { openEmail } from '@/lib/email-link'
 import { useDialogFocus } from '@/lib/use-dialog-focus'
 import { LEGAL } from '@/lib/legal'
+import {
+  FALLBACK_DISCOUNT_MESSAGE,
+  normalizeQuoteDiscount,
+  type QuoteDiscount,
+} from '@/lib/quotes'
 
 type QuoteContextValue = {
   open: (opts?: { service?: string; discount?: boolean; location?: string }) => void
@@ -35,7 +40,16 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [website, setWebsite] = useState('') // cuadro trampa para programas spam: debe quedar vacío
   const [quotesEnabled, setQuotesEnabled] = useState(false) // ¿se guardan las solicitudes? (lo decide el admin)
   const [discount, setDiscount] = useState(true)
+  // Ajustes de la casilla de descuento (los decide el admin). null = todavía cargando: la casilla no se muestra.
+  const [discountCfg, setDiscountCfg] = useState<QuoteDiscount | null>(null)
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
+
+  // Solo cuenta como «pedir descuento» si la casilla está activada en el admin y marcada.
+  const discountOn = discountCfg?.enabled === true && discount
+  const custom = (es: string | undefined, en: string | undefined) => ((lang === 'en' ? en : es) ?? '').trim()
+  const discountLabel = custom(discountCfg?.labelEs, discountCfg?.labelEn) || t('wa.discount')
+  const discountMessage =
+    custom(discountCfg?.messageEs, discountCfg?.messageEn) || FALLBACK_DISCOUNT_MESSAGE[lang === 'en' ? 'en' : 'es']
 
   const open = (opts?: { service?: string; discount?: boolean; location?: string }) => {
     if (opts?.service) setService(opts.service)
@@ -55,6 +69,24 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {
         // Si falla, se muestran las categorías de siempre.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  // Al abrir el formulario, lee los ajustes de la casilla de descuento (activada/desactivada y sus textos).
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch('/api/settings', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled) setDiscountCfg(normalizeQuoteDiscount(data?.quoteDiscount))
+      })
+      .catch(() => {
+        // Si falla, se muestra la casilla de siempre (activada, con los textos de siempre).
+        if (!cancelled) setDiscountCfg((prev) => prev ?? normalizeQuoteDiscount(null))
       })
     return () => {
       cancelled = true
@@ -98,15 +130,13 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
       if (service) lines.push(`• Servicio: ${service}`)
       if (location) lines.push(`• Localidad: ${location}`)
       if (details) lines.push(`• Detalles: ${details}`)
-      if (discount)
-        lines.push('• Solicito aplicar el 15% de descuento de bienvenida (nuevo cliente).')
+      if (discountOn) lines.push(`• ${discountMessage}`)
     } else {
       lines.push('Hi Dronesur! I would like to request a quote.')
       if (service) lines.push(`• Service: ${service}`)
       if (location) lines.push(`• Location: ${location}`)
       if (details) lines.push(`• Details: ${details}`)
-      if (discount)
-        lines.push('• I request the 15% welcome discount (new client).')
+      if (discountOn) lines.push(`• ${discountMessage}`)
     }
     return lines.join('\n')
   }
@@ -121,7 +151,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'submit',
-          quote: { service, location, details, contact, discount, lang, channel, website },
+          quote: { service, location, details, contact, discount: discountOn, lang, channel, website },
         }),
         keepalive: true,
       }).catch(() => {})
@@ -238,8 +268,8 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
                   {lang === 'es'
-                    ? 'Así podemos responderte aunque no llegues a enviar el mensaje.'
-                    : "So we can reply even if you don't end up sending the message."}
+                    ? 'Déjanos tu teléfono para contactarte.'
+                    : 'Leave us your phone number so we can contact you.'}
                 </p>
               </div>
 
@@ -255,17 +285,17 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                 className="absolute -left-[9999px] h-0 w-0 opacity-0"
               />
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-3">
-                <input
-                  type="checkbox"
-                  checked={discount}
-                  onChange={(e) => setDiscount(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
-                />
-                <span className="text-sm font-medium text-foreground">
-                  {t('wa.discount')}
-                </span>
-              </label>
+              {discountCfg?.enabled && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-3">
+                  <input
+                    type="checkbox"
+                    checked={discount}
+                    onChange={(e) => setDiscount(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
+                  />
+                  <span className="text-sm font-medium text-foreground">{discountLabel}</span>
+                </label>
+              )}
 
               {quotesEnabled && (
                 <p className="text-xs text-muted-foreground">
