@@ -495,7 +495,27 @@ function CitiesBlock({ password, initial }: { password: string; initial: SiteCon
 }
 
 // ---------------------------------------------------------------------------
-export function ContentPanel({ password }: { password: string }) {
+export type ContentBlockKey = 'music' | 'about' | 'pilot' | 'cities'
+
+// Sin props extra muestra los cuatro bloques (como antes). Con `show` solo los que se indiquen,
+// para poder colocar cada uno en su sitio dentro del admin.
+export function ContentPanel({
+  password,
+  show,
+  title,
+  description,
+}: {
+  password: string
+  show?: ContentBlockKey[]
+  title?: string
+  description?: string
+}) {
+  const has = (k: ContentBlockKey) => !show || show.includes(k)
+  const heading = show ? title : (title ?? 'Música, textos y páginas por ciudad')
+  const intro = show
+    ? description
+    : (description ??
+      'Cambia aquí la música del carrusel, los textos y fotos de «Sobre Dronesur» y «Sobre el piloto», y las páginas por ciudad.')
   const [content, setContent] = useState<SiteContent | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -519,12 +539,9 @@ export function ContentPanel({ password }: { password: string }) {
   }, [])
 
   return (
-    <div className="mt-10">
-      <h2 className="text-xl font-bold">Música, textos y páginas por ciudad</h2>
-      <p className="text-sm text-muted-foreground">
-        Cambia aquí la música del carrusel, los textos y fotos de «Sobre Dronesur» y «Sobre el piloto», y las
-        páginas por ciudad.
-      </p>
+    <div className="mt-6">
+      {heading && <h2 className="text-xl font-bold">{heading}</h2>}
+      {intro && <p className="text-sm text-muted-foreground">{intro}</p>}
 
       {!content ? (
         <p className="mt-4 text-sm text-muted-foreground">Cargando...</p>
@@ -535,10 +552,10 @@ export function ContentPanel({ password }: { password: string }) {
               No se pudo leer lo que había guardado. Si guardas ahora, se sustituirá por lo que escribas.
             </p>
           )}
-          <MusicBlock password={password} initial={content.music} />
-          <AboutBlock password={password} initial={content.about} />
-          <PilotBlock password={password} initial={content.pilot} />
-          <CitiesBlock password={password} initial={content.cities} />
+          {has('music') && <MusicBlock password={password} initial={content.music} />}
+          {has('about') && <AboutBlock password={password} initial={content.about} />}
+          {has('pilot') && <PilotBlock password={password} initial={content.pilot} />}
+          {has('cities') && <CitiesBlock password={password} initial={content.cities} />}
         </>
       )}
     </div>
