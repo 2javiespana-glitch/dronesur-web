@@ -72,6 +72,15 @@ export function SiteHeader() {
   // Un enlace se oculta solo si su sección está explícitamente en false.
   const visibleLinks = LINKS.filter((l) => !l.section || settings[l.section] !== false)
 
+  // Sin scroll, la cabecera tiene un fondo oscuro FIJO (en modo claro y oscuro), así que el texto
+  // debe ser claro. Con scroll, el fondo sigue al tema y el texto usa los colores del tema.
+  const onDark = !scrolled
+  const textStrong = onDark ? 'text-white' : 'text-foreground'
+  const textSoft = onDark ? 'text-white/85' : 'text-foreground/80'
+  const textDim = onDark ? 'text-white/70 hover:text-white' : 'text-foreground/70 hover:text-foreground'
+  const hoverBg = onDark ? 'hover:bg-white/10' : 'hover:bg-muted'
+  const borderCls = onDark ? 'border-white/25' : 'border-border'
+
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
@@ -90,7 +99,7 @@ export function SiteHeader() {
             className="h-10 w-10 object-contain sm:h-11 sm:w-11"
             priority
           />
-          <span className="text-lg font-bold tracking-tight">
+          <span className={`text-lg font-bold tracking-tight ${textStrong}`}>
             Drone<span className="text-gold">sur</span>
           </span>
         </Link>
@@ -100,7 +109,7 @@ export function SiteHeader() {
             <Link
               key={l.key}
               href={localePath(l.href)}
-              className="rounded-md px-3 py-2 text-sm font-medium text-foreground/80 transition hover:text-gold"
+              className={`rounded-md px-3 py-2 text-sm font-medium transition hover:text-gold ${textSoft}`}
             >
               {t(l.key)}
             </Link>
@@ -113,18 +122,18 @@ export function SiteHeader() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Instagram @${SITE.instagram}`}
-            className="rounded-full p-2 text-foreground/80 transition hover:bg-muted hover:text-gold"
+            className={`rounded-full p-2 transition hover:text-gold ${textSoft} ${hoverBg}`}
           >
             <InstagramIcon className="h-5 w-5" />
           </a>
 
-          <div className="flex overflow-hidden rounded-full border border-border text-xs font-semibold">
+          <div className={`flex overflow-hidden rounded-full border text-xs font-semibold ${borderCls}`}>
             <button
               onClick={() => switchLang('es')}
               className={`px-2.5 py-1 transition ${
                 lang === 'es'
                   ? 'bg-[var(--gold)] text-[var(--gold-foreground)]'
-                  : 'text-foreground/70 hover:text-foreground'
+                  : textDim
               }`}
               aria-pressed={lang === 'es'}
             >
@@ -135,7 +144,7 @@ export function SiteHeader() {
               className={`px-2.5 py-1 transition ${
                 lang === 'en'
                   ? 'bg-[var(--gold)] text-[var(--gold-foreground)]'
-                  : 'text-foreground/70 hover:text-foreground'
+                  : textDim
               }`}
               aria-pressed={lang === 'en'}
             >
@@ -145,7 +154,7 @@ export function SiteHeader() {
 
           <button
             onClick={toggleTheme}
-            className="rounded-full p-2 text-foreground/80 transition hover:bg-muted hover:text-gold"
+            className={`rounded-full p-2 transition hover:text-gold ${textSoft} ${hoverBg}`}
             aria-label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
           >
             {theme === 'dark' ? (
@@ -164,7 +173,7 @@ export function SiteHeader() {
 
           <button
             onClick={() => setMobileOpen((v) => !v)}
-            className="rounded-full p-2 text-foreground lg:hidden"
+            className={`rounded-full p-2 lg:hidden ${textStrong}`}
             aria-label="Menú"
             aria-expanded={mobileOpen}
           >
