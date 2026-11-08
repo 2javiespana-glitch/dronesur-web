@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { CATEGORIES as SEED_CATEGORIES, type Category, type Localized } from '@/lib/content'
+import { CATEGORIES as SEED_CATEGORIES, DEFAULT_INCLUDE_KEYS, type Category, type Localized } from '@/lib/content'
 import { updateJSON } from '@/lib/kv'
 import { CATEGORIES_KEY, readCategories } from '@/lib/categories-db'
 import { fail, serverError, requireAdmin } from '@/lib/api'
@@ -9,7 +9,7 @@ import { fail, serverError, requireAdmin } from '@/lib/api'
 //
 // - GET  -> devuelve todas las categorías (pública; la portada oculta las que tengan visible=false)
 // - POST -> { action: 'add', category: { title, short, description, price } }  crea una (solo admin)
-//           { action: 'update', slug, category: { visible?, title?, short?, description?, price?, includes? } }
+//           { action: 'update', slug, category: { visible?, title?, short?, description?, price?, includes?, defaultIncludes? } }
 //                                                                              edita una (solo admin)
 //
 // No hay "borrar" a propósito: para quitar una categoría se oculta, y así no se pierde
@@ -56,6 +56,12 @@ function cleanLines(input: unknown): { es: string[]; en: string[] } | undefined 
   const en = toList(obj.en)
   if (es.length === 0 && en.length === 0) return undefined
   return { es, en: en.length > 0 ? en : es }
+}
+
+// Casillas de los puntos «de siempre»: solo se aceptan las claves conocidas (sin repetir).
+function cleanDefaultIncludes(input: unknown): string[] | undefined {
+  if (!Array.isArray(input)) return undefined
+  return DEFAULT_INCLUDE_KEYS.filter((key) => input.includes(key))
 }
 
 function cleanLocalized(input: unknown, max: number): Localized {
@@ -110,6 +116,8 @@ export async function POST(req: Request) {
         }
         const includes = cleanLines(input.includes)
         if (includes) created.includes = includes
+        const defaultIncludes = cleanDefaultIncludes(input.defaultIncludes)
+        if (defaultIncludes) created.defaultIncludes = defaultIncludes
         return [...current, created]
       })
       return NextResponse.json({ categories })
@@ -139,8 +147,10 @@ export async function POST(req: Request) {
           if (input.includes) {
             const includes = cleanLines(input.includes)
             if (includes) next.includes = includes
-            else delete next.includes // vacío = vuelven los puntos de siempre
+            else delete next.includes // vacío = sin puntos propios
           }
+          const defaultIncludes = cleanDefaultIncludes(input.defaultIncludes)
+          if (defaultIncludes) next.defaultIncludes = defaultIncludes
           if (input.price) next.price = cleanLocalized(input.price, 80)
           return next
         })
