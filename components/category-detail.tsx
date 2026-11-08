@@ -146,12 +146,14 @@ export function CategoryDetail({
   const next = () => setIndex((i) => (i + 1) % items.length)
   const prev = () => setIndex((i) => (i - 1 + items.length) % items.length)
 
-  // Los puntos con «tick»: los propios de la categoría (si los has escrito en el admin) o los de siempre.
-  const ownIncludes = category.includes ? (lang === 'en' ? category.includes.en : category.includes.es) : []
-  const included: string[] =
-    ownIncludes.length > 0
-      ? ownIncludes
-      : ['cover.inc1', 'cover.inc2', 'cover.inc3', 'cover.inc4'].map((key) => t(key))
+  // Los puntos con «tick»: solo los propios de la categoría (si los has escrito en el admin).
+  // Ya no hay puntos por defecto: lo común a todos los servicios sale en «Incluido en el precio»
+  // (sección de cobertura), así que aquí no se repite.
+  const included: string[] = category.includes
+    ? lang === 'en'
+      ? category.includes.en
+      : category.includes.es
+    : []
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6 lg:px-8">
@@ -335,16 +337,18 @@ export function CategoryDetail({
             {tl(category.description)}
           </p>
 
-          <ul className="mt-7 space-y-3">
-            {included.map((line) => (
-              <li key={line} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--gold)] text-[var(--gold-foreground)]">
-                  <Check className="h-4 w-4" />
-                </span>
-                <span className="text-sm text-foreground/90">{line}</span>
-              </li>
-            ))}
-          </ul>
+          {included.length > 0 && (
+            <ul className="mt-7 space-y-3">
+              {included.map((line) => (
+                <li key={line} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--gold)] text-[var(--gold-foreground)]">
+                    <Check className="h-4 w-4" />
+                  </span>
+                  <span className="text-sm text-foreground/90">{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <button
             onClick={() => open({ service: tl(category.title), discount: true })}
