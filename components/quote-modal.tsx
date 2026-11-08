@@ -209,6 +209,26 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
 
             <form onSubmit={submit} className="space-y-4">
               <div>
+                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-contact">
+                  {lang === 'es' ? 'Tu teléfono o correo' : 'Your phone or email'}
+                </label>
+                <input
+                  id="q-contact"
+                  value={contact}
+                  onChange={(e) => setContact(e.target.value)}
+                  maxLength={120}
+                  autoComplete="tel"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+                  placeholder={lang === 'es' ? '600 000 000 o tu@correo.com' : '600 000 000 or you@email.com'}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {lang === 'es'
+                    ? 'Te llamamos con el presupuesto. Si prefieres, déjanos tu correo.'
+                    : "We'll call you with your quote. Prefer email? Leave that instead."}
+                </p>
+              </div>
+
+              <div>
                 <label className="mb-1.5 block text-sm font-medium" htmlFor="q-service">
                   {t('wa.service')}
                 </label>
@@ -251,26 +271,6 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                   rows={3}
                   className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
                 />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-contact">
-                  {lang === 'es' ? 'Tu teléfono o correo (opcional)' : 'Your phone or email (optional)'}
-                </label>
-                <input
-                  id="q-contact"
-                  value={contact}
-                  onChange={(e) => setContact(e.target.value)}
-                  maxLength={120}
-                  autoComplete="tel"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                  placeholder={lang === 'es' ? '600 000 000 o tu@correo.com' : '600 000 000 or you@email.com'}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {lang === 'es'
-                    ? 'Déjanos tu teléfono para contactarte.'
-                    : 'Leave us your phone number so we can contact you.'}
-                </p>
               </div>
 
               {/* Cuadro trampa: una persona no lo ve. Si un programa spam lo rellena, la solicitud se descarta. */}
