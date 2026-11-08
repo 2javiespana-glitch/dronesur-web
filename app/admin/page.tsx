@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Lock, Pencil, Plus, Star, Trash2 } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Lock, LogOut, Pencil, Plus, Star, Trash2 } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { ReviewLimitsPanel } from '@/components/review-limits-panel'
 import { ContentPanel } from '@/components/content-panel'
@@ -15,6 +16,7 @@ import {
   type QuoteDiscount,
 } from '@/lib/quotes'
 import { translate } from '@/lib/content'
+import { AutoSaveStatus, flushAllAutosaves, useAutoSave } from '@/lib/use-autosave'
 
 type Review = {
   id: string
@@ -33,6 +35,7 @@ const EMPTY: Draft = { name: '', role: '', rating: 0, text: '', date: '' }
 
 export default function AdminPage() {
   const { t } = useSite()
+  const router = useRouter()
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewsError, setReviewsError] = useState('')
 
@@ -169,6 +172,7 @@ export default function AdminPage() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [settingsError, setSettingsError] = useState('')
+  const [settingsLoaded, setSettingsLoaded] = useState(false) // el guardado automático espera a que se cargue lo guardado
 
   const loadSettings = () => {
     fetch('/api/settings', { cache: 'no-store' })
@@ -181,6 +185,7 @@ export default function AdminPage() {
             promoOverride: { ...EMPTY_PROMO_OVERRIDE, ...(data.promoOverride ?? {}) },
             quoteDiscount: normalizeQuoteDiscount(data.quoteDiscount),
           })
+          setSettingsLoaded(true)
         }
       })
       .catch(() => setSettingsError('No se pudo cargar la configuración.'))
@@ -211,7 +216,7 @@ export default function AdminPage() {
     }
   }
 
-  // Cambia un campo de la casilla de descuento (todavía sin guardar: se guarda con el botón o el interruptor).
+  // Cambia un campo de la casilla de descuento (se guarda solo; el interruptor guarda al instante).
   const setQuoteDiscount = (patch: Partial<QuoteDiscount>) =>
     setSettings((prev) => ({ ...prev, quoteDiscount: { ...prev.quoteDiscount, ...patch } }))
 
@@ -223,6 +228,43 @@ export default function AdminPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [showForm, setShowForm] = useState(false)
   const jsonHeaders = { 'Content-Type': 'application/json', 'x-admin-password': pass }
+
+  // Guardado automático de los textos del banner y de la casilla de descuento (sin botón).
+  // Vigila solo los textos: los interruptores guardan al instante con saveSettings.
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
+  const { enabled: _discountEnabled, ...discountTexts } = settings.quoteDiscount
+  const settingsAuto = useAutoSave({
+    value: { promoOverride: settings.promoOverride, quoteDiscount: discountTexts },
+    enabled: settingsLoaded,
+    save: async (_texts, { keepalive }) => {
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: jsonHeaders,
+          body: JSON.stringify({ action: 'set', settings: settingsRef.current }),
+          keepalive,
+        })
+        const data = await res.json().catch(() => null)
+        // No se vuelve a escribir `settings` con la respuesta: pisaría lo que estás tecleando.
+        return res.ok ? null : data?.error || 'No se pudo guardar.'
+      } catch {
+        return 'Error de conexión al guardar.'
+      }
+    },
+  })
+
+  // «Salir»: guarda lo pendiente y lleva a la web principal.
+  const [leaving, setLeaving] = useState(false)
+  const exitAdmin = async () => {
+    setLeaving(true)
+    const allSaved = await flushAllAutosaves()
+    if (!allSaved && !confirm('Hay cambios que no se han podido guardar. ¿Salir de todos modos?')) {
+      setLeaving(false)
+      return
+    }
+    router.push('/')
+  }
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -291,18 +333,22 @@ export default function AdminPage() {
   )
 
   // Cabecera de cada sección del admin, con el mismo orden que la página principal.
+  // El título va dentro de una franja de color que ocupa todo el ancho de la pantalla,
+  // para que se note bien el salto de una sección a otra.
   const sectionHead = (n: number, title: string, desc: string) => (
     <>
-      <h2 className="flex items-center gap-3 text-2xl font-extrabold">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--gold)] text-sm font-bold text-[var(--gold-foreground)]">
-          {n}
-        </span>
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
+      <div className="relative ml-[calc(50%-50vw)] w-screen bg-[var(--gold)] text-[var(--gold-foreground)] shadow-md">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-4 sm:px-6">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--gold-foreground)] text-base font-bold text-[var(--gold)]">
+            {n}
+          </span>
+          <h2 className="text-2xl font-extrabold">{title}</h2>
+        </div>
+      </div>
+      <p className="mt-4 text-sm text-muted-foreground">{desc}</p>
     </>
   )
-  const sectionClass = 'mt-14 scroll-mt-20 border-t border-border pt-8'
+  const sectionClass = 'mt-14 scroll-mt-20'
 
   const INDEX: { id: string; label: string }[] = [
     { id: 'admin-inicio', label: 'Inicio' },
@@ -362,6 +408,7 @@ export default function AdminPage() {
   }
 
   return (
+    <div className="overflow-x-clip">
     <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -372,18 +419,14 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setAuthed(false)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted"
+            type="button"
+            onClick={() => void exitAdmin()}
+            disabled={leaving}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted disabled:opacity-60"
           >
-            {t('admin.logout')}
+            <LogOut className="h-3.5 w-3.5" />
+            {leaving ? 'Guardando…' : 'Salir'}
           </button>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:bg-muted"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {t('admin.back')}
-          </Link>
         </div>
       </div>
 
@@ -431,7 +474,7 @@ export default function AdminPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            saveSettings(settings)
+            void settingsAuto.flush()
           }}
           className="mt-4 grid gap-6 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
         >
@@ -504,14 +547,7 @@ export default function AdminPage() {
           ))}
 
           <div className="sm:col-span-2">
-            <button
-              type="submit"
-              disabled={settingsSaving}
-              className="rounded-full bg-[var(--gold)] px-6 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
-            >
-              {settingsSaving ? 'Guardando…' : 'Guardar texto del banner'}
-            </button>
-            {settingsSaved && <span className="ml-3 text-sm text-[var(--gold)]">Guardado ✓</span>}
+            <AutoSaveStatus status={settingsAuto.status} error={settingsAuto.error} />
           </div>
         </form>
       </div>
@@ -569,7 +605,7 @@ export default function AdminPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            saveSettings(settings)
+            void settingsAuto.flush()
           }}
           className="mt-4 grid gap-6 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
         >
@@ -614,14 +650,7 @@ export default function AdminPage() {
           ))}
 
           <div className="sm:col-span-2">
-            <button
-              type="submit"
-              disabled={settingsSaving}
-              className="rounded-full bg-[var(--gold)] px-6 py-2.5 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
-            >
-              {settingsSaving ? 'Guardando…' : 'Guardar textos de la casilla'}
-            </button>
-            {settingsSaved && <span className="ml-3 text-sm text-[var(--gold)]">Guardado ✓</span>}
+            <AutoSaveStatus status={settingsAuto.status} error={settingsAuto.error} />
             {settingsError && <span className="ml-3 text-sm text-destructive">{settingsError}</span>}
           </div>
         </form>
@@ -873,5 +902,6 @@ export default function AdminPage() {
         <QuotesPanel password={pass} />
       </section>
     </main>
+    </div>
   )
 }
