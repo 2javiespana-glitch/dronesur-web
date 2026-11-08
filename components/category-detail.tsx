@@ -17,7 +17,7 @@ import {
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { WhatsAppIcon } from '@/components/icons'
-import type { Category } from '@/lib/content'
+import { DEFAULT_INCLUDE_KEYS, type Category } from '@/lib/content'
 import type { MediaItem } from '@/lib/media-admin'
 import { useLocalePath } from '@/components/use-locale-path'
 import { playableVideoUrl, thumbUrl } from '@/lib/media-url'
@@ -146,14 +146,14 @@ export function CategoryDetail({
   const next = () => setIndex((i) => (i + 1) % items.length)
   const prev = () => setIndex((i) => (i - 1 + items.length) % items.length)
 
-  // Los puntos con «tick»: solo los propios de la categoría (si los has escrito en el admin).
-  // Ya no hay puntos por defecto: lo común a todos los servicios sale en «Incluido en el precio»
-  // (sección de cobertura), así que aquí no se repite.
-  const included: string[] = category.includes
-    ? lang === 'en'
-      ? category.includes.en
-      : category.includes.es
-    : []
+  // Los puntos con «tick»: primero los «de siempre» que estén marcados en el admin y después los propios
+  // de la categoría. Por defecto no hay ninguno marcado.
+  const ownIncludes = category.includes ? (lang === 'en' ? category.includes.en : category.includes.es) : []
+  const defaultKeys = category.defaultIncludes ?? []
+  const included: string[] = [
+    ...DEFAULT_INCLUDE_KEYS.filter((key) => defaultKeys.includes(key)).map((key) => t(key)),
+    ...ownIncludes,
+  ]
 
   return (
     <main className="mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6 lg:px-8">
