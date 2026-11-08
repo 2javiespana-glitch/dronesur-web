@@ -16,8 +16,15 @@ import {
   Plus,
   X,
 } from 'lucide-react'
-import { CATEGORIES, type Category, type Localized } from '@/lib/content'
+import {
+  CATEGORIES,
+  DEFAULT_INCLUDE_KEYS,
+  translate,
+  type Category,
+  type Localized,
+} from '@/lib/content'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
 import {
   type AlbumItem,
   type MediaItem,
@@ -57,12 +64,14 @@ async function call<T>(
   method: 'POST' | 'DELETE',
   password: string,
   body: unknown,
+  keepalive = false, // permite terminar de guardar aunque se cierre la ventana
 ): Promise<ApiResult<T>> {
   try {
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json', 'x-admin-password': password },
       body: JSON.stringify(body),
+      keepalive,
     })
     const data = await res.json().catch(() => null)
     if (!res.ok) return { ok: false, error: data?.error || 'No se pudo completar la acción.' }
@@ -402,7 +411,8 @@ type CategoryTexts = {
   title: Localized
   short: Localized
   description: Localized
-  includes: Localized // los puntos de «qué incluye», una línea por punto
+  includes: Localized // los puntos propios de «qué incluye», una línea por punto
+  defaultIncludes: string[] // los puntos «de siempre» que se muestran (casillas)
   price: Localized
 }
 
@@ -410,20 +420,44 @@ function CategoryForm({
   initial,
   submitLabel,
   onSubmit,
+  autosave = false,
 }: {
   initial: CategoryTexts
   submitLabel: string
-  onSubmit: (texts: CategoryTexts) => Promise<string | null> // devuelve un error, o null si fue bien
+  onSubmit: (texts: CategoryTexts, opts?: { keepalive: boolean }) => Promise<string | null> // devuelve un error, o null si fue bien
+  // true = sin botón: se guarda solo al editar, al cerrar la ventana y al salir (categorías ya creadas).
+  autosave?: boolean
 }) {
   const [t, setT] = useState<CategoryTexts>(initial)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
 
-  const set = (field: keyof CategoryTexts, lang: 'es' | 'en', value: string) =>
+  const set = (field: 'title' | 'short' | 'description' | 'includes' | 'price', lang: 'es' | 'en', value: string) =>
     setT((prev) => ({ ...prev, [field]: { ...prev[field], [lang]: value } }))
+
+  const auto = useAutoSave({
+    value: t,
+    enabled: autosave,
+    save: async (texts, { keepalive }) => {
+      if (!texts.title.es.trim()) return 'Ponle al menos un título en español. No se guarda hasta que lo tenga.'
+      return onSubmit(texts, { keepalive })
+    },
+  })
+
+  const toggleDefault = (key: string) =>
+    setT((prev) => ({
+      ...prev,
+      defaultIncludes: prev.defaultIncludes.includes(key)
+        ? prev.defaultIncludes.filter((k) => k !== key)
+        : [...prev.defaultIncludes, key],
+    }))
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (autosave) {
+      void auto.flush() // Intro dentro de un campo: guarda ya
+      return
+    }
     if (!t.title.es.trim()) {
       setMessage({ ok: false, text: 'Ponle al menos un título en español.' })
       return
@@ -483,7 +517,7 @@ function CategoryForm({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">Qué incluye (una línea por punto, máximo 10)</label>
+              <label className="mb-1 block text-xs font-medium">Puntos propios de esta categoría (una línea por punto, máximo 10)</label>
               <textarea
                 rows={5}
                 value={t.includes[col.lang]}
@@ -496,7 +530,7 @@ function CategoryForm({
                 className={inputClass}
               />
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Si lo dejas vacío, se muestran los 4 puntos de siempre, iguales para todas las categorías.
+                Opcional. Se añaden después de los puntos de siempre que marques más abajo.
               </p>
             </div>
             <div>
@@ -514,11 +548,39 @@ function CategoryForm({
       <p className="text-xs text-muted-foreground">
         Si dejas el inglés vacío, esa versión de la web mostrará el texto en español.
       </p>
+
+      <fieldset className="rounded-xl border border-border p-4">
+        <legend className="px-2 text-xs font-semibold">Puntos «de siempre» con tick en esta categoría</legend>
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          Son los mismos de «Incluido en el precio» (sección Cobertura). Marca los que quieres que se vean
+          en esta categoría y desmarca los que no, por ejemplo para que no se repitan.
+        </p>
+        <div className="space-y-2">
+          {DEFAULT_INCLUDE_KEYS.map((key) => (
+            <label key={key} className="flex cursor-pointer items-start gap-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={t.defaultIncludes.includes(key)}
+                onChange={() => toggleDefault(key)}
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-[var(--gold)]"
+              />
+              <span>{translate(key, 'es')}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={saving} className={primaryButton}>
-          {saving ? 'Guardando...' : submitLabel}
-        </button>
-        {message && <Message tone={message.ok ? 'ok' : 'error'}>{message.text}</Message>}
+        {autosave ? (
+          <AutoSaveStatus status={auto.status} error={auto.error} />
+        ) : (
+          <>
+            <button type="submit" disabled={saving} className={primaryButton}>
+              {saving ? 'Guardando...' : submitLabel}
+            </button>
+            {message && <Message tone={message.ok ? 'ok' : 'error'}>{message.text}</Message>}
+          </>
+        )}
       </div>
     </form>
   )
@@ -761,12 +823,18 @@ export function MediaManager({
     if (Array.isArray(m)) setMedia(m)
   }
 
-  const saveCategoryTexts = async (slug: string, texts: CategoryTexts): Promise<string | null> => {
-    const res = await call<{ categories: Category[] }>('/api/categories', 'POST', password, {
-      action: 'update',
-      slug,
-      category: texts,
-    })
+  const saveCategoryTexts = async (slug: string, texts: CategoryTexts, keepalive = false): Promise<string | null> => {
+    const res = await call<{ categories: Category[] }>(
+      '/api/categories',
+      'POST',
+      password,
+      {
+        action: 'update',
+        slug,
+        category: texts,
+      },
+      keepalive,
+    )
     if (!res.ok) return res.error
     setCategories(res.data.categories)
     return null
@@ -955,6 +1023,7 @@ export function MediaManager({
               short: EMPTY_LOCALIZED,
               description: EMPTY_LOCALIZED,
               includes: EMPTY_LOCALIZED,
+              defaultIncludes: [],
               price: EMPTY_LOCALIZED,
             }}
             submitLabel="Crear categoría"
@@ -1071,10 +1140,12 @@ export function MediaManager({
                   es: openCategory.includes?.es.join('\n') ?? '',
                   en: openCategory.includes?.en.join('\n') ?? '',
                 },
+                defaultIncludes: openCategory.defaultIncludes ?? [],
                 price: openCategory.price,
               }}
               submitLabel="Guardar textos"
-              onSubmit={(texts) => saveCategoryTexts(slug, texts)}
+              autosave
+              onSubmit={(texts, opts) => saveCategoryTexts(slug, texts, opts?.keepalive)}
             />
           </div>
         )}
