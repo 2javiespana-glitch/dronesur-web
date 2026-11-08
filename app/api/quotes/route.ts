@@ -1,344 +1,228 @@
-'use client'
-
+import { NextResponse } from 'next/server'
+import { readJSON, updateJSON, writeJSON, redis, clientHash } from '@/lib/kv'
+import { fail, serverError, requireAdmin } from '@/lib/api'
+import { notifyTelegram } from '@/lib/telegram'
+import { SITE_URL } from '@/lib/seo'
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
-import Link from 'next/link'
-import { Mail, X } from 'lucide-react'
-import { CATEGORIES, SITE, type Category } from '@/lib/content'
-import { useSite } from '@/components/site-provider'
-import { WhatsAppIcon } from '@/components/icons'
-import { openEmail } from '@/lib/email-link'
-import { useDialogFocus } from '@/lib/use-dialog-focus'
-import { LEGAL } from '@/lib/legal'
-import {
-  FALLBACK_DISCOUNT_MESSAGE,
-  normalizeQuoteDiscount,
-  type QuoteDiscount,
+  DEFAULT_QUOTES_CONFIG,
+  type Quote,
+  type QuoteStatus,
+  type QuotesConfig,
 } from '@/lib/quotes'
 
-type QuoteContextValue = {
-  open: (opts?: { service?: string; discount?: boolean; location?: string }) => void
+// Solicitudes de presupuesto.
+// Cuando alguien rellena el formulario y pulsa «WhatsApp» o «Correo», la solicitud se guarda aquí
+// y te llega un aviso por Telegram, aunque la persona no llegue a enviar el mensaje.
+//
+// - GET ?config=1  -> { enabled }  (público: el formulario lo usa para saber si avisa de que se guarda)
+// - GET            -> { quotes, config }  (solo admin)
+// - POST { action: 'submit', quote }               cualquier visitante (se guarda si está activado)
+// - POST { action: 'setConfig', config }           admin: activar / desactivar la función
+// - POST { action: 'status', id, status }          admin: nueva / contactada / cerrada
+// - DELETE { id }                                  admin: borrar una solicitud
+
+export const dynamic = 'force-dynamic'
+
+const KEY = 'dronesur:quotes'
+const CONFIG_KEY = 'dronesur:quotes:config'
+const MAX_STORED = 500
+const MAX_PER_HOUR = 30 // por conexión. Es generoso a propósito: en una universidad comparten la misma IP.
+const STATUSES: QuoteStatus[] = ['new', 'contacted', 'closed']
+
+async function readConfig(): Promise<QuotesConfig> {
+  try {
+    const stored = await readJSON<Partial<QuotesConfig> | null>(CONFIG_KEY, null)
+    return { enabled: typeof stored?.enabled === 'boolean' ? stored.enabled : DEFAULT_QUOTES_CONFIG.enabled }
+  } catch {
+    return DEFAULT_QUOTES_CONFIG
+  }
 }
 
-const QuoteContext = createContext<QuoteContextValue | null>(null)
+function text(value: unknown, max: number): string {
+  return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
 
-export function QuoteProvider({ children }: { children: React.ReactNode }) {
-  const { t, tl, lang } = useSite()
-  const [isOpen, setIsOpen] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
-  useDialogFocus(isOpen, dialogRef)
-  const [service, setService] = useState('')
-  const [location, setLocation] = useState('')
-  const [details, setDetails] = useState('')
-  const [contact, setContact] = useState('') // teléfono o correo (opcional)
-  const [website, setWebsite] = useState('') // cuadro trampa para programas spam: debe quedar vacío
-  const [quotesEnabled, setQuotesEnabled] = useState(false) // ¿se guardan las solicitudes? (lo decide el admin)
-  const [discount, setDiscount] = useState(true)
-  // Ajustes de la casilla de descuento (los decide el admin). null = todavía cargando: la casilla no se muestra.
-  const [discountCfg, setDiscountCfg] = useState<QuoteDiscount | null>(null)
-  const [categories, setCategories] = useState<Category[]>(CATEGORIES)
+// ----- Filtro de avisos de Telegram -----
+// La solicitud se guarda siempre (se ve en /admin), pero el aviso por Telegram solo se manda
+// si hay un contacto válido o una solicitud con contenido real. Así una sola letra no te avisa.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-  // Solo cuenta como «pedir descuento» si la casilla está activada en el admin y marcada.
-  const discountOn = discountCfg?.enabled === true && discount
-  const custom = (es: string | undefined, en: string | undefined) => ((lang === 'en' ? en : es) ?? '').trim()
-  const discountLabel = custom(discountCfg?.labelEs, discountCfg?.labelEn) || t('wa.discount')
-  const discountMessage =
-    custom(discountCfg?.messageEs, discountCfg?.messageEn) || FALLBACK_DISCOUNT_MESSAGE[lang === 'en' ? 'en' : 'es']
+function hasValidContact(c: string): boolean {
+  if (EMAIL_RE.test(c)) return true
+  return /^\+?[\d\s().-]+$/.test(c) && c.replace(/\D/g, '').length >= 9
+}
 
-  const open = (opts?: { service?: string; discount?: boolean; location?: string }) => {
-    if (opts?.service) setService(opts.service)
-    if (opts?.location) setLocation(opts.location)
-    if (typeof opts?.discount === 'boolean') setDiscount(opts.discount)
-    setIsOpen(true)
+function worthNotifying(q: Quote): boolean {
+  if (hasValidContact(q.contact)) return true
+  return !!q.service && q.location.length >= 3 && q.details.length >= 15
+}
+
+// Datos técnicos para reconocer al visitante SIN guardar ni enviar su IP:
+// zona aproximada (la da Vercel), tipo de dispositivo y un ID corto (huella de la conexión).
+function visitorInfo(req: Request) {
+  const h = req.headers
+  let city = h.get('x-vercel-ip-city') || ''
+  try {
+    city = decodeURIComponent(city)
+  } catch {
+    // Se deja tal cual.
   }
-
-  // Al abrir el formulario, carga las categorías reales (las creadas u ocultadas desde el admin).
-  useEffect(() => {
-    if (!isOpen) return
-    let cancelled = false
-    fetch('/api/categories', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled && Array.isArray(data)) setCategories(data)
-      })
-      .catch(() => {
-        // Si falla, se muestran las categorías de siempre.
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen])
-
-  // Al abrir el formulario, lee los ajustes de la casilla de descuento (activada/desactivada y sus textos).
-  useEffect(() => {
-    if (!isOpen) return
-    let cancelled = false
-    fetch('/api/settings', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled) setDiscountCfg(normalizeQuoteDiscount(data?.quoteDiscount))
-      })
-      .catch(() => {
-        // Si falla, se muestra la casilla de siempre (activada, con los textos de siempre).
-        if (!cancelled) setDiscountCfg((prev) => prev ?? normalizeQuoteDiscount(null))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen])
-
-  // ¿Está activado guardar las solicitudes? (interruptor del admin). Si no, no se menciona ni se envía nada.
-  useEffect(() => {
-    if (!isOpen) return
-    let cancelled = false
-    fetch('/api/quotes?config=1', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!cancelled) setQuotesEnabled(data?.enabled === true)
-      })
-      .catch(() => {
-        if (!cancelled) setQuotesEnabled(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [isOpen])
-
-  useEffect(() => {
-    if (!isOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
-  }, [isOpen])
-
-  const buildMessage = () => {
-    const lines: string[] = []
-    if (lang === 'es') {
-      lines.push('¡Hola Dronesur! Me gustaría pedir un presupuesto.')
-      if (service) lines.push(`• Servicio: ${service}`)
-      if (location) lines.push(`• Localidad: ${location}`)
-      if (details) lines.push(`• Detalles: ${details}`)
-      if (discountOn) lines.push(`• ${discountMessage}`)
-    } else {
-      lines.push('Hi Dronesur! I would like to request a quote.')
-      if (service) lines.push(`• Service: ${service}`)
-      if (location) lines.push(`• Location: ${location}`)
-      if (details) lines.push(`• Details: ${details}`)
-      if (discountOn) lines.push(`• ${discountMessage}`)
-    }
-    return lines.join('\n')
+  const region = h.get('x-vercel-ip-country-region') || ''
+  const ua = h.get('user-agent') || ''
+  return {
+    place: [city, region].filter(Boolean).join(', ') || '—',
+    device: /mobile|android|iphone/i.test(ua) ? 'móvil' : 'ordenador',
+    id: clientHash(req).slice(0, 8), // mismo ID = misma conexión
   }
+}
 
-  // Guarda la solicitud en el servidor (y te avisa por Telegram), aunque luego el cliente no envíe el mensaje.
-  // Es "disparar y olvidar": si falla, no afecta a que se abra WhatsApp o el correo.
-  const recordQuote = (channel: 'whatsapp' | 'email') => {
-    if (!quotesEnabled) return
-    try {
-      void fetch('/api/quotes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit',
-          quote: { service, location, details, contact, discount: discountOn, lang, channel, website },
-        }),
-        keepalive: true,
-      }).catch(() => {})
-    } catch {
-      // Se ignora a propósito.
-    }
+// Evita avisos repetidos de la misma conexión durante 10 minutos.
+async function firstNoticeRecently(req: Request): Promise<boolean> {
+  try {
+    const res = await redis(['SET', `dronesur:quotes:notified:${clientHash(req)}`, '1', 'EX', '600', 'NX'])
+    return res === 'OK'
+  } catch {
+    return true // si falla la base de datos, mejor avisar que quedarse callado
   }
+}
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
-    recordQuote('whatsapp')
-    const url = `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(buildMessage())}`
-    window.open(url, '_blank', 'noopener,noreferrer')
-    setIsOpen(false)
-  }
+async function underRateLimit(req: Request): Promise<boolean> {
+  const key = `dronesur:quotes:rl:${clientHash(req)}`
+  await redis(['SET', key, '0', 'EX', '3600', 'NX'])
+  return Number(await redis(['INCR', key])) <= MAX_PER_HOUR
+}
 
-  // Misma solicitud, pero abriendo el programa de correo con el mensaje ya escrito.
-  const sendByEmail = () => {
-    recordQuote('email')
-    const subject = lang === 'es' ? 'Solicitud de presupuesto' : 'Quote request'
-    openEmail(LEGAL.email, subject, buildMessage())
-    setIsOpen(false)
-  }
-
+// El mensaje que te llega por Telegram. Lleva lo que la persona escribió en el formulario
+// y, aparte, zona aproximada, dispositivo e ID corto. Nunca su dirección IP.
+function telegramText(q: Quote, req: Request): string {
+  const v = visitorInfo(req)
+  const when = new Intl.DateTimeFormat('es-ES', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'Europe/Madrid',
+  }).format(new Date(q.createdAt))
   return (
-    <QuoteContext.Provider value={{ open }}>
-      {children}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('wa.title')}
-        >
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            onClick={() => setIsOpen(false)}
-          />
-          <div ref={dialogRef} className="animate-fade-up relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl sm:p-8">
-            <button
-              onClick={() => setIsOpen(false)}
-              className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              aria-label={t('wa.close')}
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <div className="mb-5">
-              <span className="inline-flex items-center gap-2 rounded-full bg-[var(--gold)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-gold">
-                <WhatsAppIcon className="h-3.5 w-3.5" />
-                {t('wa.title')}
-              </span>
-              <p className="mt-3 text-sm text-muted-foreground">{t('wa.intro')}</p>
-            </div>
-
-            <form onSubmit={submit} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-contact">
-                  {lang === 'es' ? 'Tu teléfono o correo' : 'Your phone or email'}
-                </label>
-                <input
-                  id="q-contact"
-                  value={contact}
-                  onChange={(e) => setContact(e.target.value)}
-                  maxLength={120}
-                  autoComplete="tel"
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                  placeholder={lang === 'es' ? '600 000 000 o tu@correo.com' : '600 000 000 or you@email.com'}
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {lang === 'es'
-                    ? 'Te llamamos con el presupuesto. Si prefieres, déjanos tu correo.'
-                    : "We'll call you with your quote. Prefer email? Leave that instead."}
-                </p>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-service">
-                  {t('wa.service')}
-                </label>
-                <select
-                  id="q-service"
-                  value={service}
-                  onChange={(e) => setService(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                >
-                  <option value="">{t('wa.selectPlaceholder')}</option>
-                  {categories.filter((c) => c.visible !== false).map((c) => (
-                    <option key={c.slug} value={tl(c.title)}>
-                      {tl(c.title)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-loc">
-                  {t('wa.location')}
-                </label>
-                <input
-                  id="q-loc"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                  placeholder="Almería, Málaga, Granada…"
-                />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium" htmlFor="q-det">
-                  {t('wa.details')}
-                </label>
-                <textarea
-                  id="q-det"
-                  value={details}
-                  onChange={(e) => setDetails(e.target.value)}
-                  rows={3}
-                  className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
-                />
-              </div>
-
-              {/* Cuadro trampa: una persona no lo ve. Si un programa spam lo rellena, la solicitud se descarta. */}
-              <input
-                type="text"
-                name="website"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-                aria-hidden="true"
-                className="absolute -left-[9999px] h-0 w-0 opacity-0"
-              />
-
-              {discountCfg?.enabled && (
-                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-3">
-                  <input
-                    type="checkbox"
-                    checked={discount}
-                    onChange={(e) => setDiscount(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
-                  />
-                  <span className="text-sm font-medium text-foreground">{discountLabel}</span>
-                </label>
-              )}
-
-              {quotesEnabled && (
-                <p className="text-xs text-muted-foreground">
-                  {lang === 'es'
-                    ? 'Al continuar, guardamos tu solicitud para poder responderte, aunque no llegues a enviar el mensaje. Más información en la '
-                    : "By continuing, we save your request so we can reply, even if you don't end up sending the message. More information in the "}
-                  <Link
-                    href="/politica-de-privacidad"
-                    onClick={() => setIsOpen(false)}
-                    className="underline underline-offset-2 hover:text-gold"
-                  >
-                    {lang === 'es' ? 'Política de privacidad' : 'Privacy policy'}
-                  </Link>
-                  .
-                </p>
-              )}
-
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--gold)] px-4 py-3 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
-              >
-                <WhatsAppIcon className="h-4 w-4" />
-                {t('wa.send')}
-              </button>
-
-              <button
-                type="button"
-                onClick={sendByEmail}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-3 text-sm font-semibold transition hover:border-[var(--gold)] hover:text-gold"
-              >
-                <Mail className="h-4 w-4" />
-                {lang === 'es' ? 'Enviar por correo' : 'Send by email'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-    </QuoteContext.Provider>
+    `Nueva solicitud de presupuesto\n` +
+    `(puede que el cliente aún no haya enviado el mensaje por ${q.channel === 'email' ? 'correo' : 'WhatsApp'})\n\n` +
+    `Servicio: ${q.service || '—'}\n` +
+    `Zona: ${q.location || '—'}\n` +
+    `Detalles: ${q.details || '—'}\n` +
+    `Contacto: ${q.contact || 'no ha dejado ninguno'}\n` +
+    `Descuento de bienvenida: ${q.discount ? 'sí' : 'no'}\n` +
+    `Idioma: ${q.lang.toUpperCase()} · ${when}\n` +
+    `Zona aprox.: ${v.place} · ${v.device} · ID ${v.id}\n\n` +
+    `Verlas todas en: ${SITE_URL}/admin`
   )
 }
 
-export function useQuote() {
-  const ctx = useContext(QuoteContext)
-  if (!ctx) throw new Error('useQuote must be used within QuoteProvider')
-  return ctx
+export async function GET(req: Request) {
+  const url = new URL(req.url)
+  if (url.searchParams.get('config') === '1') {
+    const config = await readConfig()
+    return NextResponse.json({ enabled: config.enabled }, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
+  const denied = await requireAdmin(req)
+  if (denied) return denied
+  try {
+    const quotes = await readJSON<Quote[]>(KEY, [])
+    quotes.sort((a, b) => b.createdAt - a.createdAt)
+    return NextResponse.json({ quotes, config: await readConfig() }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (e) {
+    return serverError(e)
+  }
+}
+
+export async function POST(req: Request) {
+  let body: {
+    action?: string
+    quote?: Record<string, unknown>
+    config?: Record<string, unknown>
+    id?: string
+    status?: string
+  }
+  try {
+    body = await req.json()
+  } catch {
+    return fail('Petición no válida', 400)
+  }
+
+  // ----- Público: guardar una solicitud -----
+  if (body.action === 'submit') {
+    const input = body.quote ?? {}
+    // Cuadro escondido en el formulario: una persona no lo ve ni lo rellena, un programa spam sí.
+    if (text(input.website, 200)) return NextResponse.json({ ok: true, saved: false })
+
+    try {
+      const config = await readConfig()
+      if (!config.enabled) return NextResponse.json({ ok: true, saved: false })
+
+      const quote: Quote = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        createdAt: Date.now(),
+        service: text(input.service, 120),
+        location: text(input.location, 120),
+        details: text(input.details, 1000),
+        contact: text(input.contact, 120),
+        discount: input.discount === true,
+        lang: input.lang === 'en' ? 'en' : 'es',
+        channel: input.channel === 'email' ? 'email' : 'whatsapp',
+        status: 'new',
+      }
+      // Un formulario completamente vacío no vale la pena guardarlo.
+      if (!quote.service && !quote.location && !quote.details && !quote.contact) {
+        return NextResponse.json({ ok: true, saved: false })
+      }
+      if (!(await underRateLimit(req))) return fail('Demasiadas solicitudes seguidas. Inténtalo más tarde.', 429)
+
+      await updateJSON<Quote[]>(KEY, [], (quotes) => [...quotes, quote].slice(-MAX_STORED))
+      if (worthNotifying(quote) && (await firstNoticeRecently(req))) {
+        await notifyTelegram(telegramText(quote, req))
+      }
+      return NextResponse.json({ ok: true, saved: true })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
+
+  // ----- Admin -----
+  const denied = await requireAdmin(req)
+  if (denied) return denied
+
+  if (body.action === 'setConfig') {
+    try {
+      const config: QuotesConfig = { enabled: body.config?.enabled === true }
+      await writeJSON(CONFIG_KEY, config)
+      return NextResponse.json({ config })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
+
+  if (body.action === 'status') {
+    const status = STATUSES.find((s) => s === body.status)
+    if (!body.id || !status) return fail('Datos no válidos.', 400)
+    try {
+      const quotes = await updateJSON<Quote[]>(KEY, [], (list) =>
+        list.map((q) => (q.id === body.id ? { ...q, status } : q)),
+      )
+      return NextResponse.json({ quotes: quotes.sort((a, b) => b.createdAt - a.createdAt) })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
+
+  return fail('Acción no válida', 400)
+}
+
+export async function DELETE(req: Request) {
+  const denied = await requireAdmin(req)
+  if (denied) return denied
+  try {
+    const { id } = await req.json()
+    const quotes = await updateJSON<Quote[]>(KEY, [], (list) => list.filter((q) => q.id !== id))
+    return NextResponse.json({ quotes: quotes.sort((a, b) => b.createdAt - a.createdAt) })
+  } catch (e) {
+    return serverError(e)
+  }
 }
