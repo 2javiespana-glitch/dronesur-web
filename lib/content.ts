@@ -219,8 +219,8 @@ export const T: Dict = {
   'nav.contact': { es: 'Contacto', en: 'Contact' },
 
   'hero.title': {
-    es: 'Elevamos la imagen de tu proyecto',
-    en: 'We elevate the image of your project',
+    es: 'Una nueva perspectiva para tu proyecto',
+    en: 'A new perspective for your project',
   },
   'hero.subtitle': {
     es: 'Perspectivas aéreas de alto impacto en el sur de España',
