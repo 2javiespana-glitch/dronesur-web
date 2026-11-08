@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { T } from '@/lib/content'
 import { uploadToCloudinary } from '@/lib/cloudinary'
 import { CITIES } from '@/lib/cities'
+import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
 import {
   type SiteContent,
   EMPTY_CONTENT,
@@ -12,7 +13,7 @@ import {
 } from '@/lib/site-content'
 
 // Panel del admin para cambiar la música del carrusel y los textos y fotos de
-// "Sobre Dronesur" y "Sobre el piloto". Cada bloque se guarda por separado con su botón.
+// "Sobre Dronesur" y "Sobre el piloto". Cada bloque se guarda solo, sin botón (ver lib/use-autosave.tsx).
 // Habla con /api/content, que solo guarda si la contraseña de admin es correcta.
 
 type Section = 'music' | 'about' | 'pilot' | 'cities'
@@ -29,12 +30,14 @@ async function saveSection(
   password: string,
   section: Section,
   data: unknown,
+  keepalive = false,
 ): Promise<{ ok: true; content: SiteContent } | { ok: false; error: string }> {
   try {
     const res = await fetch('/api/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-admin-password': password },
       body: JSON.stringify({ section, data }),
+      keepalive, // permite terminar de guardar aunque se cierre la ventana
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) return { ok: false, error: body?.error || 'No se pudo guardar. Inténtalo de nuevo.' }
@@ -71,7 +74,7 @@ function Status({ message }: { message: Message }) {
   )
 }
 
-// Foto con vista previa: subir, cambiar o quitar. Solo cambia el borrador; se aplica al pulsar «Guardar».
+// Foto con vista previa: subir, cambiar o quitar. Solo cambia el borrador; se guarda solo.
 function ImageField({
   label,
   value,
@@ -165,12 +168,29 @@ function ImageField({
 // ---------------------------------------------------------------------------
 // Música del carrusel
 // ---------------------------------------------------------------------------
-function MusicBlock({ password, initial }: { password: string; initial: SiteContent['music'] }) {
+function MusicBlock({
+  password,
+  initial,
+  autosave,
+}: {
+  password: string
+  initial: SiteContent['music']
+  autosave: boolean
+}) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState(initial.url)
   const [progress, setProgress] = useState<number | null>(null)
-  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<Message>(null)
+
+  const auto = useAutoSave({
+    value: url,
+    enabled: autosave,
+    delay: 400, // subir o quitar un audio es una acción puntual: se guarda enseguida
+    save: async (next, { keepalive }) => {
+      const result = await saveSection(password, 'music', { url: next }, keepalive)
+      return result.ok ? null : result.error
+    },
+  })
 
   const pick = async (file: File | undefined) => {
     if (!file) return
@@ -186,26 +206,12 @@ function MusicBlock({ password, initial }: { password: string; initial: SiteCont
     setProgress(0)
     try {
       setUrl(await uploadToCloudinary(file, 'auto', setProgress))
-      setMessage({ ok: true, text: 'Audio subido. Pulsa «Guardar música» para aplicarlo.' })
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : 'No se pudo subir el audio.' })
     } finally {
       setProgress(null)
       if (inputRef.current) inputRef.current.value = ''
     }
-  }
-
-  const save = async (next: string) => {
-    setSaving(true)
-    setMessage(null)
-    const result = await saveSection(password, 'music', { url: next })
-    setSaving(false)
-    if (!result.ok) {
-      setMessage({ ok: false, text: result.error })
-      return
-    }
-    setUrl(result.content.music.url)
-    setMessage({ ok: true, text: next ? 'Guardado.' : 'Música quitada.' })
   }
 
   return (
@@ -232,13 +238,13 @@ function MusicBlock({ password, initial }: { password: string; initial: SiteCont
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={progress !== null || saving}
+          disabled={progress !== null}
           className={secondaryButton}
         >
           {progress !== null ? `Subiendo... ${progress}%` : url ? 'Cambiar audio' : 'Subir audio (MP3)'}
         </button>
         {url && (
-          <button type="button" onClick={() => void save('')} disabled={saving} className={secondaryButton}>
+          <button type="button" onClick={() => setUrl('')} disabled={progress !== null} className={secondaryButton}>
             Quitar música
           </button>
         )}
@@ -250,14 +256,7 @@ function MusicBlock({ password, initial }: { password: string; initial: SiteCont
       </p>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void save(url)}
-          disabled={saving || progress !== null || !url}
-          className={primaryButton}
-        >
-          {saving ? 'Guardando...' : 'Guardar música'}
-        </button>
+        <AutoSaveStatus status={auto.status} error={auto.error} />
         <Status message={message} />
       </div>
     </Card>
@@ -267,7 +266,15 @@ function MusicBlock({ password, initial }: { password: string; initial: SiteCont
 // ---------------------------------------------------------------------------
 // Sobre Dronesur
 // ---------------------------------------------------------------------------
-function AboutBlock({ password, initial }: { password: string; initial: SiteContent['about'] }) {
+function AboutBlock({
+  password,
+  initial,
+  autosave,
+}: {
+  password: string
+  initial: SiteContent['about']
+  autosave: boolean
+}) {
   const defaults = {
     p1: { es: T['about.p1']?.es ?? '', en: T['about.p1']?.en ?? '' },
     p2: { es: T['about.p2']?.es ?? '', en: T['about.p2']?.en ?? '' },
@@ -278,27 +285,23 @@ function AboutBlock({ password, initial }: { password: string; initial: SiteCont
   const [p1En, setP1En] = useState(initial.p1.en || defaults.p1.en)
   const [p2Es, setP2Es] = useState(initial.p2.es || defaults.p2.es)
   const [p2En, setP2En] = useState(initial.p2.en || defaults.p2.en)
-  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<Message>(null)
+
+  const auto = useAutoSave({
+    value: { image, p1: { es: p1Es, en: p1En }, p2: { es: p2Es, en: p2En } },
+    enabled: autosave,
+    save: async (data, { keepalive }) => {
+      const result = await saveSection(password, 'about', data, keepalive)
+      return result.ok ? null : result.error
+    },
+  })
 
   const restore = () => {
     setP1Es(defaults.p1.es)
     setP1En(defaults.p1.en)
     setP2Es(defaults.p2.es)
     setP2En(defaults.p2.en)
-    setMessage({ ok: true, text: 'Textos originales cargados. Pulsa «Guardar» para aplicarlos.' })
-  }
-
-  const save = async () => {
-    setSaving(true)
-    setMessage(null)
-    const result = await saveSection(password, 'about', {
-      image,
-      p1: { es: p1Es, en: p1En },
-      p2: { es: p2Es, en: p2En },
-    })
-    setSaving(false)
-    setMessage(result.ok ? { ok: true, text: 'Guardado.' } : { ok: false, text: result.error })
+    setMessage({ ok: true, text: 'Textos originales cargados.' })
   }
 
   return (
@@ -328,12 +331,10 @@ function AboutBlock({ password, initial }: { password: string; initial: SiteCont
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void save()} disabled={saving} className={primaryButton}>
-          {saving ? 'Guardando...' : 'Guardar «Sobre Dronesur»'}
-        </button>
-        <button type="button" onClick={restore} disabled={saving} className={secondaryButton}>
+        <button type="button" onClick={restore} className={secondaryButton}>
           Volver al texto original
         </button>
+        <AutoSaveStatus status={auto.status} error={auto.error} />
         <Status message={message} />
       </div>
     </Card>
@@ -343,25 +344,28 @@ function AboutBlock({ password, initial }: { password: string; initial: SiteCont
 // ---------------------------------------------------------------------------
 // Sobre el piloto
 // ---------------------------------------------------------------------------
-function PilotBlock({ password, initial }: { password: string; initial: SiteContent['pilot'] }) {
+function PilotBlock({
+  password,
+  initial,
+  autosave,
+}: {
+  password: string
+  initial: SiteContent['pilot']
+  autosave: boolean
+}) {
   const [image, setImage] = useState(initial.image)
   const [name, setName] = useState(initial.name)
   const [textEs, setTextEs] = useState(initial.text.es)
   const [textEn, setTextEn] = useState(initial.text.en)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<Message>(null)
 
-  const save = async () => {
-    setSaving(true)
-    setMessage(null)
-    const result = await saveSection(password, 'pilot', {
-      name,
-      image,
-      text: { es: textEs, en: textEn },
-    })
-    setSaving(false)
-    setMessage(result.ok ? { ok: true, text: 'Guardado.' } : { ok: false, text: result.error })
-  }
+  const auto = useAutoSave({
+    value: { name, image, text: { es: textEs, en: textEn } },
+    enabled: autosave,
+    save: async (data, { keepalive }) => {
+      const result = await saveSection(password, 'pilot', data, keepalive)
+      return result.ok ? null : result.error
+    },
+  })
 
   return (
     <Card
@@ -395,10 +399,7 @@ function PilotBlock({ password, initial }: { password: string; initial: SiteCont
       </div>
 
       <div className="flex items-center gap-3">
-        <button type="button" onClick={() => void save()} disabled={saving} className={primaryButton}>
-          {saving ? 'Guardando...' : 'Guardar «Sobre el piloto»'}
-        </button>
-        <Status message={message} />
+        <AutoSaveStatus status={auto.status} error={auto.error} />
       </div>
     </Card>
   )
@@ -407,26 +408,30 @@ function PilotBlock({ password, initial }: { password: string; initial: SiteCont
 // ---------------------------------------------------------------------------
 // Páginas por ciudad
 // ---------------------------------------------------------------------------
-function CitiesBlock({ password, initial }: { password: string; initial: SiteContent['cities'] }) {
+function CitiesBlock({
+  password,
+  initial,
+  autosave,
+}: {
+  password: string
+  initial: SiteContent['cities']
+  autosave: boolean
+}) {
   const [saved, setSaved] = useState<Record<string, string>>(initial)
   const [texts, setTexts] = useState<Record<string, string>>(() =>
     Object.fromEntries(CITIES.map((c) => [c.slug, initial[c.slug] ?? ''])),
   )
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<Message>(null)
 
-  const save = async () => {
-    setSaving(true)
-    setMessage(null)
-    const result = await saveSection(password, 'cities', texts)
-    setSaving(false)
-    if (!result.ok) {
-      setMessage({ ok: false, text: result.error })
-      return
-    }
-    setSaved(result.content.cities)
-    setMessage({ ok: true, text: 'Guardado. Las ciudades con texto ya tienen su página.' })
-  }
+  const auto = useAutoSave({
+    value: texts,
+    enabled: autosave,
+    save: async (data, { keepalive }) => {
+      const result = await saveSection(password, 'cities', data, keepalive)
+      if (!result.ok) return result.error
+      setSaved(result.content.cities) // solo actualiza las etiquetas «Publicada» (no toca lo que estás escribiendo)
+      return null
+    },
+  })
 
   return (
     <Card
@@ -485,10 +490,7 @@ function CitiesBlock({ password, initial }: { password: string; initial: SiteCon
       })}
 
       <div className="flex items-center gap-3">
-        <button type="button" onClick={() => void save()} disabled={saving} className={primaryButton}>
-          {saving ? 'Guardando...' : 'Guardar páginas por ciudad'}
-        </button>
-        <Status message={message} />
+        <AutoSaveStatus status={auto.status} error={auto.error} />
       </div>
     </Card>
   )
@@ -527,7 +529,7 @@ export function ContentPanel({
         if (!cancelled) setContent(normalizeContent(data))
       })
       .catch(() => {
-        // Si no se puede leer, se deja editar en blanco (guardar sobrescribirá lo anterior).
+        // Si no se puede leer, no se guarda nada automáticamente para no sobrescribir lo anterior.
         if (!cancelled) {
           setFailed(true)
           setContent(EMPTY_CONTENT)
@@ -549,13 +551,14 @@ export function ContentPanel({
         <>
           {failed && (
             <p className="mt-4 text-sm text-destructive">
-              No se pudo leer lo que había guardado. Si guardas ahora, se sustituirá por lo que escribas.
+              No se pudo leer lo que había guardado, así que por seguridad no se guarda nada automáticamente
+              (para no borrar lo anterior). Recarga la página e inténtalo de nuevo.
             </p>
           )}
-          {has('music') && <MusicBlock password={password} initial={content.music} />}
-          {has('about') && <AboutBlock password={password} initial={content.about} />}
-          {has('pilot') && <PilotBlock password={password} initial={content.pilot} />}
-          {has('cities') && <CitiesBlock password={password} initial={content.cities} />}
+          {has('music') && <MusicBlock password={password} initial={content.music} autosave={!failed} />}
+          {has('about') && <AboutBlock password={password} initial={content.about} autosave={!failed} />}
+          {has('pilot') && <PilotBlock password={password} initial={content.pilot} autosave={!failed} />}
+          {has('cities') && <CitiesBlock password={password} initial={content.cities} autosave={!failed} />}
         </>
       )}
     </div>
