@@ -8,6 +8,10 @@ import { useA11y } from '@/components/accessibility-provider'
 import type { VideoItem } from '@/lib/content'
 import { playableVideoUrl } from '@/lib/media-url'
 
+// Ancho máximo del vídeo en móvil. La caja del móvil mide unos 390 px; en pantallas 3x son
+// ~1170 px reales, así que 1280 se ve igual de nítido y descarga mucho menos.
+const MOBILE_VIDEO_WIDTH = 1280
+
 type HeroProps = {
   videos: VideoItem[]
   music?: string // dirección de la música (se pone desde el admin); vacío = sin música
@@ -43,6 +47,8 @@ export function Hero({ videos, music }: HeroProps) {
   const [full, setFull] = useState<Record<string, boolean>>({})
   // Id del vídeo actual si se ha quedado a medias cargando (círculo de carga a mitad de vídeo).
   const [stalledId, setStalledId] = useState<string | null>(null)
+  // Vídeos para los que la versión reducida del móvil falló: se vuelven a pedir como siempre.
+  const [fullQuality, setFullQuality] = useState<Record<string, boolean>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
   // true = móvil, false = escritorio, null = aún no se sabe. Solo se carga el vídeo de UNA
   // de las dos versiones (antes se cargaban las dos, aunque una estuviera oculta).
@@ -176,7 +182,13 @@ export function Hero({ videos, music }: HeroProps) {
                 }}
                 className={`h-full w-full ${mobile ? 'object-contain' : 'object-cover'}`}
                 // Sin "src" = todavía no le toca descargarse. Al tocarle, se pone el enlace.
-                src={canLoad(i) ? playableVideoUrl(v.url) : undefined}
+                // En móvil se pide una copia reducida a 1280 px de ancho (se ve igual de nítida en
+                // la pantalla y pesa mucho menos). En escritorio, el vídeo igual que siempre.
+                src={
+                  canLoad(i)
+                    ? playableVideoUrl(v.url, mobile && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
+                    : undefined
+                }
                 poster={v.poster}
                 muted
                 loop
@@ -198,6 +210,12 @@ export function Hero({ videos, music }: HeroProps) {
                   // Si un vídeo falla, se da por terminado para que siga la cola y,
                   // si era el que se estaba viendo, se salta al siguiente.
                   if (!e.currentTarget.getAttribute('src')) return
+                  // Si falló la copia reducida del móvil, antes de darlo por perdido se prueba
+                  // con el vídeo de siempre.
+                  if (mobile && !fullQuality[v.id] && playableVideoUrl(v.url, MOBILE_VIDEO_WIDTH) !== playableVideoUrl(v.url)) {
+                    setFullQuality((f) => ({ ...f, [v.id]: true }))
+                    return
+                  }
                   setReady((r) => ({ ...r, [v.id]: true }))
                   setFull((f) => ({ ...f, [v.id]: true }))
                   if (isCurrent && slideCount > 1) next()
