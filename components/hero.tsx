@@ -6,11 +6,7 @@ import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { useA11y } from '@/components/accessibility-provider'
 import type { VideoItem } from '@/lib/content'
-import { playableVideoUrl } from '@/lib/media-url'
-
-// Ancho máximo del vídeo en móvil. La caja del móvil mide unos 390 px; en pantallas 3x son
-// ~1170 px reales, así que 1280 se ve igual de nítido y descarga mucho menos.
-const MOBILE_VIDEO_WIDTH = 1280
+import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
 
 type HeroProps = {
   videos: VideoItem[]
@@ -53,6 +49,11 @@ export function Hero({ videos, music }: HeroProps) {
   // true = móvil, false = escritorio, null = aún no se sabe. Solo se carga el vídeo de UNA
   // de las dos versiones (antes se cargaban las dos, aunque una estuviera oculta).
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
+  // true = el aparato es un móvil (pantalla táctil con el lado corto menor de 640 px), esté en
+  // vertical o en horizontal. Una tablet NO cuenta como móvil. Sirve para elegir la CALIDAD del
+  // vídeo: así, al girar el móvil, se sigue usando el mismo vídeo ligero (misma dirección) y el
+  // navegador reutiliza lo que ya había descargado en vez de bajar otra versión más pesada.
+  const [phoneDevice, setPhoneDevice] = useState(false)
   const [muted, setMuted] = useState(true)
   const [showDesktopNotice, setShowDesktopNotice] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -68,6 +69,9 @@ export function Hero({ videos, music }: HeroProps) {
     const mq = window.matchMedia('(max-width: 639px)')
     const update = () => setIsMobile(mq.matches)
     update()
+    setPhoneDevice(
+      window.matchMedia('(pointer: coarse)').matches && Math.min(window.screen.width, window.screen.height) < 640,
+    )
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
@@ -162,6 +166,8 @@ export function Hero({ videos, music }: HeroProps) {
     }
     // Solo se pinta la versión (móvil o escritorio) que corresponde a esta pantalla.
     if (isMobile === null || mobile !== isMobile) return null
+    // Vídeo ligero (1280 px) en móviles (en cualquier orientación) y en ventanas estrechas.
+    const lightVideo = mobile || phoneDevice
 
     return (
       <>
@@ -186,7 +192,7 @@ export function Hero({ videos, music }: HeroProps) {
                 // la pantalla y pesa mucho menos). En escritorio, el vídeo igual que siempre.
                 src={
                   canLoad(i)
-                    ? playableVideoUrl(v.url, mobile && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
+                    ? playableVideoUrl(v.url, lightVideo && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
                     : undefined
                 }
                 poster={v.poster}
@@ -212,7 +218,7 @@ export function Hero({ videos, music }: HeroProps) {
                   if (!e.currentTarget.getAttribute('src')) return
                   // Si falló la copia reducida del móvil, antes de darlo por perdido se prueba
                   // con el vídeo de siempre.
-                  if (mobile && !fullQuality[v.id] && playableVideoUrl(v.url, MOBILE_VIDEO_WIDTH) !== playableVideoUrl(v.url)) {
+                  if (lightVideo && !fullQuality[v.id] && playableVideoUrl(v.url, MOBILE_VIDEO_WIDTH) !== playableVideoUrl(v.url)) {
                     setFullQuality((f) => ({ ...f, [v.id]: true }))
                     return
                   }
