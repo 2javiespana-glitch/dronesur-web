@@ -5,11 +5,17 @@
 // reproducir en Chrome o Edge: el vídeo sale en negro. Para evitarlo, pedimos a Cloudinary que
 // sirva una copia en H.264 (MP4), que lee cualquier navegador.
 // (En el plan gratuito solo convierte vídeos de hasta 40 MB.)
-export function playableVideoUrl(url: string): string {
+//
+// maxWidth (opcional): limita el ANCHO del vídeo en píxeles. Sin recortar nada: solo reduce el
+// tamaño manteniendo la proporción (un vídeo más pequeño que ese ancho no se toca).
+// Si se indica, se usa también una calidad más cuidada (q_auto:good) para que los bordes con
+// mucho contraste no se vean con bloques ni bandas. Sin maxWidth todo funciona como siempre.
+export function playableVideoUrl(url: string, maxWidth?: number): string {
   if (!url.includes('res.cloudinary.com/') || !url.includes('/video/upload/')) return url
   if (/\/video\/upload\/[^/]*vc_/.test(url)) return url // ya trae su propia transformación
+  const transformation = maxWidth ? `vc_h264,c_limit,w_${maxWidth},q_auto:good` : 'vc_h264,q_auto'
   return url
-    .replace('/video/upload/', '/video/upload/vc_h264,q_auto/')
+    .replace('/video/upload/', `/video/upload/${transformation}/`)
     .replace(/\.[a-z0-9]+(\?.*)?$/i, '.mp4')
 }
 
