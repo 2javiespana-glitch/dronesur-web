@@ -10,7 +10,7 @@ export const LEGAL = {
   titular: 'Javier Lopez Villena',
   // Como autónomo tu NIF es tu mismo DNI: no cambia el día que te des de alta.
   nif: '75917102J',
-  domicilio: 'C/Monaco R 1, 129',
+  domicilio: '04740 Calle Monaco R, 1',
   email: 'info@dronesur.es',
   telefono: '+34 644424448',
 
