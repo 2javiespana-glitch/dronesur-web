@@ -75,10 +75,17 @@ export type Category = {
   title: Localized
   short: Localized
   description: Localized
-  // Los puntos con «tick» de «qué incluye». Si está vacío se usan los 4 de siempre, iguales para todas.
+  // Los puntos propios con «tick» de «qué incluye» (los que escribes tú en el admin).
   includes?: { es: string[]; en: string[] }
+  // Qué puntos «de siempre» (DEFAULT_INCLUDE_KEYS) se muestran en esta categoría (casillas del admin).
+  // Si no existe, no se muestra ninguno (todos desmarcados por defecto).
+  defaultIncludes?: string[]
   visible?: boolean // false = oculta de la portada (pero sigue existiendo, no se borra nada)
 }
+
+// Los puntos «de siempre» que se pueden marcar o desmarcar en cada categoría (mismos textos que
+// «Incluido en el precio» de la sección de cobertura).
+export const DEFAULT_INCLUDE_KEYS = ['cover.inc1', 'cover.inc2', 'cover.inc3', 'cover.inc4', 'cover.inc5']
 
 export const CATEGORIES: Category[] = [
   {
@@ -257,8 +264,8 @@ export const T: Dict = {
     en: 'Technical and audiovisual drone coverage in 4K',
   },
   'cover.inc2': {
-    es: 'Edición de un vídeo corto optimizado para redes (Reels / TikTok / YouTube)',
-    en: 'Editing of a short video optimized for social media (Reels / TikTok / YouTube)',
+    es: 'Edición de un vídeo corto optimizado para redes (Reels / TikTok / YouTube), a petición del cliente',
+    en: 'Editing of a short video optimized for social media (Reels / TikTok / YouTube), on client request',
   },
   'cover.inc3': {
     es: 'Tramitación completa de licencias, permisos y coordinaciones para volar en España (normativa AESA/EASA)',
