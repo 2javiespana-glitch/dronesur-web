@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
@@ -8,44 +7,19 @@ import { useSite } from '@/components/site-provider'
 import { useLocalePath } from '@/components/use-locale-path'
 import { useQuote } from '@/components/quote-modal'
 import type { Category } from '@/lib/content'
+import { optimizeImage } from '@/lib/site-content'
 
-export function Categories() {
+// Las categorías (ya sin las ocultas) y sus portadas llegan desde el servidor (lib/home-data.ts).
+export function Categories({
+  categories,
+  covers,
+}: {
+  categories: Category[]
+  covers: Record<string, string>
+}) {
   const { t, tl } = useSite()
   const localePath = useLocalePath()
   const { open } = useQuote()
-  const [categories, setCategories] = useState<Category[]>([])
-  const [covers, setCovers] = useState<Record<string, string>>({})
-
-  // Las categorías ahora son editables desde el admin (crear, editar, borrar), así que
-  // se cargan siempre desde el servidor en vez de venir fijas en el código.
-  useEffect(() => {
-    fetch('/api/categories', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) setCategories(data.filter((c: Category) => c.visible !== false))
-      })
-      .catch(() => {})
-  }, [])
-
-  // Portadas de cada tarjeta, subidas desde el admin (categoría "cover-<slug>").
-  // Mientras no subas ninguna, se sigue viendo la foto de stock de siempre.
-  useEffect(() => {
-    fetch('/api/media', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((all: { category: string; url: string; type?: string }[]) => {
-        if (!Array.isArray(all)) return
-        const next: Record<string, string> = {}
-        for (const item of all) {
-          if (item.category?.startsWith('cover-') && (item.type === 'image' || !item.type)) {
-            const slug = item.category.replace('cover-', '')
-            next[slug] = item.url // el último subido gana, por eso no usamos "if (!next[slug])"
-          }
-        }
-        setCovers(next)
-      })
-      .catch(() => {})
-  }, [])
-
   if (categories.length === 0) return null
 
   return (
@@ -67,7 +41,8 @@ export function Categories() {
               className="relative block aspect-[4/3] overflow-hidden"
             >
               <Image
-                src={covers[cat.slug] || cat.image || '/placeholder.svg'}
+                // La portada subida a Cloudinary se pide a 1200 px de ancho máx. y comprimida (antes, a tamaño original).
+                src={covers[cat.slug] ? optimizeImage(covers[cat.slug], 1200) : cat.image || '/placeholder.svg'}
                 alt={tl(cat.title)}
                 fill
                 sizes="(max-width: 768px) 100vw, 33vw"
