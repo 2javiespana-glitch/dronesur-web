@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -91,7 +91,7 @@ export function CategoryDetail({
   const localePath = useLocalePath()
   const { open } = useQuote()
   const [index, setIndex] = useState(0)
-  const [gallery, setGallery] = useState(() =>
+  const [gallery] = useState(() =>
     buildGallery(initialMedia ?? [], initialAlbums ?? [], category.slug),
   )
   const { custom, looseItems, albums, mediaByAlbum } = gallery
@@ -100,31 +100,10 @@ export function CategoryDetail({
   // La descripción de una foto en el idioma de la página (la del otro idioma si falta).
   const altOf = (item: GalleryItem) => (lang === 'en' ? item.altEn || item.alt || '' : item.alt || '')
 
-  // Carga las fotos/vídeos y los álbumes (carpetas) que has subido desde el admin
-  // para ESTA categoría.
-  useEffect(() => {
-    let cancelled = false
-
-    Promise.all([
-      fetch('/api/media', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/albums', { cache: 'no-store' }).then((r) => r.json()),
-    ])
-      .then(([allMedia, allAlbums]) => {
-        if (cancelled) return
-        setGallery(
-          buildGallery(
-            Array.isArray(allMedia) ? allMedia : [],
-            Array.isArray(allAlbums) ? allAlbums : [],
-            category.slug,
-          ),
-        )
-      })
-      .catch(() => {})
-
-    return () => {
-      cancelled = true
-    }
-  }, [category.slug])
+  // Las fotos, vídeos y álbumes de esta categoría llegan ya leídos desde el servidor (initialMedia e
+  // initialAlbums), siempre al día. Antes, además, se volvían a pedir TODOS los de la web al abrir la
+  // página (dos peticiones más, con la lista completa); ya no hace falta. Cuando se cambia de
+  // categoría, la página se vuelve a montar con sus datos (ver key={slug} en las páginas).
 
   const folders: Folder[] = [
     ...(looseItems.length > 0 ? [{ id: '__general__', title: 'General', items: looseItems }] : []),
