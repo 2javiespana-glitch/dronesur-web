@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { CATEGORIES } from '@/lib/content'
-import { readCategories } from '@/lib/categories-db'
-import { readJSON } from '@/lib/kv'
+import { readCategoriesPublic } from '@/lib/categories-db'
+import { readJSONPublic } from '@/lib/kv'
 import { normalizeContent } from '@/lib/site-content'
 import { CITIES } from '@/lib/cities'
 import { SITE_URL } from '@/lib/seo'
@@ -16,8 +16,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let categories = CATEGORIES
   let cityTexts: Record<string, string> = {}
   try {
-    categories = await readCategories()
-    cityTexts = normalizeContent(await readJSON<unknown>('dronesur:content', null)).cities
+    categories = await readCategoriesPublic()
+    cityTexts = normalizeContent(await readJSONPublic<unknown>('dronesur:content', null)).cities
   } catch {
     // Si la base de datos no responde, se usan las categorías de siempre y ninguna ciudad.
   }
