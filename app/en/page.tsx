@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { HomePage } from '@/components/home-page'
+import { loadHomeData } from '@/lib/home-data'
 
 // Portada en inglés: dronesur.es/en
 export const metadata: Metadata = {
@@ -29,6 +30,9 @@ export const metadata: Metadata = {
   },
 }
 
-export default function EnglishHome() {
-  return <HomePage />
+export const dynamic = 'force-dynamic'
+
+export default async function EnglishHome() {
+  const data = await loadHomeData()
+  return <HomePage data={data} />
 }
