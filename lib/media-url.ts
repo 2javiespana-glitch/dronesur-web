@@ -1,6 +1,10 @@
 // Ayudantes para las URLs de fotos, vídeos, panorámicas 360°, modelos 3D y enlaces incrustados.
 
 // ---------- Vídeos ----------
+// Ancho máximo del vídeo en móvil. La caja del móvil mide unos 390 px; en pantallas 3x son
+// ~1170 px reales, así que 1280 se ve igual de nítido y descarga mucho menos.
+export const MOBILE_VIDEO_WIDTH = 1280
+
 // Los iPhone graban en HEVC (H.265), un formato que muchos portátiles con Windows no pueden
 // reproducir en Chrome o Edge: el vídeo sale en negro. Para evitarlo, pedimos a Cloudinary que
 // sirva una copia en H.264 (MP4), que lee cualquier navegador.
