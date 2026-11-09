@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { getConsent, CONSENT_EVENT } from '@/lib/consent'
-import { VisitTracker } from '@/components/visit-tracker'
 
-// Las estadísticas de visitas solo se activan si el visitante ha pulsado "Aceptar".
+// Las estadísticas de visitas y de velocidad (Speed Insights) solo se activan si el visitante ha pulsado "Aceptar".
 // Si rechaza (o aún no ha elegido), no se carga nada.
 export function AnalyticsGate() {
   const [allowed, setAllowed] = useState(false)
@@ -21,7 +21,7 @@ export function AnalyticsGate() {
   return (
     <>
       <Analytics />
-      <VisitTracker />
+      <SpeedInsights />
     </>
   )
 }
