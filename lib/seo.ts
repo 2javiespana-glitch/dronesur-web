@@ -23,8 +23,9 @@ export function businessJsonLd(options?: { url?: string; areaServed?: string[]; 
     '@id': `${SITE_URL}/#negocio`,
     name: SITE.name,
     url: options?.url ?? SITE_URL,
-    logo: `${SITE_URL}/logo-dronesur.png`,
-    image: `${SITE_URL}/logo-dronesur.png`,
+    // Para Google se usa la versión grande; la de la cabecera (logo-dronesur.png) está reducida para cargar rápido.
+    logo: `${SITE_URL}/logo-dronesur-large.png`,
+    image: `${SITE_URL}/logo-dronesur-large.png`,
     description:
       options?.description ??
       'Servicios profesionales de fotografía y vídeo aéreo con drones: inmobiliaria, eventos, fotogrametría y seguimiento de obra.',
