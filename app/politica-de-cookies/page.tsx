@@ -43,6 +43,13 @@ const ITEMS = [
     type: 'Analítica (opcional)',
     duration: 'Según Vercel; no usa cookies',
   },
+  {
+    name: 'Recuento de visitas por provincia',
+    purpose:
+      'Cuenta de forma agregada desde qué provincia nos visitan, sin guardar tu IP. Solo se activa si pulsas «Aceptar» en el aviso de cookies.',
+    type: 'Analítica (opcional)',
+    duration: 'No usa cookies ni almacenamiento en tu dispositivo',
+  },
 ]
 
 // Same table in English (the website’s English version).
@@ -77,6 +84,13 @@ const ITEMS_EN = [
       'Anonymous, aggregated visit statistics. They are only activated if you click “Accept” in the cookie notice.',
     type: 'Analytics (optional)',
     duration: 'According to Vercel; does not use cookies',
+  },
+  {
+    name: 'Visit count by province',
+    purpose:
+      'Counts, in aggregate, which province visitors come from, without storing your IP. It is only activated if you click “Accept” in the cookie notice.',
+    type: 'Analytics (optional)',
+    duration: 'Does not use cookies or storage on your device',
   },
 ]
 
