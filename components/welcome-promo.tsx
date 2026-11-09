@@ -1,36 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
+import type { PromoOverride } from '@/lib/home-data'
 
-type PromoOverride = {
-  badgeEs: string
-  titleEs: string
-  textEs: string
-  ctaEs: string
-  badgeEn: string
-  titleEn: string
-  textEn: string
-  ctaEn: string
-}
-
-export function WelcomePromo() {
+export function WelcomePromo({ override }: { override: PromoOverride | null }) {
   const { t, lang } = useSite()
   const { open } = useQuote()
-  const [override, setOverride] = useState<PromoOverride | null>(null)
-
   // Insignia, título y botón: si los dejas en blanco en el admin, se usa el texto de siempre.
   // Texto descriptivo (el de debajo del título): solo aparece si lo escribes tú. En blanco = no se muestra.
-  useEffect(() => {
-    fetch('/api/settings', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data?.promoOverride) setOverride(data.promoOverride)
-      })
-      .catch(() => {})
-  }, [])
+  // Los textos llegan ya leídos desde el servidor (lib/home-data.ts).
 
   const pick = (custom: string | undefined, fallback: string) =>
     custom && custom.trim() ? custom : fallback
