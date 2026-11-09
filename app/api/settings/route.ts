@@ -22,6 +22,8 @@ export type PromoOverride = {
   titleEn: string
   textEn: string
   ctaEn: string
+  finePrintEs: string // letra pequeña bajo el descuento (banner y formulario). En blanco = no se muestra
+  finePrintEn: string
 }
 
 export type SiteSettings = {
@@ -45,6 +47,8 @@ const EMPTY_PROMO_OVERRIDE: PromoOverride = {
   titleEn: '',
   textEn: '',
   ctaEn: '',
+  finePrintEs: '',
+  finePrintEn: '',
 }
 
 const DEFAULT_SETTINGS: SiteSettings = {
