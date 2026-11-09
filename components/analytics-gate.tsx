@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Analytics } from '@vercel/analytics/next'
 import { getConsent, CONSENT_EVENT } from '@/lib/consent'
+import { VisitTracker } from '@/components/visit-tracker'
 
 // Las estadísticas de visitas solo se activan si el visitante ha pulsado "Aceptar".
 // Si rechaza (o aún no ha elegido), no se carga nada.
@@ -17,5 +18,10 @@ export function AnalyticsGate() {
   }, [])
 
   if (process.env.NODE_ENV !== 'production' || !allowed) return null
-  return <Analytics />
+  return (
+    <>
+      <Analytics />
+      <VisitTracker />
+    </>
+  )
 }
