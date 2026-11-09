@@ -3,6 +3,8 @@
 // código en cada sitio.
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { cache } from 'react'
+import { revalidateTag, unstable_cache } from 'next/cache'
 
 function dbConfig() {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
@@ -35,8 +37,55 @@ export async function readJSON<T>(key: string, fallback: T): Promise<T> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Lectura RÁPIDA para las páginas públicas.
+// Las páginas que ve el visitante (portada, categorías, ciudades, sitemap) leen cada vez los mismos
+// datos de la base de datos. Con readJSONPublic:
+//   · dentro de una misma visita, cada dato se lee UNA sola vez (antes se leía varias veces);
+//   · entre visitas, el resultado se guarda hasta 60 segundos (no hace falta ir a la base de datos
+//     por cada persona que entra);
+//   · en cuanto guardas algo desde el admin (writeJSON), esa copia se tira y la siguiente visita
+//     ya ve lo nuevo. No tienes que esperar el minuto.
+// El admin y las rutas /api siguen usando readJSON (siempre al día).
+// ---------------------------------------------------------------------------
+const PUBLIC_CACHE_TAG = 'dronesur-data'
+const PUBLIC_CACHE_SECONDS = 60
+
+const readRawCached = unstable_cache(
+  async (key: string): Promise<string | null> => {
+    const raw = await redis(['GET', key])
+    return typeof raw === 'string' ? raw : null
+  },
+  ['dronesur-kv-read'],
+  { revalidate: PUBLIC_CACHE_SECONDS, tags: [PUBLIC_CACHE_TAG] },
+)
+
+// cache() de React: dentro de una misma visita, la misma lectura se hace una sola vez.
+const readRawOncePerVisit = cache((key: string) => readRawCached(key))
+
+export async function readJSONPublic<T>(key: string, fallback: T): Promise<T> {
+  const raw = await readRawOncePerVisit(key)
+  if (!raw) return fallback
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+// Tira la copia guardada para que las páginas públicas lean lo nuevo en la siguiente visita.
+function invalidatePublicCache() {
+  try {
+    revalidateTag(PUBLIC_CACHE_TAG, { expire: 0 })
+  } catch {
+    // Si no se puede (p. ej. fuera de una petición), la copia caduca sola en 60 segundos.
+  }
+}
+
 export async function writeJSON<T>(key: string, value: T) {
   await redis(['SET', key, JSON.stringify(value)])
+  invalidatePublicCache()
 }
 
 // ---------------------------------------------------------------------------
