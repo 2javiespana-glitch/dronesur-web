@@ -8,6 +8,7 @@ import { useSite } from '@/components/site-provider'
 import { ReviewLimitsPanel } from '@/components/review-limits-panel'
 import { ContentPanel } from '@/components/content-panel'
 import { QuotesPanel } from '@/components/quotes-panel'
+import { VisitsPanel } from '@/components/visits-panel'
 import { MediaManager } from '@/components/media-manager'
 import {
   DEFAULT_QUOTE_DISCOUNT,
@@ -361,6 +362,7 @@ export default function AdminPage() {
     { id: 'admin-garantia', label: 'Garantía' },
     { id: 'admin-resenas', label: 'Reseñas' },
     { id: 'admin-contacto', label: 'Contacto' },
+    { id: 'admin-visitas', label: 'Visitas' },
   ]
 
   if (!authed) {
@@ -900,6 +902,12 @@ export default function AdminPage() {
       <section id="admin-contacto" className={sectionClass}>
         {sectionHead(10, 'Contacto', 'Los formularios de contacto y presupuesto que llegan desde la web. Siempre visible.')}
         <QuotesPanel password={pass} />
+      </section>
+
+      {/* 11 · VISITAS (por provincia) */}
+      <section id="admin-visitas" className={sectionClass}>
+        {sectionHead(11, 'Visitas', 'Quién entra a la web, agrupado por provincia (solo quien acepta las cookies de estadísticas).')}
+        <VisitsPanel password={pass} />
       </section>
     </main>
     </div>
