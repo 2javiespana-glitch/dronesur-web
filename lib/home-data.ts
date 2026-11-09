@@ -20,6 +20,8 @@ export type PromoOverride = {
   titleEn: string
   textEn: string
   ctaEn: string
+  finePrintEs: string // letra pequeña bajo el descuento
+  finePrintEn: string
 }
 
 // Qué secciones se ven (las casillas de "Qué se ve en la web" del admin).
@@ -62,6 +64,8 @@ const PROMO_KEYS: (keyof PromoOverride)[] = [
   'titleEn',
   'textEn',
   'ctaEn',
+  'finePrintEs',
+  'finePrintEn',
 ]
 
 // Si una lectura falla, devuelve el valor de siempre en vez de romper la página.
