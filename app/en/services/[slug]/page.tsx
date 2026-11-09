@@ -64,7 +64,7 @@ export default async function EnglishCategoryPage({
   return (
     <>
       <SiteHeader />
-      <CategoryDetail category={category} initialMedia={media} initialAlbums={albums} />
+      <CategoryDetail key={category.slug} category={category} initialMedia={media} initialAlbums={albums} />
       <SiteFooter />
       <WhatsAppFab />
       <CookieBanner />
