@@ -44,6 +44,13 @@ const ITEMS = [
     duration: 'Según Vercel; no usa cookies',
   },
   {
+    name: 'Vercel Speed Insights',
+    purpose:
+      'Mide de forma anónima la velocidad de carga de la web para mejorarla. Solo se activa si pulsas «Aceptar» en el aviso de cookies.',
+    type: 'Analítica (opcional)',
+    duration: 'Según Vercel; no usa cookies',
+  },
+  {
     name: 'Recuento de visitas por provincia',
     purpose:
       'Cuenta de forma agregada desde qué provincia nos visitan, sin guardar tu IP. Solo se activa si pulsas «Aceptar» en el aviso de cookies.',
@@ -82,6 +89,13 @@ const ITEMS_EN = [
     name: 'Vercel Analytics',
     purpose:
       'Anonymous, aggregated visit statistics. They are only activated if you click “Accept” in the cookie notice.',
+    type: 'Analytics (optional)',
+    duration: 'According to Vercel; does not use cookies',
+  },
+  {
+    name: 'Vercel Speed Insights',
+    purpose:
+      'Anonymously measures how fast the website loads so we can improve it. It is only activated if you click “Accept” in the cookie notice.',
     type: 'Analytics (optional)',
     duration: 'According to Vercel; does not use cookies',
   },
