@@ -49,6 +49,11 @@ export default function PoliticaPrivacidadPage() {
           <>
             <strong>Estadísticas de visitas.</strong> Solo si las aceptas en el aviso de cookies:
             datos de navegación agregados y anónimos, para entender cómo se usa la web y mejorarla.
+            Además, a partir de tu IP deducimos la provincia aproximada desde la que nos visitas (sin
+            guardar la IP) y guardamos un registro de la visita sin datos identificativos: provincia,
+            ciudad aproximada, tipo de dispositivo, web de procedencia y página de entrada. Para no
+            contar dos veces la misma visita, guardamos una huella cifrada de tu conexión durante 30
+            minutos.
           </>,
           <>
             <strong>Datos técnicos.</strong> Como cualquier web, el servidor recibe tu dirección IP y
@@ -76,6 +81,8 @@ export default function PoliticaPrivacidadPage() {
         publicadas o hasta que pidas su retirada. Después, los datos se bloquean durante los plazos
         legales de prescripción y se eliminan. La huella cifrada de la IP que se usa para limitar
         los envíos de opiniones se elimina automáticamente a las 24 horas.
+        El registro de visitas se conserva 30 días y los recuentos por provincia, que no contienen
+        ningún dato individual, hasta 13 meses.
       </P>
 
       <H2>5. Destinatarios y proveedores</H2>
@@ -181,7 +188,11 @@ export default function PoliticaPrivacidadPage() {
           <>
             <strong>Visit statistics.</strong> Only if you accept them in the cookie notice:
             aggregated, anonymous browsing data, to understand how the website is used and improve
-            it.
+            it. We also work out, from your IP, the approximate province you are visiting from
+            (without storing the IP) and keep a visit record with no identifying data: province,
+            approximate city, device type, referring website and landing page. To avoid counting
+            the same visit twice, we store an encrypted fingerprint of your connection for 30
+            minutes.
           </>,
           <>
             <strong>Technical data.</strong> Like any website, the server receives your IP address
@@ -207,7 +218,8 @@ export default function PoliticaPrivacidadPage() {
         applicable legal periods. Reviews, while they are published or until you ask for them to be
         removed. After that, the data is blocked for the legal limitation periods and then deleted.
         The encrypted IP fingerprint used to limit review submissions is automatically deleted after
-        24 hours.
+        24 hours. The visit record is kept for 30 days, and the counts per province, which contain
+        no individual data, for up to 13 months.
       </P>
 
       <H2>5. Recipients and providers</H2>
