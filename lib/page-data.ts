@@ -1,13 +1,13 @@
 import { CATEGORIES, type Category } from '@/lib/content'
-import { readCategories } from '@/lib/categories-db'
-import { readJSON } from '@/lib/kv'
+import { readCategoriesPublic } from '@/lib/categories-db'
+import { readJSONPublic } from '@/lib/kv'
 import type { AlbumItem, MediaItem } from '@/lib/media-admin'
 
 // Lecturas del servidor que comparten las páginas de servicio en español y en inglés.
 
 export async function loadCategoriesSafe(): Promise<Category[]> {
   try {
-    return await readCategories()
+    return await readCategoriesPublic()
   } catch {
     // Si la base de datos no responde, la web sigue con las categorías de siempre.
     return CATEGORIES
@@ -18,8 +18,8 @@ export async function loadCategoriesSafe(): Promise<Category[]> {
 export async function loadGallery(slug: string): Promise<{ media: MediaItem[]; albums: AlbumItem[] }> {
   try {
     const [media, albums] = await Promise.all([
-      readJSON<MediaItem[]>('dronesur:media', []),
-      readJSON<AlbumItem[]>('dronesur:albums', []),
+      readJSONPublic<MediaItem[]>('dronesur:media', []),
+      readJSONPublic<AlbumItem[]>('dronesur:albums', []),
     ])
     return {
       media: media.filter((m) => m.category === slug),
@@ -36,7 +36,7 @@ const DEFAULT_SHARE_IMAGE = '/opengraph-image.jpg'
 // su portada, recortada a 1200 × 630. Si no tiene portada, la imagen general de la web.
 export async function shareImageFor(slug: string): Promise<string> {
   try {
-    const media = await readJSON<MediaItem[]>('dronesur:media', [])
+    const media = await readJSONPublic<MediaItem[]>('dronesur:media', [])
     const covers = media.filter(
       (m) => m.category === `cover-${slug}` && (m.type === 'image' || !m.type) && m.url.startsWith('https://'),
     )
