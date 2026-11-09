@@ -18,6 +18,8 @@ export function WelcomePromo({ override }: { override: PromoOverride | null }) {
   const badge = pick(lang === 'en' ? override?.badgeEn : override?.badgeEs, t('promo.badge'))
   const title = pick(lang === 'en' ? override?.titleEn : override?.titleEs, t('promo.title'))
   const text = ((lang === 'en' ? override?.textEn : override?.textEs) ?? '').trim()
+  // Letra pequeña (condiciones del descuento): solo aparece si la escribes en el admin.
+  const finePrint = ((lang === 'en' ? override?.finePrintEn : override?.finePrintEs) ?? '').trim()
   // Botón: si lo dejas en blanco en el admin, sale «¡Vamos allá!» / «Let’s go!».
   const cta = pick(
     lang === 'en' ? override?.ctaEn : override?.ctaEs,
@@ -41,6 +43,11 @@ export function WelcomePromo({ override }: { override: PromoOverride | null }) {
               {text && (
                 <p className="mt-3 text-pretty text-base text-muted-foreground sm:text-lg">
                   {text}
+                </p>
+              )}
+              {finePrint && (
+                <p className="mt-3 whitespace-pre-line text-pretty text-xs text-muted-foreground/80">
+                  {finePrint}
                 </p>
               )}
             </div>
