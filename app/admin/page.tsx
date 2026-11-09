@@ -134,6 +134,8 @@ export default function AdminPage() {
     titleEn: string
     textEn: string
     ctaEn: string
+    finePrintEs: string
+    finePrintEn: string
   }
   const EMPTY_PROMO_OVERRIDE: PromoOverride = {
     badgeEs: '',
@@ -144,6 +146,8 @@ export default function AdminPage() {
     titleEn: '',
     textEn: '',
     ctaEn: '',
+    finePrintEs: '',
+    finePrintEn: '',
   }
 
   type SiteSettings = {
@@ -602,6 +606,44 @@ export default function AdminPage() {
         </form>
       </div>
 
+
+      {/* Panel: Letra pequeña del descuento (sale en el banner y en la casilla del formulario) */}
+      <div className="mt-8">
+        <h3 className="text-lg font-bold">Letra pequeña del descuento (condiciones)</h3>
+        <p className="text-sm text-muted-foreground">
+          Texto pequeño que sale debajo del texto del descuento, tanto en el banner como en la casilla del
+          formulario de presupuesto. Úsalo para poner condiciones (por ejemplo, que solo vale para particulares).
+          Déjalo en blanco para no mostrar nada.
+        </p>
+        <div className="mt-4 grid gap-6 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2">
+          {(
+            [
+              { lang: 'Español', field: 'finePrintEs', placeholder: 'Ej.: Descuento válido solo para particulares; no aplicable a empresas ni autónomos.' },
+              { lang: 'English', field: 'finePrintEn', placeholder: 'E.g.: Discount valid for private individuals only; not applicable to companies or freelancers.' },
+            ] as const
+          ).map((col) => (
+            <div key={col.lang} className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground">{col.lang}</h3>
+              <textarea
+                rows={3}
+                value={settings.promoOverride[col.field]}
+                onChange={(e) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    promoOverride: { ...prev.promoOverride, [col.field]: e.target.value },
+                  }))
+                }
+                maxLength={400}
+                placeholder={col.placeholder}
+                className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]"
+              />
+            </div>
+          ))}
+          <div className="sm:col-span-2">
+            <AutoSaveStatus status={settingsAuto.status} error={settingsAuto.error} />
+          </div>
+        </div>
+      </div>
 
       {/* Panel: Casilla de descuento del formulario de presupuesto */}
       <div className="mt-8">
