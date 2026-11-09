@@ -317,6 +317,10 @@ export default function AdminPage() {
   }
 
 
+  // Un solo interruptor para la oferta: manda el banner; la casilla del formulario se iguala al pulsarlo.
+  const discountOn = settings.promo
+  const discountMismatch = settings.promo !== settings.quoteDiscount.enabled
+
   // Casilla "mostrar / ocultar" de cada sección de la página principal.
   const visibilityToggle = (key: Exclude<keyof SiteSettings, 'promoOverride' | 'quoteDiscount'>, label: string) => (
     <label className="mt-4 flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium transition hover:bg-muted">
@@ -462,12 +466,56 @@ export default function AdminPage() {
 
       {/* 2 · BANNER DE BIENVENIDA / DESCUENTO */}
       <section id="admin-descuento" className={sectionClass}>
-        {sectionHead(2, 'Banner de bienvenida y descuento', 'El banner de descuento que sale debajo del carrusel y la casilla de descuento del formulario de presupuesto.')}
-        {visibilityToggle('promo', 'Banner de bienvenida / descuento')}
+        {sectionHead(2, 'Banner de bienvenida y descuento', 'Un solo interruptor activa o desactiva a la vez el banner de debajo del carrusel y la casilla de descuento del formulario de presupuesto. Abajo editas el texto de cada uno.')}
+        {/* Interruptor ÚNICO: activa/desactiva a la vez el banner y la casilla del formulario */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold">
+              Oferta de bienvenida (banner + formulario de presupuesto):{' '}
+              <span className={discountOn ? 'text-gold' : 'text-muted-foreground'}>
+                {discountOn ? 'ACTIVADA' : 'DESACTIVADA'}
+              </span>
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {discountOn
+                ? 'Se ve el banner debajo del carrusel y la casilla de descuento dentro del formulario de presupuesto.'
+                : 'Desactivada: no sale el banner ni la casilla, y el mensaje de WhatsApp o correo nunca menciona ningún descuento.'}
+            </p>
+            {discountMismatch && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Ahora mismo el banner y la casilla estaban en estados distintos; al pulsar el interruptor quedan los
+                dos igual.
+              </p>
+            )}
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={discountOn}
+            aria-label="Activar o desactivar la oferta de bienvenida en el banner y en el formulario de presupuesto"
+            onClick={() =>
+              saveSettings({
+                ...settings,
+                promo: !discountOn,
+                quoteDiscount: { ...settings.quoteDiscount, enabled: !discountOn },
+              })
+            }
+            disabled={settingsSaving}
+            className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-60 ${
+              discountOn ? 'bg-[var(--gold)]' : 'bg-muted'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
+                discountOn ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
         {settingsError && <p className="mt-2 text-sm text-destructive">{settingsError}</p>}
       {/* Panel: Texto del banner de descuento */}
       <div className="mt-8">
-        <h3 className="text-lg font-bold">Texto del banner de descuento</h3>
+        <h3 className="text-lg font-bold">Texto del banner (debajo del carrusel)</h3>
         <p className="text-sm text-muted-foreground">
           Deja un campo en blanco para usar el texto de siempre. Rellénalo para
           sustituirlo (ej. cambiar "15%" por "20%", o poner "Oferta Halloween").
@@ -557,51 +605,11 @@ export default function AdminPage() {
 
       {/* Panel: Casilla de descuento del formulario de presupuesto */}
       <div className="mt-8">
-        <h3 className="text-lg font-bold">Casilla de descuento del formulario</h3>
+        <h3 className="text-lg font-bold">Texto de la casilla (formulario de presupuesto)</h3>
         <p className="text-sm text-muted-foreground">
           Es el cuadro con la casilla que sale dentro del formulario de presupuesto («Aplicar mi 15% de
-          descuento de bienvenida…»). Puedes ocultarlo y cambiar sus textos. Es independiente del banner de
-          la página principal.
+          descuento de bienvenida…»). Se muestra u oculta con el interruptor de arriba; aquí solo cambias sus textos.
         </p>
-
-        {/* Interruptor */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5">
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold">
-              Mostrar la casilla de descuento en el formulario:{' '}
-              <span className={settings.quoteDiscount.enabled ? 'text-gold' : 'text-muted-foreground'}>
-                {settings.quoteDiscount.enabled ? 'ACTIVADA' : 'DESACTIVADA'}
-              </span>
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {settings.quoteDiscount.enabled
-                ? 'La casilla aparece en el formulario y, si el cliente la marca, el mensaje incluye la frase del descuento.'
-                : 'Desactivada: la casilla no aparece y el mensaje de WhatsApp o correo nunca menciona ningún descuento.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings.quoteDiscount.enabled}
-            aria-label="Mostrar la casilla de descuento en el formulario de presupuesto"
-            onClick={() =>
-              saveSettings({
-                ...settings,
-                quoteDiscount: { ...settings.quoteDiscount, enabled: !settings.quoteDiscount.enabled },
-              })
-            }
-            disabled={settingsSaving}
-            className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:opacity-60 ${
-              settings.quoteDiscount.enabled ? 'bg-[var(--gold)]' : 'bg-muted'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
-                settings.quoteDiscount.enabled ? 'left-[22px]' : 'left-0.5'
-              }`}
-            />
-          </button>
-        </div>
 
         {/* Textos */}
         <form
