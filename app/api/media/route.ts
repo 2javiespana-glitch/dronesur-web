@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { readJSON, updateJSON } from '@/lib/kv'
 import { categorySlugs } from '@/lib/categories-db'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { isAllowedEmbed } from '@/lib/media-url'
+import { warmVideoVariants } from '@/lib/video-warmup'
 
 // Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría, y opcionalmente
 // su álbum) en una base de datos Upstash Redis, para que TODOS los visitantes vean lo
@@ -15,6 +16,8 @@ import { isAllowedEmbed } from '@/lib/media-url'
 // - DELETE  -> { id } borra un elemento (solo admin)
 
 export const dynamic = 'force-dynamic'
+// Tiempo máximo de la ruta (segundos): deja margen para preparar los vídeos nuevos (ver lib/video-warmup.ts).
+export const maxDuration = 60
 
 const KEY = 'dronesur:media'
 
@@ -110,6 +113,15 @@ export async function POST(req: Request) {
         ...(item.albumId ? { albumId: String(item.albumId) } : {}),
       }
       const updated = await updateJSON<MediaItem[]>(KEY, [], (items) => [...items, newItem])
+      // Vídeo nuevo del carrusel: se pide ya a Cloudinary que prepare sus copias (móvil y escritorio),
+      // DESPUÉS de responder al admin, para que el primer visitante no tenga que esperar.
+      if (newItem.type === 'video' && newItem.category === 'hero') {
+        try {
+          after(() => warmVideoVariants(newItem.url))
+        } catch {
+          // si no se puede programar, no pasa nada: la web funciona igual
+        }
+      }
       return NextResponse.json({ items: updated })
     } catch (e) {
       return serverError(e)
