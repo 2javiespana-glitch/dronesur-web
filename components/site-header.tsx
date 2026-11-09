@@ -28,7 +28,9 @@ const LINKS: { key: string; href: string; section?: SectionKey }[] = [
   { key: 'nav.contact', href: '/#contacto' },
 ]
 
-export function SiteHeader() {
+// `sections`: qué secciones están visibles. La portada ya las tiene y se las pasa; en el resto de
+// páginas la cabecera las pide a /api/public-sections (una respuesta pequeña que se guarda 1 minuto).
+export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {}) {
   const { theme, toggleTheme, lang, setLang, t } = useSite()
   const localePath = useLocalePath()
   const pathname = usePathname()
@@ -44,7 +46,7 @@ export function SiteHeader() {
   const { open } = useQuote()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [settings, setSettings] = useState<VisibilitySettings>({})
+  const [settings, setSettings] = useState<VisibilitySettings>(sections ?? {})
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)
@@ -55,8 +57,9 @@ export function SiteHeader() {
 
   // Lee qué secciones están visibles (lo mismo que usa la página principal).
   useEffect(() => {
+    if (sections) return
     let cancelled = false
-    fetch('/api/settings', { cache: 'no-store' })
+    fetch('/api/public-sections')
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!cancelled && data) setSettings(data)
@@ -67,7 +70,7 @@ export function SiteHeader() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sections])
 
   // Un enlace se oculta solo si su sección está explícitamente en false.
   const visibleLinks = LINKS.filter((l) => !l.section || settings[l.section] !== false)
