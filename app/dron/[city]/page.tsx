@@ -7,8 +7,8 @@ import { WhatsAppFab } from '@/components/whatsapp-fab'
 import { CookieBanner } from '@/components/cookie-banner'
 import { CityCta } from '@/components/city-cta'
 import { CATEGORIES, type Category } from '@/lib/content'
-import { readCategories } from '@/lib/categories-db'
-import { readJSON } from '@/lib/kv'
+import { readCategoriesPublic } from '@/lib/categories-db'
+import { readJSONPublic } from '@/lib/kv'
 import { CITIES, findCity } from '@/lib/cities'
 import { normalizeContent } from '@/lib/site-content'
 import { SITE_URL, businessJsonLd, jsonLd } from '@/lib/seo'
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
 
 async function loadTexts(): Promise<Record<string, string>> {
   try {
-    return normalizeContent(await readJSON<unknown>('dronesur:content', null)).cities
+    return normalizeContent(await readJSONPublic<unknown>('dronesur:content', null)).cities
   } catch {
     return {}
   }
@@ -30,7 +30,7 @@ async function loadTexts(): Promise<Record<string, string>> {
 
 async function loadCategories(): Promise<Category[]> {
   try {
-    return await readCategories()
+    return await readCategoriesPublic()
   } catch {
     return CATEGORIES
   }
