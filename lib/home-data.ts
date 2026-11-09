@@ -1,5 +1,5 @@
-import { readJSON } from '@/lib/kv'
-import { readCategories } from '@/lib/categories-db'
+import { readJSONPublic } from '@/lib/kv'
+import { readCategoriesPublic } from '@/lib/categories-db'
 import { CATEGORIES, type Category, type VideoItem } from '@/lib/content'
 import { normalizeContent, type SiteContent } from '@/lib/site-content'
 import type { MediaItem } from '@/lib/media-admin'
@@ -75,10 +75,10 @@ async function safe<T>(job: () => Promise<T>, fallback: T): Promise<T> {
 
 export async function loadHomeData(): Promise<HomeData> {
   const [media, categories, savedSettings, savedContent] = await Promise.all([
-    safe(() => readJSON<MediaItem[]>('dronesur:media', []), [] as MediaItem[]),
-    safe(() => readCategories(), CATEGORIES),
-    safe(() => readJSON<Record<string, unknown>>('dronesur:settings', {}), {} as Record<string, unknown>),
-    safe(() => readJSON<unknown>('dronesur:content', null), null),
+    safe(() => readJSONPublic<MediaItem[]>('dronesur:media', []), [] as MediaItem[]),
+    safe(() => readCategoriesPublic(), CATEGORIES),
+    safe(() => readJSONPublic<Record<string, unknown>>('dronesur:settings', {}), {} as Record<string, unknown>),
+    safe(() => readJSONPublic<unknown>('dronesur:content', null), null),
   ])
 
   const items = Array.isArray(media) ? media : []
