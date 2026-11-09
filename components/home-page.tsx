@@ -23,7 +23,7 @@ export function HomePage({ data }: { data: HomeData }) {
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader sections={settings} />
       <main>
         <Hero videos={videos} music={content.music.url} />
         {settings.promo && <WelcomePromo override={promoOverride} />}
