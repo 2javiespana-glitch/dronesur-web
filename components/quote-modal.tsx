@@ -42,6 +42,8 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [discount, setDiscount] = useState(true)
   // Ajustes de la casilla de descuento (los decide el admin). null = todavía cargando: la casilla no se muestra.
   const [discountCfg, setDiscountCfg] = useState<QuoteDiscount | null>(null)
+  // Letra pequeña bajo la casilla del descuento (la escribe el admin; vacío = no se muestra).
+  const [finePrintCfg, setFinePrintCfg] = useState<{ es: string; en: string }>({ es: '', en: '' })
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
 
   // Solo cuenta como «pedir descuento» si la casilla está activada en el admin y marcada.
@@ -50,6 +52,8 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const discountLabel = custom(discountCfg?.labelEs, discountCfg?.labelEn) || t('wa.discount')
   const discountMessage =
     custom(discountCfg?.messageEs, discountCfg?.messageEn) || FALLBACK_DISCOUNT_MESSAGE[lang === 'en' ? 'en' : 'es']
+
+  const finePrint = (lang === 'en' ? finePrintCfg.en : finePrintCfg.es).trim()
 
   const open = (opts?: { service?: string; discount?: boolean; location?: string }) => {
     if (opts?.service) setService(opts.service)
@@ -82,7 +86,13 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     fetch('/api/settings', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!cancelled) setDiscountCfg(normalizeQuoteDiscount(data?.quoteDiscount))
+        if (cancelled) return
+        setDiscountCfg(normalizeQuoteDiscount(data?.quoteDiscount))
+        const po = data?.promoOverride
+        setFinePrintCfg({
+          es: typeof po?.finePrintEs === 'string' ? po.finePrintEs : '',
+          en: typeof po?.finePrintEn === 'string' ? po.finePrintEn : '',
+        })
       })
       .catch(() => {
         // Si falla, se muestra la casilla de siempre (activada, con los textos de siempre).
@@ -293,7 +303,14 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                     onChange={(e) => setDiscount(e.target.checked)}
                     className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
                   />
-                  <span className="text-sm font-medium text-foreground">{discountLabel}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-foreground">{discountLabel}</span>
+                    {finePrint && (
+                      <span className="mt-1 block whitespace-pre-line text-xs font-normal text-muted-foreground">
+                        {finePrint}
+                      </span>
+                    )}
+                  </span>
                 </label>
               )}
 
