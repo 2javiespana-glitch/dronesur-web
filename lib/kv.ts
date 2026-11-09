@@ -15,15 +15,29 @@ function dbConfig() {
 
 export async function redis(command: string[]) {
   const { url, token } = dbConfig()
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-    cache: 'no-store',
-  })
-  const data = await res.json()
-  if (data.error) throw new Error(data.error)
-  return data.result
+  // Las LECTURAS (GET) se reintentan una vez si la conexión se corta a medias ("fetch failed"): la base
+  // de datos a veces cierra conexiones inactivas y la primera petición tras una pausa falla sin motivo
+  // real. Las escrituras no se reintentan, para no guardar nada dos veces.
+  const attempts = command[0] === 'GET' ? 2 : 1
+  let lastError: unknown
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(command),
+        cache: 'no-store',
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      return data.result
+    } catch (e) {
+      lastError = e
+      // Solo se reintenta ante un fallo de red (TypeError de fetch), no ante una respuesta de error.
+      if (!(e instanceof TypeError)) throw e
+    }
+  }
+  throw lastError
 }
 
 export async function readJSON<T>(key: string, fallback: T): Promise<T> {
