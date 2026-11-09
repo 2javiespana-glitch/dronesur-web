@@ -192,7 +192,13 @@ export function CategoryDetail({
                   >
                     <div className="relative aspect-video w-full bg-black/20">
                       {cover ? (
-                        <img src={cover} alt={coverItem ? altOf(coverItem) : ''} className="h-full w-full object-cover" />
+                        <img
+                          src={cover}
+                          alt={coverItem ? altOf(coverItem) : ''}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
                           <FolderIcon className="h-8 w-8 text-muted-foreground" />
@@ -298,7 +304,15 @@ export function CategoryDetail({
                         }`}
                         aria-label={`${kindLabel(item.type, es)} ${i + 1}`}
                       >
-                        {thumb && <img src={thumb} alt={altOf(item)} className="h-full w-full object-cover" />}
+                        {thumb && (
+                          <img
+                            src={thumb}
+                            alt={altOf(item)}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover"
+                          />
+                        )}
                         {item.type === 'video' && (
                           <span className="absolute inset-0 flex items-center justify-center bg-black/30">
                             <Play className="h-6 w-6 fill-white text-white" />
