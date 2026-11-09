@@ -1,44 +1,33 @@
-'use client'
+/** @type {import('next').NextConfig} */
 
-import type { HomeData } from '@/lib/home-data'
-import { SiteHeader } from '@/components/site-header'
-import { Hero } from '@/components/hero'
-import { WelcomePromo } from '@/components/welcome-promo'
-import { Categories } from '@/components/categories'
-import { CoverageServices } from '@/components/coverage-services'
-import { GuaranteeBanner } from '@/components/guarantee-banner'
-import { ReviewsSection } from '@/components/reviews-section'
-import { LegalSection } from '@/components/legal-section'
-import { AboutSection } from '@/components/about-section'
-import { PilotSection } from '@/components/pilot-section'
-import { ContactSection, SiteFooter } from '@/components/contact-footer'
-import { WhatsAppFab } from '@/components/whatsapp-fab'
-import { CookieBanner } from '@/components/cookie-banner'
+// Cabeceras de seguridad para todas las páginas.
+const securityHeaders = [
+  // El navegador no "adivina" el tipo de un archivo: evita que un archivo subido se ejecute como otra cosa.
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  // Solo se envía el dominio (no la dirección completa) cuando alguien pasa a otra web desde la tuya.
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  // Ninguna otra web puede meter la tuya dentro de un marco (evita el "clickjacking").
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  // La web no necesita cámara, micrófono ni ubicación: se bloquean por si algún código las pidiera.
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+]
 
-// La portada. La usan la versión en español (/) y la inglesa (/en); el idioma lo decide la dirección.
-// Los datos (vídeos, categorías, secciones visibles, textos del admin) llegan ya leídos desde el
-// servidor (ver lib/home-data.ts): ya no se piden uno a uno después de abrir la página.
-export function HomePage({ data }: { data: HomeData }) {
-  const { videos, covers, categories, settings, promoOverride, content } = data
+// Archivos fijos que casi nunca cambian: el navegador los guarda 1 día (y hasta 1 semana mientras
+// comprueba si hay versión nueva), en vez de preguntar al servidor en cada visita.
+const staticCache = [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }]
 
-  return (
-    <>
-      <SiteHeader sections={settings} />
-      <main>
-        <Hero videos={videos} music={content.music.url} />
-        {settings.promo && <WelcomePromo override={promoOverride} />}
-        <Categories categories={categories} covers={covers} />
-        {settings.about && <AboutSection content={content.about} />}
-        {settings.pilot && <PilotSection content={content.pilot} />}
-        {settings.coverage && <CoverageServices />}
-        {settings.legal && <LegalSection />}
-        {settings.guarantee && <GuaranteeBanner />}
-        {settings.reviews && <ReviewsSection />}
-        <ContactSection />
-      </main>
-      <SiteFooter />
-      <WhatsAppFab />
-      <CookieBanner />
-    </>
-  )
+const nextConfig = {
+  images: {
+    unoptimized: true,
+  },
+  async headers() {
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      { source: '/logo-dronesur.png', headers: staticCache },
+      { source: '/logo-dronesur-large.png', headers: staticCache },
+      { source: '/placeholder.svg', headers: staticCache },
+    ]
+  },
 }
+
+export default nextConfig
