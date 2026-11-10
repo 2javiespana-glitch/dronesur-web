@@ -30,7 +30,7 @@ export function Categories({
         <div className="mx-auto mt-5 h-1 w-16 rounded-full bg-[var(--gold)]" />
       </div>
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
         {categories.map((cat) => {
           // Precio de la tarjeta: si lo dejas en blanco en el admin, no se muestra la insignia amarilla.
           const price = tl(cat.price).trim()
@@ -64,17 +64,17 @@ export function Categories({
               <p className="mt-2 flex-1 text-sm text-muted-foreground">
                 {tl(cat.short)}
               </p>
-              <div className="mt-5 flex items-center gap-2">
+              <div className="mt-5 flex flex-wrap items-center gap-2">
                 <Link
                   href={localePath(`/servicios/${cat.slug}`)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-xs font-semibold transition hover:border-[var(--gold)] hover:text-gold"
+                  className="inline-flex flex-1 basis-[8.5rem] items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-border px-4 py-2 text-xs font-semibold transition hover:border-[var(--gold)] hover:text-gold"
                 >
                   {t('cat.view')}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
                 <button
                   onClick={() => open({ service: tl(cat.title) })}
-                  className="inline-flex items-center rounded-full bg-[var(--gold)] px-4 py-2 text-xs font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
+                  className="inline-flex flex-1 basis-[8.5rem] items-center justify-center whitespace-nowrap rounded-full bg-[var(--gold)] px-4 py-2 text-xs font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)]"
                 >
                   {t('cat.quote')}
                 </button>
