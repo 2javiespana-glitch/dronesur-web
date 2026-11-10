@@ -33,7 +33,7 @@ export function CookieBanner() {
     <div
       role="dialog"
       aria-label={en ? 'Cookie notice' : 'Aviso de cookies'}
-      className="fixed inset-x-3 bottom-3 z-[300] mx-auto max-w-xl rounded-2xl border border-border bg-card p-5 shadow-2xl sm:inset-x-auto sm:bottom-4 sm:left-4 sm:mx-0"
+      className="fixed inset-x-3 bottom-3 z-[300] mx-auto max-h-[calc(100svh-1.5rem)] max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-5 shadow-2xl sm:inset-x-auto sm:bottom-4 sm:left-4 sm:mx-0"
     >
       <p className="text-sm font-semibold">{en ? 'Cookies and storage' : 'Cookies y almacenamiento'}</p>
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
