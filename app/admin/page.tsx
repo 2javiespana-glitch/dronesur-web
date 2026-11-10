@@ -895,7 +895,7 @@ export default function AdminPage() {
             className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between"
           >
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold">{r.name}</p>
                 {r.approved === false && (
                   <span className="rounded-full bg-[var(--gold)] px-2 py-0.5 text-[10px] font-bold text-[var(--gold-foreground)]">
@@ -914,7 +914,7 @@ export default function AdminPage() {
               </p>
               <p className="mt-1.5 whitespace-pre-line text-sm text-foreground/90">{r.text}</p>
             </div>
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               {r.approved === false && (
                 <button
                   onClick={() => approveReview(r.id, true)}
