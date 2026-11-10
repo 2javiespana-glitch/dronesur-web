@@ -11,6 +11,9 @@ import { fail, serverError, requireAdmin } from '@/lib/api'
 // - POST -> { action: 'add', category: { title, short, description, price } }  crea una (solo admin)
 //           { action: 'update', slug, category: { visible?, title?, short?, description?, price?, includes?, defaultIncludes? } }
 //                                                                              edita una (solo admin)
+//           { action: 'move', slug, direction: 'before' | 'after' }  la sube/baja un puesto (solo admin).
+//                                                                    El orden guardado es el de la portada,
+//                                                                    el del formulario de presupuesto y el del admin.
 //
 // No hay "borrar" a propósito: para quitar una categoría se oculta, y así no se pierde
 // ninguna foto ni vídeo que tuviera dentro.
@@ -84,7 +87,7 @@ export async function POST(req: Request) {
   const denied = await requireAdmin(req)
   if (denied) return denied
 
-  let body: { action?: string; slug?: string; category?: Record<string, unknown> }
+  let body: { action?: string; slug?: string; direction?: string; category?: Record<string, unknown> }
   try {
     body = await req.json()
   } catch {
@@ -154,6 +157,28 @@ export async function POST(req: Request) {
           if (input.price) next.price = cleanLocalized(input.price, 80)
           return next
         })
+      })
+      return NextResponse.json({ categories })
+    } catch (e) {
+      if (e instanceof Error && e.message === 'NOT_FOUND') return fail('Esa categoría no existe.', 404)
+      return serverError(e)
+    }
+  }
+
+  if (body.action === 'move') {
+    const slug = String(body.slug ?? '')
+    const direction = body.direction === 'before' || body.direction === 'after' ? body.direction : null
+    if (!slug || !direction) return fail('Faltan datos para mover la categoría.', 400)
+
+    try {
+      const categories = await updateJSON<Category[]>(CATEGORIES_KEY, SEED_CATEGORIES, (current) => {
+        const from = current.findIndex((c) => c.slug === slug)
+        if (from < 0) throw new Error('NOT_FOUND')
+        const to = direction === 'before' ? from - 1 : from + 1
+        if (to < 0 || to >= current.length) return current // ya está en el extremo: no se mueve
+        const next = [...current]
+        ;[next[from], next[to]] = [next[to], next[from]]
+        return next
       })
       return NextResponse.json({ categories })
     } catch (e) {
