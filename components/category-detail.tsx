@@ -322,10 +322,13 @@ export function CategoryDetail({
 
         {/* Info */}
         <div>
-          <span className="inline-block rounded-full bg-[var(--gold)] px-4 py-1.5 text-sm font-bold text-[var(--gold-foreground)]">
-            {tl(category.price)}
-          </span>
-          <h1 className="mt-4 text-3xl font-extrabold sm:text-4xl">{tl(category.title)}</h1>
+          {/* Insignia de precio: solo si has puesto uno en el admin. */}
+          {tl(category.price).trim() && (
+            <span className="inline-block rounded-full bg-[var(--gold)] px-4 py-1.5 text-sm font-bold text-[var(--gold-foreground)]">
+              {tl(category.price)}
+            </span>
+          )}
+          <h1 className={`${tl(category.price).trim() ? 'mt-4 ' : ''}text-3xl font-extrabold sm:text-4xl`}>{tl(category.title)}</h1>
           <p className="mt-5 whitespace-pre-line leading-relaxed text-muted-foreground">
             {tl(category.description)}
           </p>
