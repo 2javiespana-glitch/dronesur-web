@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
-import { useQuote } from '@/components/quote-modal'
 import { InstagramIcon } from '@/components/icons'
 import { SITE, type Lang } from '@/lib/content'
 import { alternatePath } from '@/lib/i18n-routes'
@@ -43,7 +42,6 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
     const target = alternatePath(pathname, next)
     if (target && target !== pathname) router.push(target)
   }
-  const { open } = useQuote()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [settings, setSettings] = useState<VisibilitySettings>(sections ?? {})
@@ -168,13 +166,6 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
           </button>
 
           <button
-            onClick={() => open()}
-            className="ml-1 hidden whitespace-nowrap rounded-full bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] sm:inline-flex"
-          >
-            {t('hero.cta')}
-          </button>
-
-          <button
             onClick={() => setMobileOpen((v) => !v)}
             className={`rounded-full p-2 xl:hidden ${textStrong}`}
             aria-label="Menú"
@@ -198,15 +189,6 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
                 {t(l.key)}
               </Link>
             ))}
-            <button
-              onClick={() => {
-                setMobileOpen(false)
-                open()
-              }}
-              className="mt-2 rounded-full bg-[var(--gold)] px-4 py-3 text-sm font-semibold text-[var(--gold-foreground)]"
-            >
-              {t('hero.cta')}
-            </button>
           </div>
         </nav>
       )}
