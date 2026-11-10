@@ -255,7 +255,7 @@ function MusicBlock({
         de Pixabay). Poner música con derechos de autor en tu web puede darte problemas.
       </p>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <AutoSaveStatus status={auto.status} error={auto.error} />
         <Status message={message} />
       </div>
@@ -398,7 +398,7 @@ function PilotBlock({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <AutoSaveStatus status={auto.status} error={auto.error} />
       </div>
     </Card>
@@ -489,7 +489,7 @@ function CitiesBlock({
         )
       })}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <AutoSaveStatus status={auto.status} error={auto.error} />
       </div>
     </Card>
