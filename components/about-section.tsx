@@ -50,14 +50,14 @@ export function AboutSection({ content }: { content: SiteContent['about'] }) {
           <p className="mt-6 whitespace-pre-line leading-relaxed text-muted-foreground">{p1}</p>
           <p className="mt-4 whitespace-pre-line leading-relaxed text-muted-foreground">{p2}</p>
 
-          <div className="mt-8 grid grid-cols-3 gap-4">
+          <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
             {stats.map((s) => (
               <div
                 key={s.label}
-                className="rounded-2xl border border-border bg-card p-4 text-center"
+                className="min-w-0 rounded-2xl border border-border bg-card p-3 text-center sm:p-4"
               >
-                <p className="text-3xl font-extrabold text-gold">{s.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-2xl font-extrabold text-gold sm:text-3xl">{s.value}</p>
+                <p className="mt-1 break-words text-xs text-muted-foreground">{s.label}</p>
               </div>
             ))}
           </div>
