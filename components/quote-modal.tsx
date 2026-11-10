@@ -200,7 +200,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setIsOpen(false)}
           />
-          <div ref={dialogRef} className="animate-fade-up relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl sm:p-8">
+          <div ref={dialogRef} className="animate-fade-up relative z-10 max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-6 shadow-2xl sm:p-8">
             <button
               onClick={() => setIsOpen(false)}
               className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground transition hover:bg-muted hover:text-foreground"
