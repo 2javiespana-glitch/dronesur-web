@@ -92,7 +92,7 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
           : 'border-b border-white/10 bg-[#0b0e14]/90 backdrop-blur-md'
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <Link href={localePath('/#top')} className="flex items-center gap-2.5" aria-label={lang === 'es' ? 'Dronesur inicio' : 'Dronesur home'}>
           <Image
             src="/logo-dronesur.png"
@@ -102,17 +102,17 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
             className="h-10 w-10 object-contain sm:h-11 sm:w-11"
             priority
           />
-          <span className={`text-lg font-bold tracking-tight ${textStrong}`}>
+          <span className={`hidden text-lg font-bold tracking-tight min-[360px]:inline ${textStrong}`}>
             Drone<span className="text-gold">sur</span>
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden items-center gap-1 xl:flex">
           {visibleLinks.map((l) => (
             <Link
               key={l.key}
               href={localePath(l.href)}
-              className={`rounded-md px-3 py-2 text-sm font-medium transition hover:text-gold ${textSoft}`}
+              className={`whitespace-nowrap rounded-md px-2.5 py-2 text-sm font-medium transition hover:text-gold ${textSoft}`}
             >
               {t(l.key)}
             </Link>
@@ -125,7 +125,7 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Instagram @${SITE.instagram}`}
-            className={`rounded-full p-2 transition hover:text-gold ${textSoft} ${hoverBg}`}
+            className={`hidden rounded-full p-2 transition hover:text-gold sm:inline-flex ${textSoft} ${hoverBg}`}
           >
             <InstagramIcon className="h-5 w-5" />
           </a>
@@ -169,14 +169,14 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
 
           <button
             onClick={() => open()}
-            className="ml-1 hidden rounded-full bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] sm:inline-flex"
+            className="ml-1 hidden whitespace-nowrap rounded-full bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] sm:inline-flex"
           >
             {t('hero.cta')}
           </button>
 
           <button
             onClick={() => setMobileOpen((v) => !v)}
-            className={`rounded-full p-2 lg:hidden ${textStrong}`}
+            className={`rounded-full p-2 xl:hidden ${textStrong}`}
             aria-label="Menú"
             aria-expanded={mobileOpen}
           >
@@ -186,7 +186,7 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
       </div>
 
       {mobileOpen && (
-        <nav className="border-t border-border bg-background/95 backdrop-blur-xl lg:hidden">
+        <nav className="max-h-[calc(100svh-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-background/95 backdrop-blur-xl xl:hidden">
           <div className="flex flex-col px-4 py-3">
             {visibleLinks.map((l) => (
               <Link
