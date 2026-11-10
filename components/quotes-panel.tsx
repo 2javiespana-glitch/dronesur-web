@@ -223,19 +223,19 @@ export function QuotesPanel({ password }: { password: string }) {
                 <dl className="mt-3 space-y-1 text-sm">
                   <div className="flex gap-2">
                     <dt className="w-20 shrink-0 text-muted-foreground">Servicio</dt>
-                    <dd className="font-medium">{q.service || '—'}</dd>
+                    <dd className="min-w-0 break-words font-medium">{q.service || '—'}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-20 shrink-0 text-muted-foreground">Zona</dt>
-                    <dd className="font-medium">{q.location || '—'}</dd>
+                    <dd className="min-w-0 break-words font-medium">{q.location || '—'}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-20 shrink-0 text-muted-foreground">Detalles</dt>
-                    <dd className="whitespace-pre-line">{q.details || '—'}</dd>
+                    <dd className="min-w-0 whitespace-pre-line break-words">{q.details || '—'}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="w-20 shrink-0 text-muted-foreground">Contacto</dt>
-                    <dd className="font-medium">{q.contact || 'No ha dejado ninguno'}</dd>
+                    <dd className="min-w-0 break-words font-medium">{q.contact || 'No ha dejado ninguno'}</dd>
                   </div>
                   {q.discount && (
                     <div className="flex gap-2">
