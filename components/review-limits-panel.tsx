@@ -167,7 +167,7 @@ export function ReviewLimitsPanel({ password }: { password: string }) {
           «A cada conexión», o elige «Total entre todos» para limitar el total del día.
         </p>
 
-        <div className="mt-5 flex items-center gap-3">
+        <div className="mt-5 flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={save}
