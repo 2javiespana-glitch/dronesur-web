@@ -24,7 +24,7 @@ export function ContactSection() {
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
             {t('contact.subtitle')}
           </p>
-          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap">
             <button
               onClick={() => open({ discount: true })}
               className="inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-[#1ebe5b]"
@@ -54,7 +54,7 @@ export function ContactSection() {
             </a>
           </div>
           {/* La dirección escrita, por si alguien no tiene programa de correo configurado */}
-          <p className="mt-5 text-sm text-muted-foreground">{CONTACT_EMAIL}</p>
+          <p className="mt-5 break-all text-sm text-muted-foreground">{CONTACT_EMAIL}</p>
         </div>
       </div>
     </section>
