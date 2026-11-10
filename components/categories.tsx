@@ -31,7 +31,10 @@ export function Categories({
       </div>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-        {categories.map((cat) => (
+        {categories.map((cat) => {
+          // Precio de la tarjeta: si lo dejas en blanco en el admin, no se muestra la insignia amarilla.
+          const price = tl(cat.price).trim()
+          return (
           <article
             key={cat.slug}
             className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-[var(--gold)]/50 hover:shadow-lg"
@@ -49,9 +52,11 @@ export function Categories({
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-              <span className="absolute bottom-3 left-3 rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-bold text-[var(--gold-foreground)]">
-                {tl(cat.price)}
-              </span>
+              {price && (
+                <span className="absolute bottom-3 left-3 rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-bold text-[var(--gold-foreground)]">
+                  {price}
+                </span>
+              )}
             </Link>
 
             <div className="flex flex-1 flex-col p-5">
@@ -76,7 +81,8 @@ export function Categories({
               </div>
             </div>
           </article>
-        ))}
+          )
+        })}
       </div>
     </section>
   )
