@@ -399,7 +399,7 @@ function Section({
           <h4 className="truncate text-sm font-bold">{title}</h4>
           {subtitle && <span className="shrink-0 text-xs text-muted-foreground">{subtitle}</span>}
         </div>
-        <div className="flex items-center gap-2">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2">{actions}</div>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{children}</div>
     </div>
