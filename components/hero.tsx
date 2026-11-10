@@ -289,7 +289,7 @@ export function Hero({ videos, music }: HeroProps) {
     <section
       id="top"
       onPointerDown={revealOnTouch}
-      className="group relative mt-16 w-full overflow-hidden bg-black sm:h-[calc(100svh-4rem)]"
+      className="group relative mt-16 w-full overflow-hidden bg-black sm:h-[calc(100svh-4rem)] sm:min-h-[32rem]"
     >
       {/* ---------- MÓVIL: caja de vídeo horizontal (estilo YouTube), sin recortar ---------- */}
       <div className="relative aspect-video w-full sm:hidden">
