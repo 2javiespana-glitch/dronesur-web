@@ -6,6 +6,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Box,
+  ChevronLeft,
+  ChevronRight,
   Film,
   Folder,
   Globe,
@@ -855,6 +857,30 @@ export function MediaManager({
     setCategories(res.data.categories)
   }
 
+  // Cambia el orden de las categorías: 'before' = un puesto antes (a la izquierda), 'after' = un puesto después.
+  // Es el orden en que salen en la portada, en el formulario de presupuesto y aquí.
+  const moveCategory = async (slug: string, direction: 'before' | 'after') => {
+    setCategories((prev) => {
+      const from = prev.findIndex((c) => c.slug === slug)
+      const to = direction === 'before' ? from - 1 : from + 1
+      if (from < 0 || to < 0 || to >= prev.length) return prev
+      const next = [...prev]
+      ;[next[from], next[to]] = [next[to], next[from]] // se ve al instante
+      return next
+    })
+    const res = await call<{ categories: Category[] }>('/api/categories', 'POST', password, {
+      action: 'move',
+      slug,
+      direction,
+    })
+    if (!res.ok) {
+      addError(res.error)
+      void loadAll()
+      return
+    }
+    setCategories(res.data.categories)
+  }
+
   const createCategory = async (texts: CategoryTexts): Promise<string | null> => {
     const res = await call<{ categories: Category[] }>('/api/categories', 'POST', password, {
       action: 'add',
@@ -1332,17 +1358,40 @@ export function MediaManager({
           </button>
           )}
 
-          {only !== 'hero' && categories.map((cat) => {
+          {only !== 'hero' && categories.map((cat, index) => {
             const cover = coverOf(cat.slug)
             const count = mediaOf(cat.slug).length
             const albumCount = albums.filter((a) => a.category === cat.slug).length
             const visible = cat.visible !== false
             return (
+              <div key={cat.slug} className="relative h-full">
+              {/* Flechas para cambiar el orden (no pueden ir dentro del botón de la tarjeta). */}
+              <div className="absolute left-3 top-3 z-10 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void moveCategory(cat.slug, 'before')}
+                  disabled={index === 0}
+                  aria-label={`Mover «${cat.title.es}» un puesto antes`}
+                  title="Mover antes"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/70 disabled:hover:text-white"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void moveCategory(cat.slug, 'after')}
+                  disabled={index === categories.length - 1}
+                  aria-label={`Mover «${cat.title.es}» un puesto después`}
+                  title="Mover después"
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-black/70 disabled:hover:text-white"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
               <button
-                key={cat.slug}
                 type="button"
                 onClick={() => setOpenSlug(cat.slug)}
-                className={`group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-[var(--gold)] ${
+                className={`group flex h-full w-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-[var(--gold)] ${
                   visible ? '' : 'opacity-60'
                 }`}
               >
@@ -1367,6 +1416,7 @@ export function MediaManager({
                   </p>
                 </div>
               </button>
+              </div>
             )
           })}
 
