@@ -20,8 +20,15 @@ export function AboutSection({ content }: { content: SiteContent['about'] }) {
 
   return (
     <section id="sobre" className="px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border border-border">
+      <div className="mx-auto grid max-w-7xl gap-x-10 gap-y-8 lg:grid-cols-2 lg:gap-y-0">
+        {/* 1) Título: en móvil va arriba del todo; en ordenador queda en la columna derecha */}
+        <div className="lg:col-start-2 lg:row-start-1 lg:self-end">
+          <h2 className="text-3xl font-extrabold sm:text-4xl">{t('about.title')}</h2>
+          <div className="mt-5 h-1 w-16 rounded-full bg-[var(--gold)]" />
+        </div>
+
+        {/* 2) Foto: debajo del título en móvil; a la izquierda, ocupando todo el alto, en ordenador */}
+        <div className="relative aspect-[4/3] overflow-hidden rounded-3xl border border-border lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:self-center">
           {content.image ? (
             <>
               <Image
@@ -44,10 +51,9 @@ export function AboutSection({ content }: { content: SiteContent['about'] }) {
           )}
         </div>
 
-        <div>
-          <h2 className="text-3xl font-extrabold sm:text-4xl">{t('about.title')}</h2>
-          <div className="mt-5 h-1 w-16 rounded-full bg-[var(--gold)]" />
-          <p className="mt-6 whitespace-pre-line leading-relaxed text-muted-foreground">{p1}</p>
+        {/* 3) Textos y cifras */}
+        <div className="lg:col-start-2 lg:row-start-2 lg:self-start">
+          <p className="whitespace-pre-line leading-relaxed text-muted-foreground lg:mt-6">{p1}</p>
           <p className="mt-4 whitespace-pre-line leading-relaxed text-muted-foreground">{p2}</p>
 
           <div className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
