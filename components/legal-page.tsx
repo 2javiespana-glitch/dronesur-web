@@ -69,7 +69,7 @@ export function LegalPage({
           </div>
         )}
 
-        <div className="mt-8 space-y-4 text-sm leading-relaxed text-foreground/90">
+        <div className="mt-8 space-y-4 break-words text-sm leading-relaxed text-foreground/90">
           {children}
         </div>
       </main>
