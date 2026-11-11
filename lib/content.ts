@@ -9,6 +9,8 @@ export interface VideoItem {
   type?: 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
   poster?: string
   albumId?: string
+  // Solo vídeos del carrusel: categoría a la que lleva el botón del carrusel (si no hay, no sale botón).
+  link?: { slug: string; title: Localized }
 }
 
 export const INITIAL_VIDEOS: VideoItem[] = [
