@@ -14,6 +14,7 @@ export type MediaItem = {
   albumId?: string
   alt?: string // descripción de la foto en español (para Google y lectores de pantalla)
   altEn?: string // lo mismo en inglés
+  linkSlug?: string // solo vídeos del carrusel: slug de la categoría a la que lleva el botón del carrusel
 }
 
 export type AlbumItem = { id: string; category: string; title: string; createdAt: number }
