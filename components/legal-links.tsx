@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { openCookieSettings } from '@/lib/consent'
 import { useSite } from '@/components/site-provider'
 import { useA11y } from '@/components/accessibility-provider'
+import { OwnershipNotice } from '@/components/content-notice'
 
 // Barra de enlaces legales al final de TODAS las páginas de la web.
 // Es lo que exige la ley: poder llegar al Aviso legal, a la Privacidad y a las Cookies
@@ -37,6 +38,8 @@ export function LegalLinks() {
           {en ? 'Accessibility' : 'Accesibilidad'}
         </button>
       </div>
+      {/* Aviso: todo el material (vídeos y fotos) es propio, no hay material externo */}
+      <OwnershipNotice en={en} variant="bar" className="mt-4" />
     </nav>
   )
 }
