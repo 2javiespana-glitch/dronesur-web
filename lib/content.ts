@@ -252,6 +252,14 @@ export const T: Dict = {
   'cat.view': { es: 'Ver categoría', en: 'View category' },
   'cat.quote': { es: 'Pedir presupuesto', en: 'Request a quote' },
   'cat.back': { es: 'Volver a servicios', en: 'Back to services' },
+  // Tarjeta final de la rejilla de servicios: «¿No encuentras tu caso?»
+  'cat.custom.badge': { es: 'Haznos una propuesta', en: 'Make us a proposal' },
+  'cat.custom.title': { es: '¿No encuentras tu caso?', en: 'Can’t find your case?' },
+  'cat.custom.text': {
+    es: 'Aceptamos todo tipo de propuestas y sugerencias. Cuéntanos qué necesitas volar y preparamos un plan a medida para tu proyecto.',
+    en: 'We welcome every kind of proposal and suggestion. Tell us what you need to fly and we’ll prepare a tailor-made plan for your project.',
+  },
+  'cat.custom.cta': { es: 'Haznos tu propuesta', en: 'Send us your proposal' },
   'cat.gallery': { es: 'Galería de trabajos', en: 'Work gallery' },
 
   'cover.title': { es: 'Cobertura y Servicios Incluidos', en: 'Coverage & Included Services' },
