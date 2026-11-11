@@ -70,10 +70,14 @@ export function SiteFooter() {
         <div className="text-center md:text-left">
           <p className="text-lg font-bold">
             Drone<span className="text-gold">sur</span>
-            {LEGAL.simboloMarca && (
-              <sup className="ml-0.5 text-[0.55em] font-normal text-muted-foreground">
+            {LEGAL.simboloMarca === '®' && (
+              <sup className="ml-0.5 text-[0.55em] font-normal text-muted-foreground">®</sup>
+            )}
+            {/* ™ ya es un carácter pequeño y elevado: no necesita <sup> */}
+            {LEGAL.simboloMarca && LEGAL.simboloMarca !== '®' && (
+              <span className="ml-0.5 text-xs font-normal text-muted-foreground">
                 {LEGAL.simboloMarca}
-              </sup>
+              </span>
             )}
           </p>
           <p className="mt-1 max-w-xs text-sm text-muted-foreground">
