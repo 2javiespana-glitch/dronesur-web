@@ -127,10 +127,12 @@ export default function AvisoLegalPage() {
 
       <H2>6. Propiedad intelectual e industrial</H2>
       <P>
-        Los textos, fotografías, vídeos, logotipos, marca, diseño y demás contenidos de esta web son
-        propiedad del titular o se usan con autorización, y están protegidos por la normativa de
-        propiedad intelectual e industrial. No está permitida su reproducción, distribución o
-        modificación sin autorización previa y por escrito.
+        Todos los vídeos y fotografías de esta web han sido grabados por el titular (Dronesur
+        {LEGAL.simboloMarca}); no se utiliza material de terceros. Los textos, logotipos, marca,
+        diseño y demás contenidos son propiedad del titular o se usan con autorización, y están
+        protegidos por la normativa de propiedad intelectual e industrial. No está permitida su
+        reproducción, distribución ni modificación, ni su uso para otros fines, por parte de
+        empresas o de particulares, sin autorización previa y por escrito.
       </P>
 
       <H2>7. Responsabilidad</H2>
@@ -280,9 +282,11 @@ export default function AvisoLegalPage() {
 
       <H2>6. Intellectual and industrial property</H2>
       <P>
-        The texts, photographs, videos, logos, brand, design and other content of this website are
-        owned by the owner or used with authorisation, and are protected by intellectual and
-        industrial property law. Reproduction, distribution or modification without prior written
+        All videos and photographs on this website were recorded by the owner (Dronesur
+        {LEGAL.simboloMarca}); no third-party material is used. The texts, logos, brand, design and
+        other content are owned by the owner or used with authorisation, and are protected by
+        intellectual and industrial property law. Reproduction, distribution or modification, and
+        use for any other purpose, by companies or private individuals, without prior written
         authorisation is not permitted.
       </P>
 
