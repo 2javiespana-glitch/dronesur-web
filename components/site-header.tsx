@@ -36,11 +36,13 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
   const router = useRouter()
 
   // Cambiar de idioma: si la página tiene versión en el otro idioma, se va a ella (cada idioma tiene su
-  // propia dirección, /en/...); si no (por ejemplo, las páginas legales), solo cambia el texto.
+  // propia dirección, /en/...) y el idioma lo marca esa dirección; si no (por ejemplo, las páginas
+  // legales), solo cambia el texto de la cabecera.
   const switchLang = (next: Lang) => {
-    setLang(next)
+    if (next === lang) return
     const target = alternatePath(pathname, next)
     if (target && target !== pathname) router.push(target)
+    else setLang(next)
   }
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
