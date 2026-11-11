@@ -786,6 +786,16 @@ export function MediaManager({
     return null
   }
 
+  // Categoría a la que lleva el botón de un vídeo del carrusel ('' = sin botón).
+  const saveLink = async (id: string, linkSlug: string) => {
+    const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, { action: 'update', id, linkSlug })
+    if (!res.ok) {
+      addError(res.error)
+      return
+    }
+    setMedia(res.data.items)
+  }
+
   const removeMedia = async (id: string): Promise<boolean> => {
     const res = await call<{ items: MediaItem[] }>('/api/media', 'DELETE', password, { id })
     if (!res.ok) {
@@ -1092,11 +1102,30 @@ export function MediaManager({
         <h2 className="mt-4 text-xl font-bold">Carrusel de inicio</h2>
         <p className="text-sm text-muted-foreground">
           Los vídeos que se ven al abrir la web, uno detrás de otro. Solo se admiten vídeos.
+          <br />
+          Debajo de cada vídeo elige a qué categoría lleva el botón que sale en el carrusel («Ver Inmobiliaria»,
+          etc.). Si lo dejas en «Sin botón», ese vídeo sale sin enlace.
         </p>
         {errorBanner}
         <Section title="Vídeos del carrusel" subtitle={`${items.length}`}>
           {items.map((item) => (
-            <MediaTile key={item.id} item={item} onDelete={() => askDeleteMedia(item)} />
+            <div key={item.id} className="space-y-1.5">
+              <MediaTile item={item} onDelete={() => askDeleteMedia(item)} />
+              <select
+                value={item.linkSlug ?? ''}
+                onChange={(e) => void saveLink(item.id, e.target.value)}
+                aria-label="Categoría a la que lleva el botón de este vídeo"
+                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus:border-[var(--gold)]"
+              >
+                <option value="">Sin botón</option>
+                {categories.map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.title.es}
+                    {c.visible === false ? ' (oculta)' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           ))}
           <AddTile
             accept="video/*"
