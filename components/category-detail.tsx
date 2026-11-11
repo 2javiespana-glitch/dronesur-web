@@ -24,6 +24,7 @@ import { playableVideoUrl, thumbUrl } from '@/lib/media-url'
 import { PanoramaViewer } from '@/components/panorama-viewer'
 import { Model3DViewer } from '@/components/model-3d-viewer'
 import { EmbedViewer } from '@/components/embed-viewer'
+import { OwnershipNotice } from '@/components/content-notice'
 
 type GalleryKind = 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
 type GalleryItem = { id: string; url: string; type: GalleryKind; alt?: string; altEn?: string }
@@ -197,6 +198,9 @@ export function CategoryDetail({
               })}
             </div>
           )}
+
+          {/* Al entrar en una carpeta: aviso de que el contenido es propio y no se puede usar sin permiso */}
+          {selectedFolder && <OwnershipNotice en={!es} variant="album" className="mb-4" />}
 
           {/* Visor grande: si hay carpetas pero no se ha elegido ninguna, se pide elegir */}
           {hasFolders && !selectedFolder ? (
