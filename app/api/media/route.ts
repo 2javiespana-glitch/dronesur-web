@@ -40,6 +40,7 @@ type MediaItem = {
   albumId?: string
   alt?: string // descripción de la foto (para Google y lectores de pantalla)
   altEn?: string
+  linkSlug?: string // solo vídeos del carrusel: categoría a la que lleva su botón
 }
 
 export async function GET() {
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
   const denied = await requireAdmin(req)
   if (denied) return denied
 
-  let body: { action?: string; item?: Partial<MediaItem>; id?: string; alt?: unknown; altEn?: unknown }
+  let body: { action?: string; item?: Partial<MediaItem>; id?: string; alt?: unknown; altEn?: unknown; linkSlug?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -72,15 +73,28 @@ export async function POST(req: Request) {
     const clean = (value: unknown) => (typeof value === 'string' ? value.trim().slice(0, 200) : '')
     const alt = clean(body.alt)
     const altEn = clean(body.altEn)
+    const touchesAlt = body.alt !== undefined || body.altEn !== undefined
+    // Categoría a la que lleva el botón de un vídeo del carrusel (vacío = sin botón).
+    const touchesLink = body.linkSlug !== undefined
+    const linkSlug = typeof body.linkSlug === 'string' ? body.linkSlug.trim() : ''
     try {
+      if (touchesLink && linkSlug && !(await isAllowedCategory(linkSlug))) {
+        return fail('Categoría no válida', 400)
+      }
       const updated = await updateJSON<MediaItem[]>(KEY, [], (items) =>
         items.map((m) => {
           if (m.id !== id) return m
           const next: MediaItem = { ...m }
-          if (alt) next.alt = alt
-          else delete next.alt
-          if (altEn) next.altEn = altEn
-          else delete next.altEn
+          if (touchesAlt) {
+            if (alt) next.alt = alt
+            else delete next.alt
+            if (altEn) next.altEn = altEn
+            else delete next.altEn
+          }
+          if (touchesLink) {
+            if (linkSlug) next.linkSlug = linkSlug
+            else delete next.linkSlug
+          }
           return next
         }),
       )
