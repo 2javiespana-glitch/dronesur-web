@@ -30,6 +30,10 @@ export const LEGAL = {
 
   actividad: 'Servicios profesionales de fotografía y vídeo aéreo con drones',
 
+  // Símbolo que sale junto al nombre «Dronesur» (pie de página, avisos de contenido propio y Aviso legal).
+  // '®' solo debe usarse si la marca está REGISTRADA (OEPM). Si todavía no lo está, pon '™' o déjalo ''.
+  simboloMarca: '®',
+
   // ====== EL INTERRUPTOR PARA CUANDO TE DES DE ALTA ======
   // Mientras trabajes gratis, escribe aquí hasta cuándo (ej. 'enero de 2027').
   // El día que empieces a cobrar, déjalo vacío: '' y los textos legales pasan solos
