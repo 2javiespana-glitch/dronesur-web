@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Lightbulb } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useLocalePath } from '@/components/use-locale-path'
 import { useQuote } from '@/components/quote-modal'
@@ -83,6 +83,30 @@ export function Categories({
           </article>
           )
         })}
+
+        {/* Tarjeta final: «¿No encuentras tu caso?». No es una categoría con página propia: abre el presupuesto. */}
+        <article className="relative flex min-h-[18rem] flex-col justify-center overflow-hidden rounded-2xl border border-[var(--gold)]/40 bg-gradient-to-br from-[var(--gold)]/15 via-card to-card p-7 shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-[var(--gold)] sm:p-8">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[var(--gold)]/20 blur-3xl" />
+          <div className="relative flex flex-col items-start">
+            <span className="inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[var(--gold-foreground)]">
+              <Lightbulb className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('cat.custom.badge')}
+            </span>
+            <h3 className="mt-5 text-3xl font-extrabold leading-tight">
+              <span className="text-gold">{t('cat.custom.title')}</span>
+            </h3>
+            <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground sm:text-base">
+              {t('cat.custom.text')}
+            </p>
+            <button
+              onClick={() => open()}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--gold)] px-6 py-3 text-sm font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)] sm:w-auto"
+            >
+              {t('cat.custom.cta')}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </article>
       </div>
     </section>
   )
