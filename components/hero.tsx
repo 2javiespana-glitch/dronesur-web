@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'lucide-react'
+import Link from 'next/link'
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { useA11y } from '@/components/accessibility-provider'
+import { useLocalePath } from '@/components/use-locale-path'
 import type { VideoItem } from '@/lib/content'
 import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
 
@@ -16,6 +18,7 @@ type HeroProps = {
 export function Hero({ videos, music }: HeroProps) {
   const { t, lang } = useSite()
   const { open } = useQuote()
+  const localePath = useLocalePath()
   const { reduceMotion } = useA11y()
   const [index, setIndex] = useState(0)
   // Pausa del carrusel. Mientras el visitante no pulse el botón, manda su ajuste de
@@ -97,6 +100,21 @@ export function Hero({ videos, music }: HeroProps) {
 
   const safeIndex = slideCount > 0 ? index % slideCount : 0
   const current = videos[safeIndex]
+
+  // Botón hacia la categoría del vídeo que se está viendo (si ese vídeo tiene una enlazada en el admin).
+  const catLink = current?.link
+  const catName = catLink ? ((lang === 'en' ? catLink.title.en : catLink.title.es) || catLink.title.es) : ''
+  const catButton = (className: string) =>
+    catLink ? (
+      <Link
+        key={current.id}
+        href={localePath(`/servicios/${catLink.slug}`)}
+        className={`animate-fade-up inline-flex items-center gap-2 rounded-full border border-[var(--gold)] bg-black/50 font-semibold text-white shadow-lg backdrop-blur-sm transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] ${className}`}
+      >
+        {lang === 'en' ? 'View' : 'Ver'} {catName}
+        <ArrowRight className="h-4 w-4" />
+      </Link>
+    ) : null
   const loading = !!current && ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
 
   // Cola de descarga: primero el vídeo actual, luego el siguiente, el siguiente...
@@ -296,6 +314,7 @@ export function Hero({ videos, music }: HeroProps) {
         {renderSlides(true)}
         <div className="pointer-events-none absolute inset-0 bg-black/10" />
         {controls(true)}
+        {catLink && <div className="absolute bottom-3 left-3 z-20 max-w-[70%]">{catButton('px-3 py-1.5 text-xs')}</div>}
         {hasMusic && (
           <button
             onClick={toggleMute}
@@ -356,6 +375,7 @@ export function Hero({ videos, music }: HeroProps) {
               {t('hero.services')}
             </a>
           </div>
+          {catLink && <div className="mt-4">{catButton('px-5 py-2.5 text-sm')}</div>}
         </div>
 
         {controls(false)}
