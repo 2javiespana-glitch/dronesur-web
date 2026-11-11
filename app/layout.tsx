@@ -65,8 +65,9 @@ const themeScript = `
     var el = document.documentElement;
     el.classList.remove('light','dark');
     el.classList.add(t);
-    var l = localStorage.getItem('dronesur-lang') || 'es';
-    el.setAttribute('lang', l);
+    // El idioma lo marca la dirección: /en... en inglés, el resto en español.
+    var p = location.pathname;
+    el.setAttribute('lang', p === '/en' || p.indexOf('/en/') === 0 ? 'en' : 'es');
   } catch (e) {
     document.documentElement.classList.add('dark');
   }
