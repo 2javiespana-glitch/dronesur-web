@@ -11,8 +11,8 @@ const BRAND = `Dronesur${LEGAL.simboloMarca}`
 
 const TEXT = {
   bar: {
-    es: `${BRAND} · Todos los vídeos y fotografías de esta web han sido grabados por Dronesur. No se utiliza material externo.`,
-    en: `${BRAND} · All videos and photographs on this website were recorded by Dronesur. No third-party material is used.`,
+    es: `${BRAND} · Todos los vídeos y fotografías son propios, sin material externo. Prohibido apropiarse de ellos, para uso personal o empresarial, sin consentimiento.`,
+    en: `${BRAND} · All videos and photographs are our own, with no third-party material. Appropriating them, for personal or business use, is prohibited without consent.`,
   },
   album: {
     es: `Todo el contenido de este álbum ha sido grabado por ${BRAND}. No se permite su uso, copia ni difusión para otros fines, ni por parte de empresas ni de particulares, sin consentimiento previo y por escrito.`,
