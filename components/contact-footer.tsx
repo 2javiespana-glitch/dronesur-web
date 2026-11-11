@@ -70,6 +70,11 @@ export function SiteFooter() {
         <div className="text-center md:text-left">
           <p className="text-lg font-bold">
             Drone<span className="text-gold">sur</span>
+            {LEGAL.simboloMarca && (
+              <sup className="ml-0.5 text-[0.55em] font-normal text-muted-foreground">
+                {LEGAL.simboloMarca}
+              </sup>
+            )}
           </p>
           <p className="mt-1 max-w-xs text-sm text-muted-foreground">
             {t('footer.tagline')}
@@ -106,7 +111,7 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-border py-4 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Dronesur · @{SITE.instagram} · {t('footer.rights')}
+        © {new Date().getFullYear()} Dronesur{LEGAL.simboloMarca} · @{SITE.instagram} · {t('footer.rights')}
       </div>
     </footer>
   )
