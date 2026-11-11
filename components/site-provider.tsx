@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { type Lang, translate } from '@/lib/content'
 
 type Theme = 'light' | 'dark'
@@ -18,18 +19,29 @@ type SiteContextValue = {
 const SiteContext = createContext<SiteContextValue | null>(null)
 
 const THEME_KEY = 'dronesur-theme'
-const LANG_KEY = 'dronesur-lang'
+
+// El idioma lo decide la dirección de la página: /en y todo lo que cuelga de /en está en inglés; el resto,
+// en español. Ya no se recuerda en el navegador (antes una visita a /en hacía que la dirección en español
+// se mostrara en inglés). El botón ES/EN de la cabecera es lo que lleva de una a otra.
+function langFromPath(pathname: string | null): Lang {
+  return pathname === '/en' || pathname?.startsWith('/en/') ? 'en' : 'es'
+}
 
 export function SiteProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const [theme, setTheme] = useState<Theme>('dark')
-  const [lang, setLangState] = useState<Lang>('es')
+  const [lang, setLangState] = useState<Lang>(() => langFromPath(pathname))
 
   useEffect(() => {
-    const storedTheme = (localStorage.getItem(THEME_KEY) as Theme) || 'dark'
-    const storedLang = (localStorage.getItem(LANG_KEY) as Lang) || 'es'
-    setTheme(storedTheme)
-    setLangState(storedLang)
+    setTheme((localStorage.getItem(THEME_KEY) as Theme) || 'dark')
   }, [])
+
+  // Cada vez que se cambia de página, el idioma vuelve al que corresponde a su dirección.
+  useEffect(() => {
+    const next = langFromPath(pathname)
+    setLangState(next)
+    document.documentElement.setAttribute('lang', next)
+  }, [pathname])
 
   const applyTheme = useCallback((next: Theme) => {
     const el = document.documentElement
@@ -46,9 +58,10 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     })
   }, [applyTheme])
 
+  // Solo cambia el texto de la página actual (para las páginas que no tienen versión en el otro idioma,
+  // como las legales). No se guarda: al cambiar de página vuelve al idioma de su dirección.
   const setLang = useCallback((next: Lang) => {
     setLangState(next)
-    localStorage.setItem(LANG_KEY, next)
     document.documentElement.setAttribute('lang', next)
   }, [])
 
@@ -72,7 +85,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 }
 
 // Fuerza el idioma de una zona de la web. Se usa en las páginas /en: el texto se genera ya en inglés
-// en el servidor (así Google ve inglés) y además se recuerda la preferencia del visitante.
+// en el servidor (así Google ve inglés).
 export function LangOverride({ lang, children }: { lang: Lang; children: React.ReactNode }) {
   const parent = useSite()
   const { setLang: setParentLang } = parent
