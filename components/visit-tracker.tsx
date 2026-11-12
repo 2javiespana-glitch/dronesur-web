@@ -21,10 +21,20 @@ export function VisitTracker() {
       // Se ignora a propósito.
     }
 
+    // Enlaces de carteles, tarjetas, QR...: dronesur.es/?ref=cartel-1 → se apunta "cartel-1".
+    // Así sabes cuál de ellos te trae visitas. Solo letras, números, guion y guion bajo.
+    let ref = ''
+    try {
+      const raw = new URLSearchParams(window.location.search).get('ref') || ''
+      ref = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30)
+    } catch {
+      // Se ignora a propósito.
+    }
+
     void fetch('/api/visits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, from }),
+      body: JSON.stringify({ path, from, ref }),
       keepalive: true,
     }).catch(() => {})
   }, [])
