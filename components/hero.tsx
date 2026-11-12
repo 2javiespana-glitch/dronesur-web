@@ -442,15 +442,16 @@ export function Hero({ videos, music }: HeroProps) {
       {showDesktopNotice && (
         <div className="fixed inset-x-4 bottom-4 z-[200] flex items-center gap-3 rounded-xl border border-white/10 bg-[#12151c]/95 px-4 py-3 text-white shadow-xl backdrop-blur-sm sm:hidden">
           <p className="flex-1 text-xs leading-snug text-white/85">
-            Este sitio está optimizado para verse en ordenador. En móvil algunas partes
-            pueden verse distintas.
+            {lang === 'en'
+              ? 'This site is best viewed on a computer. On mobile, some parts may look different.'
+              : 'Este sitio está optimizado para verse en ordenador. En móvil algunas partes pueden verse distintas.'}
           </p>
           <button
             onClick={() => setShowDesktopNotice(false)}
             className="shrink-0 rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-white/90 transition hover:bg-white/10"
-            aria-label="Cerrar aviso"
+            aria-label={lang === 'en' ? 'Close notice' : 'Cerrar aviso'}
           >
-            Entendido
+            {lang === 'en' ? 'Got it' : 'Entendido'}
           </button>
         </div>
       )}
