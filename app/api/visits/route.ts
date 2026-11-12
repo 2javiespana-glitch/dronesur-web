@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic'
 
 const DAY_KEY = (d: string) => `dronesur:visits:day:${d}`
 const LIST_KEY = (d: string) => `dronesur:visits:list:${d}`
+const REF_KEY = (d: string) => `dronesur:visits:ref:${d}` // contador por día y por «ref» (cartel, tarjeta, QR...)
 const SEEN_KEY = (h: string) => `dronesur:visits:seen:${h}`
 const COUNTER_TTL = 400 * 24 * 60 * 60 // ~13 meses
 const LIST_TTL = 30 * 24 * 60 * 60 // 30 días
@@ -24,7 +25,7 @@ const SEEN_TTL = 30 * 60 // 30 minutos
 const MAX_LIST_PER_DAY = 200
 const BOT_RE = /bot|crawl|spider|slurp|preview|headless|lighthouse|pingdom|monitor|curl|wget/i
 
-type Visit = { t: number; province: string; city: string; device: string; path: string; from: string }
+type Visit = { t: number; province: string; city: string; device: string; path: string; from: string; ref?: string }
 
 // Los dos primeros dígitos del código postal español son la provincia.
 const PROVINCES: Record<string, string> = {
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
   const ua = req.headers.get('user-agent') || ''
   if (!ua || BOT_RE.test(ua)) return NextResponse.json({ ok: true, counted: false })
 
-  let body: { path?: unknown; from?: unknown } = {}
+  let body: { path?: unknown; from?: unknown; ref?: unknown } = {}
   try {
     body = await req.json()
   } catch {
@@ -93,6 +94,8 @@ export async function POST(req: Request) {
   }
   const path = text(body.path, 80)
   const from = text(body.from, 60)
+  // «ref»: solo letras minúsculas, números, guion y guion bajo (nunca texto libre).
+  const ref = text(body.ref, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '')
 
   try {
     // La misma conexión y navegador cuentan una sola vez cada 30 minutos.
@@ -109,10 +112,15 @@ export async function POST(req: Request) {
       device: /mobile|android|iphone/i.test(ua) ? 'móvil' : 'ordenador',
       path,
       from,
+      ...(ref ? { ref } : {}),
     }
 
     await redis(['HINCRBY', DAY_KEY(day), province, '1'])
     await redis(['EXPIRE', DAY_KEY(day), String(COUNTER_TTL)])
+    if (ref) {
+      await redis(['HINCRBY', REF_KEY(day), ref, '1'])
+      await redis(['EXPIRE', REF_KEY(day), String(COUNTER_TTL)])
+    }
     await redis(['LPUSH', LIST_KEY(day), JSON.stringify(visit)])
     await redis(['LTRIM', LIST_KEY(day), '0', String(MAX_LIST_PER_DAY - 1)])
     await redis(['EXPIRE', LIST_KEY(day), String(LIST_TTL)])
@@ -131,7 +139,23 @@ export async function GET(req: Request) {
 
   try {
     const dates = Array.from({ length: days }, (_, i) => madridDay(i))
-    const hashes = await Promise.all(dates.map((d) => redis(['HGETALL', DAY_KEY(d)])))
+    const [hashes, refHashes] = await Promise.all([
+      Promise.all(dates.map((d) => redis(['HGETALL', DAY_KEY(d)]))),
+      Promise.all(dates.map((d) => redis(['HGETALL', REF_KEY(d)]))),
+    ])
+
+    // Visitas por «ref» (carteles, tarjetas, QR...) sumadas en todo el periodo.
+    const refTotals: Record<string, number> = {}
+    for (const flat of refHashes as unknown[]) {
+      if (!Array.isArray(flat)) continue
+      for (let k = 0; k + 1 < flat.length; k += 2) {
+        const name = String(flat[k])
+        refTotals[name] = (refTotals[name] || 0) + (Number(flat[k + 1]) || 0)
+      }
+    }
+    const refs = Object.entries(refTotals)
+      .map(([ref, visits]) => ({ ref, visits }))
+      .sort((a, b) => b.visits - a.visits)
 
     const totals: Record<string, number> = {}
     const byDay = dates.map((date, i) => {
@@ -168,7 +192,7 @@ export async function GET(req: Request) {
       .sort((a, b) => b.visits - a.visits)
 
     return NextResponse.json(
-      { total: list.reduce((s, x) => s + x.visits, 0), totals: list, byDay, recent },
+      { total: list.reduce((s, x) => s + x.visits, 0), totals: list, refs, byDay, recent },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (e) {
