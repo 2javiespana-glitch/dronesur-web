@@ -11,6 +11,7 @@ import {
   Film,
   Folder,
   Globe,
+  GripVertical,
   ImageIcon,
   Link2,
   Pencil,
@@ -26,6 +27,7 @@ import {
   type Localized,
 } from '@/lib/content'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
 import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
 import {
   type AlbumItem,
@@ -192,6 +194,46 @@ function ConfirmDialog({ state, onClose }: { state: ConfirmState; onClose: () =>
   )
 }
 
+// Reproductor del admin: abre el vídeo en una ventana para comprobarlo (también en el móvil).
+// Pide la copia H.264 reducida (la misma que ve un visitante en móvil) y, si no carga, prueba con el original.
+function VideoPreview({ item, onClose }: { item: MediaItem; onClose: () => void }) {
+  const [src, setSrc] = useState(() => playableVideoUrl(item.url, MOBILE_VIDEO_WIDTH))
+  const [failed, setFailed] = useState(false)
+  return (
+    <Modal title={item.title || 'Vídeo'} onClose={onClose} wide>
+      {failed ? (
+        <div className="space-y-3 text-sm">
+          <p className="text-destructive">Este navegador no ha podido reproducir el vídeo.</p>
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex rounded-lg border border-border px-3.5 py-2 font-semibold hover:bg-muted"
+          >
+            Abrir el vídeo original
+          </a>
+        </div>
+      ) : (
+        <video
+          key={src}
+          src={src}
+          poster={thumbnailOf(item) ?? undefined}
+          controls
+          autoPlay
+          muted
+          playsInline
+          preload="metadata"
+          onError={() => {
+            if (src !== item.url) setSrc(item.url)
+            else setFailed(true)
+          }}
+          className="max-h-[70vh] w-full rounded-lg bg-black"
+        />
+      )}
+    </Modal>
+  )
+}
+
 // Una foto o vídeo con su miniatura. Al pasar el ratón aparece el cuadradito para eliminarlo
 // (en el móvil, que no tiene ratón, se ve siempre).
 function MediaTile({
@@ -205,6 +247,7 @@ function MediaTile({
 }) {
   const kind = kindOf(item)
   const missingAlt = !!onEdit && !item.alt
+  const [playing, setPlaying] = useState(false)
   return (
     <div
       className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-muted"
@@ -212,10 +255,19 @@ function MediaTile({
     >
       <Thumb src={thumbnailOf(item)} kind={kind} alt={item.title || kindLabel(kind)} />
       {kind === 'video' && (
-        <span className="pointer-events-none absolute bottom-1.5 left-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white">
-          <Play className="h-3 w-3 fill-current" />
-        </span>
+        <button
+          type="button"
+          onClick={() => setPlaying(true)}
+          aria-label="Reproducir vídeo"
+          title="Reproducir"
+          className="absolute inset-0 flex items-center justify-center bg-black/0 transition hover:bg-black/20 focus-visible:bg-black/20"
+        >
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white shadow-lg">
+            <Play className="h-5 w-5 fill-current" />
+          </span>
+        </button>
       )}
+      {playing && <VideoPreview item={item} onClose={() => setPlaying(false)} />}
       {kind === 'panorama' && (
         <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
           360°
@@ -728,6 +780,11 @@ export function MediaManager({
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [special, setSpecial] = useState<Target | null>(null)
   const [altItem, setAltItem] = useState<MediaItem | null>(null)
+  // Orden del carrusel: qué toma se está arrastrando y sobre cuál está (solo mientras se arrastra).
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [overId, setOverId] = useState<string | null>(null)
+  const dragRef = useRef<string | null>(null)
+  const overRef = useRef<string | null>(null)
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [showTexts, setShowTexts] = useState(false)
   const [newAlbumTitle, setNewAlbumTitle] = useState('')
@@ -794,6 +851,49 @@ export function MediaManager({
       return
     }
     setMedia(res.data.items)
+  }
+
+  // Orden de las tomas del carrusel: es el orden en que se reproducen en la web.
+  const saveHeroOrder = async (ids: string[]) => {
+    const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, {
+      action: 'reorder',
+      category: HERO,
+      ids,
+    })
+    if (!res.ok) {
+      addError(res.error)
+      void loadAll()
+      return
+    }
+    setMedia(res.data.items)
+  }
+
+  // Coloca la toma `id` en el puesto de la toma `targetId` (se ve al instante y se guarda en el servidor).
+  const moveHero = (id: string, targetId: string) => {
+    const ids = media.filter((m) => m.category === HERO).map((m) => m.id)
+    const from = ids.indexOf(id)
+    const to = ids.indexOf(targetId)
+    if (from < 0 || to < 0 || from === to) return
+    const next = [...ids]
+    next.splice(from, 1)
+    next.splice(to, 0, id)
+    setMedia((prev) => {
+      const byId = new Map(prev.map((m) => [m.id, m]))
+      const reordered = next.map((i) => byId.get(i)).filter((m): m is MediaItem => !!m)
+      let k = 0
+      return prev.map((m) => (m.category === HERO ? reordered[k++] ?? m : m))
+    })
+    void saveHeroOrder(next)
+  }
+
+  const endDrag = (drop: boolean) => {
+    const from = dragRef.current
+    const to = overRef.current
+    dragRef.current = null
+    overRef.current = null
+    setDragId(null)
+    setOverId(null)
+    if (drop && from && to && from !== to) moveHero(from, to)
   }
 
   const removeMedia = async (id: string): Promise<boolean> => {
@@ -1106,11 +1206,76 @@ export function MediaManager({
           Debajo de cada vídeo elige a qué categoría lleva el botón que sale en el carrusel («Ver Inmobiliaria»,
           etc.). Si lo dejas en «Sin botón», ese vídeo sale sin enlace.
         </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          <span className="text-foreground">Orden:</span> el número es el orden en que se ven. Para cambiarlo,
+          mantén pulsado el icono <GripVertical className="inline h-3.5 w-3.5 align-text-bottom" /> de un vídeo y
+          arrástralo sobre el puesto donde quieres ponerlo (o usa las flechas). Toca el vídeo para reproducirlo.
+        </p>
         {errorBanner}
         <Section title="Vídeos del carrusel" subtitle={`${items.length}`}>
-          {items.map((item) => (
-            <div key={item.id} className="space-y-1.5">
+          {items.map((item, index) => (
+            <div
+              key={item.id}
+              data-hero-id={item.id}
+              className={`space-y-1.5 rounded-xl transition ${
+                dragId === item.id ? 'opacity-40' : ''
+              } ${dragId && overId === item.id && dragId !== item.id ? 'ring-2 ring-[var(--gold)] ring-offset-2 ring-offset-background' : ''}`}
+            >
               <MediaTile item={item} onDelete={() => askDeleteMedia(item)} />
+              <div className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  aria-label={`Arrastrar para cambiar el orden (puesto ${index + 1})`}
+                  title="Mantén pulsado y arrastra"
+                  onPointerDown={(e) => {
+                    if (e.pointerType === 'mouse' && e.button !== 0) return
+                    e.currentTarget.setPointerCapture(e.pointerId)
+                    dragRef.current = item.id
+                    overRef.current = null
+                    setDragId(item.id)
+                  }}
+                  onPointerMove={(e) => {
+                    if (dragRef.current !== item.id) return
+                    const el = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest(
+                      '[data-hero-id]',
+                    ) as HTMLElement | null
+                    const over = el?.dataset.heroId ?? null
+                    if (over !== overRef.current) {
+                      overRef.current = over
+                      setOverId(over)
+                    }
+                    // Cerca del borde de la pantalla, la página se desplaza sola.
+                    if (e.clientY < 90) window.scrollBy({ top: -14, behavior: 'instant' })
+                    else if (e.clientY > window.innerHeight - 90) window.scrollBy({ top: 14, behavior: 'instant' })
+                  }}
+                  onPointerUp={() => endDrag(true)}
+                  onPointerCancel={() => endDrag(false)}
+                  className="flex h-8 w-9 cursor-grab touch-none select-none items-center justify-center gap-0.5 rounded-lg border border-border bg-background text-muted-foreground transition hover:text-gold active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </button>
+                <span className="flex-1 text-center text-xs font-bold tabular-nums text-muted-foreground">
+                  {index + 1} / {items.length}
+                </span>
+                <button
+                  type="button"
+                  disabled={index === 0}
+                  onClick={() => moveHero(item.id, items[index - 1].id)}
+                  aria-label="Subir un puesto (antes)"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border transition hover:bg-muted disabled:opacity-30"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={index === items.length - 1}
+                  onClick={() => moveHero(item.id, items[index + 1].id)}
+                  aria-label="Bajar un puesto (después)"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border transition hover:bg-muted disabled:opacity-30"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
               <select
                 value={item.linkSlug ?? ''}
                 onChange={(e) => void saveLink(item.id, e.target.value)}
