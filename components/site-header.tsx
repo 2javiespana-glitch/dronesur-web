@@ -11,6 +11,10 @@ import { SITE, type Lang } from '@/lib/content'
 import { alternatePath } from '@/lib/i18n-routes'
 import { useLocalePath } from '@/components/use-locale-path'
 
+// Se pone a true al cambiar de idioma y se apaga cuando la página nueva ya está en pantalla.
+// Es una variable de módulo (no un estado) porque al ir de / a /en la cabecera se vuelve a crear.
+let pendingScrollTop = false
+
 // Claves de /api/settings que controlan secciones con enlace en el menú.
 type SectionKey = 'promo' | 'guarantee' | 'reviews' | 'legal' | 'about'
 type VisibilitySettings = Partial<Record<SectionKey, boolean>>
@@ -41,9 +45,23 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
   const switchLang = (next: Lang) => {
     if (next === lang) return
     const target = alternatePath(pathname, next)
-    if (target && target !== pathname) router.push(target)
-    else setLang(next)
+    if (target && target !== pathname) {
+      // La traducción siempre empieza arriba, en el hero (antes dejaba la página en otro punto, a veces al final).
+      // scroll:false evita el desplazamiento automático de Next; lo hacemos nosotros, sin animación.
+      pendingScrollTop = true
+      router.push(target, { scroll: false })
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    } else setLang(next)
   }
+
+  // Cuando llega la página en el otro idioma, se asegura de que se vea desde el principio.
+  useEffect(() => {
+    if (!pendingScrollTop) return
+    pendingScrollTop = false
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    const id = window.setTimeout(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }), 150)
+    return () => window.clearTimeout(id)
+  }, [pathname])
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [settings, setSettings] = useState<VisibilitySettings>(sections ?? {})
