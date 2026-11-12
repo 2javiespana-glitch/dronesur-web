@@ -5,10 +5,11 @@ import { useCallback, useEffect, useState } from 'react'
 // Panel del admin: visitas a la web por provincia y últimas visitas.
 // Habla con /api/visits, que solo responde con la contraseña de admin.
 
-type Visit = { t: number; province: string; city: string; device: string; path: string; from: string }
+type Visit = { t: number; province: string; city: string; device: string; path: string; from: string; ref?: string }
 type Data = {
   total: number
   totals: { province: string; visits: number }[]
+  refs?: { ref: string; visits: number }[]
   byDay: { date: string; total: number }[]
   recent: Visit[]
 }
@@ -57,6 +58,7 @@ export function VisitsPanel({ password }: { password: string }) {
   }, [load])
 
   const max = data?.totals[0]?.visits || 1
+  const refMax = data?.refs?.[0]?.visits || 1
 
   return (
     <div className="mt-6 space-y-6">
@@ -109,6 +111,40 @@ export function VisitsPanel({ password }: { password: string }) {
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 className="text-base font-bold">Visitas por cartel o enlace</h3>
+          <span className="text-sm text-muted-foreground">
+            {loading ? 'Cargando...' : `${data?.refs?.reduce((s, r) => s + r.visits, 0) ?? 0} visitas`}
+          </span>
+        </div>
+
+        {!loading && (!data?.refs || data.refs.length === 0) && (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Aquí verás qué cartel, tarjeta o QR te trae visitas. Pon en cada uno un enlace con su nombre, por ejemplo{' '}
+            <span className="font-mono text-foreground">dronesur.es/?ref=cartel-1</span>. Todavía no ha entrado nadie por
+            uno de ellos en este periodo.
+          </p>
+        )}
+
+        <ul className="mt-4 space-y-2">
+          {data?.refs?.map((row) => (
+            <li key={row.ref} className="text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono font-medium">{row.ref}</span>
+                <span className="tabular-nums text-muted-foreground">{row.visits}</span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-[var(--gold)]"
+                  style={{ width: `${Math.max(3, Math.round((row.visits / refMax) * 100))}%` }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-5">
         <h3 className="text-base font-bold">Últimas visitas</h3>
         {!loading && data && data.recent.length === 0 && (
           <p className="mt-4 text-sm text-muted-foreground">Sin visitas recientes.</p>
@@ -122,6 +158,7 @@ export function VisitsPanel({ password }: { password: string }) {
               </span>
               <span className="text-xs text-muted-foreground">
                 {v.device}
+                {v.ref ? ` · ref ${v.ref}` : ''}
                 {v.from ? ` · desde ${v.from}` : ''}
                 {v.path && v.path !== '/' ? ` · ${v.path}` : ''} · {formatTime(v.t)}
               </span>
