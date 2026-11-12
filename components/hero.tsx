@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
-import { useQuote } from '@/components/quote-modal'
 import { useA11y } from '@/components/accessibility-provider'
 import { useLocalePath } from '@/components/use-locale-path'
 import type { VideoItem } from '@/lib/content'
@@ -17,7 +16,6 @@ type HeroProps = {
 
 export function Hero({ videos, music }: HeroProps) {
   const { t, lang } = useSite()
-  const { open } = useQuote()
   const localePath = useLocalePath()
   const { reduceMotion } = useA11y()
   const [index, setIndex] = useState(0)
@@ -109,25 +107,35 @@ export function Hero({ videos, music }: HeroProps) {
       <Link
         key={current.id}
         href={localePath(`/servicios/${catLink.slug}`)}
-        className={`animate-fade-up inline-flex items-center gap-2 rounded-full border border-[var(--gold)] bg-black/50 font-semibold text-white shadow-lg backdrop-blur-sm transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] ${className}`}
+        className={`animate-fade-up inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-[var(--gold)] bg-black/50 font-semibold text-white shadow-lg backdrop-blur-sm transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] ${className}`}
       >
-        {lang === 'en' ? 'View' : 'Ver'} {catName}
-        <ArrowRight className="h-4 w-4" />
+        <span className="truncate">
+          {lang === 'en' ? 'View' : 'Ver'} {catName}
+        </span>
+        <ArrowRight className="h-3.5 w-3.5 shrink-0" />
       </Link>
     ) : null
   const loading = !!current && ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
 
   // Cola de descarga: primero el vídeo actual, luego el siguiente, el siguiente...
-  // Un vídeo solo empieza a descargarse cuando todos los que van antes ya terminaron.
-  // Así se descargan de uno en uno (sin pelearse por la conexión) y no hay que esperar al pasarlos.
+  // Un vídeo solo empieza a descargarse cuando los que van antes ya terminaron, con una excepción: el
+  // SIGUIENTE empieza en cuanto el actual ya se puede ver (así está listo antes de que le toque).
+  // Como mucho se descargan dos a la vez, sin pelearse por la conexión.
+  // IMPORTANTE: un vídeo que ya empezó a cargarse se queda cargado hasta que se cierra la página. Antes,
+  // al avanzar, la cola le quitaba el enlace y el navegador tiraba lo descargado (había que volver a bajarlo
+  // y salía el círculo de carga al pasar a él).
+  const started = useRef<Record<string, boolean>>({})
   const canLoad = (i: number) => {
+    const id = videos[i].id
+    if (started.current[id]) return true
     const offset = (i - safeIndex + slideCount) % slideCount
-    if (offset === 0) return true
-    for (let o = 0; o < offset; o++) {
+    let ok = true
+    for (let o = 0; o < offset && ok; o++) {
       const v = videos[(safeIndex + o) % slideCount]
-      if (!full[v.id]) return false
+      ok = o === offset - 1 ? !!(ready[v.id] || full[v.id]) : !!full[v.id]
     }
-    return true
+    if (ok) started.current[id] = true
+    return ok
   }
 
   // Solo el vídeo actual se reproduce; los demás se quedan en pausa, ya cargados y listos.
@@ -149,11 +157,38 @@ export function Hero({ videos, music }: HeroProps) {
   }, [videos, current?.id, isMobile, paused])
 
   // El carrusel avanza 6 segundos DESPUÉS de que el vídeo actual esté listo, no antes.
+  // La cuenta atrás NO se reinicia por las paradas breves del vídeo (por ejemplo, al repetirse un vídeo
+  // corto): antes, un vídeo de menos de 6 s reiniciaba la cuenta en cada vuelta y el carrusel se quedaba
+  // en él para siempre. Si en el momento de pasar el vídeo está parado cargando, espera un segundo y reintenta.
+  // Tampoco pasa a la siguiente toma hasta que esa esté lista (como mucho espera 20 s extra): así, al cambiar,
+  // salta directamente sin enseñar el círculo de carga. Las flechas y los puntos siguen funcionando al momento.
+  const currentReady = !!current && (!!ready[current.id] || !!full[current.id])
+  const stalledNow = useRef<string | null>(null)
+  stalledNow.current = stalledId
+  const readyNow = useRef({ ready, full })
+  readyNow.current = { ready, full }
+  const currentId = current?.id
   useEffect(() => {
-    if (slideCount < 2 || loading || paused) return
-    const id = setTimeout(next, 6000)
+    if (slideCount < 2 || !currentReady || paused) return
+    let id: ReturnType<typeof setTimeout>
+    let extra = 0
+    const tick = () => {
+      if (stalledNow.current === currentId) {
+        id = setTimeout(tick, 1000)
+        return
+      }
+      const upcoming = videos[(safeIndex + 1) % slideCount]
+      const upcomingReady = !!upcoming && (readyNow.current.ready[upcoming.id] || readyNow.current.full[upcoming.id])
+      if (!upcomingReady && extra < 20000) {
+        extra += 500
+        id = setTimeout(tick, 500)
+        return
+      }
+      next()
+    }
+    id = setTimeout(tick, 6000)
     return () => clearTimeout(id)
-  }, [next, loading, paused, slideCount, safeIndex])
+  }, [next, currentReady, currentId, paused, slideCount, safeIndex, videos])
 
   const toggleMute = () => {
     const audio = audioRef.current
@@ -227,7 +262,10 @@ export function Hero({ videos, music }: HeroProps) {
                 onPlaying={() => {
                   if (stalledId === v.id) setStalledId(null)
                 }}
-                onWaiting={() => {
+                onWaiting={(e) => {
+                  // Al repetirse un vídeo en bucle el navegador avisa de una espera mínima: no es una carga a medias.
+                  const el = e.currentTarget
+                  if (el.currentTime < 0.3 || (el.duration && el.duration - el.currentTime < 0.3)) return
                   if (isCurrent) setStalledId(v.id)
                 }}
                 onError={(e) => {
@@ -261,6 +299,21 @@ export function Hero({ videos, music }: HeroProps) {
     )
   }
 
+  // Los puntos del carrusel (barra de progreso), reutilizados en las dos versiones.
+  const dots = (compact: boolean) =>
+    Array.from({ length: slideCount }).map((_, i) => (
+      <button
+        key={i}
+        onClick={() => setIndex(i)}
+        aria-label={`Slide ${i + 1}`}
+        className={`rounded-full transition-all ${compact ? 'h-1' : 'h-1.5'} ${
+          i === index
+            ? `${compact ? 'w-5' : 'w-8'} bg-[var(--gold)]`
+            : `${compact ? 'w-1.5' : 'w-2.5'} bg-white/50`
+        }`}
+      />
+    ))
+
   // Flechas, puntos y botón de silenciar, reutilizados en las dos versiones (tamaño distinto en cada una).
   const controls = (compact: boolean) => (
     <>
@@ -282,24 +335,24 @@ export function Hero({ videos, music }: HeroProps) {
       >
         <ChevronRight className={compact ? 'h-4 w-4' : 'h-5 w-5'} />
       </button>
-      <div
-        className={`absolute left-1/2 z-20 flex -translate-x-1/2 gap-2 ${
-          compact ? 'bottom-3' : 'bottom-8'
-        }`}
-      >
-        {Array.from({ length: slideCount }).map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setIndex(i)}
-            aria-label={`Slide ${i + 1}`}
-            className={`rounded-full transition-all ${compact ? 'h-1' : 'h-1.5'} ${
-              i === index
-                ? `${compact ? 'w-5' : 'w-8'} bg-[var(--gold)]`
-                : `${compact ? 'w-1.5' : 'w-2.5'} bg-white/50`
-            }`}
-          />
-        ))}
-      </div>
+      {compact ? (
+        <div className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 gap-2">{dots(true)}</div>
+      ) : (
+        // Escritorio: fila inferior con «Ver servicios» a la izquierda de los puntos y «Ver (categoría)» a la derecha.
+        // Los puntos quedan siempre en el centro; los botones, pegados a ellos.
+        <div className="pointer-events-none absolute inset-x-0 bottom-7 z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-5 px-28">
+          <div className="pointer-events-auto flex min-w-0 justify-end">
+            <a
+              href="#servicios"
+              className="animate-fade-up rounded-full border border-white/40 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+            >
+              {t('hero.services')}
+            </a>
+          </div>
+          <div className="pointer-events-auto flex gap-2">{dots(false)}</div>
+          <div className="pointer-events-auto flex min-w-0 justify-start">{catButton('px-3.5 py-1.5 text-xs')}</div>
+        </div>
+      )}
     </>
   )
 
@@ -314,7 +367,7 @@ export function Hero({ videos, music }: HeroProps) {
         {renderSlides(true)}
         <div className="pointer-events-none absolute inset-0 bg-black/10" />
         {controls(true)}
-        {catLink && <div className="absolute bottom-3 left-3 z-20 max-w-[70%]">{catButton('px-3 py-1.5 text-xs')}</div>}
+        {catLink && <div className="absolute bottom-7 left-3 z-20 max-w-[70%]">{catButton('px-3 py-1.5 text-xs')}</div>}
         {hasMusic && (
           <button
             onClick={toggleMute}
@@ -332,20 +385,12 @@ export function Hero({ videos, music }: HeroProps) {
           {t('hero.title')}
         </h1>
         <p className="max-w-md text-pretty text-sm text-white/80">{t('hero.subtitle')}</p>
-        <div className="flex w-full flex-col gap-3 xs:flex-row xs:justify-center">
-          <button
-            onClick={() => open()}
-            className="rounded-full bg-[var(--gold)] px-7 py-3 text-sm font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)]"
-          >
-            {t('hero.cta')}
-          </button>
-          <a
-            href="#servicios"
-            className="rounded-full border border-white/40 bg-white/10 px-7 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
-          >
-            {t('hero.services')}
-          </a>
-        </div>
+        <a
+          href="#servicios"
+          className="rounded-full border border-white/40 bg-white/10 px-6 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
+        >
+          {t('hero.services')}
+        </a>
       </div>
 
       {/* ---------- ESCRITORIO: igual que siempre, vídeo a pantalla completa con el texto encima ---------- */}
@@ -354,28 +399,13 @@ export function Hero({ videos, music }: HeroProps) {
         <div className="pointer-events-none absolute inset-0 bg-black/40" />
         <div className="pointer-events-none absolute inset-0 bg-hero-fade" />
 
-        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-end px-4 pb-24 text-center lg:pb-28">
-          <h1 className="animate-fade-up text-balance text-4xl font-extrabold leading-tight text-white drop-shadow-lg md:text-5xl lg:text-6xl">
+        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-end px-4 pb-24 text-center">
+          <h1 className="animate-fade-up text-balance text-3xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-4xl md:text-[2.6rem] lg:text-[3.25rem]">
             {t('hero.title')}
           </h1>
-          <p className="animate-fade-up mt-4 max-w-2xl text-pretty text-base text-white/85 drop-shadow md:text-lg">
+          <p className="animate-fade-up mt-3 max-w-2xl text-pretty text-[0.95rem] text-white/85 drop-shadow md:text-base">
             {t('hero.subtitle')}
           </p>
-          <div className="animate-fade-up mt-8 flex flex-col gap-3 sm:flex-row">
-            <button
-              onClick={() => open()}
-              className="rounded-full bg-[var(--gold)] px-7 py-3 text-sm font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)]"
-            >
-              {t('hero.cta')}
-            </button>
-            <a
-              href="#servicios"
-              className="rounded-full border border-white/40 bg-white/10 px-7 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
-            >
-              {t('hero.services')}
-            </a>
-          </div>
-          {catLink && <div className="mt-4">{catButton('px-5 py-2.5 text-sm')}</div>}
         </div>
 
         {controls(false)}
