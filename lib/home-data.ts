@@ -87,10 +87,23 @@ export async function loadHomeData(): Promise<HomeData> {
 
   const items = Array.isArray(media) ? media : []
 
+  const visibleCategories = (Array.isArray(categories) ? categories : CATEGORIES).filter((c) => c.visible !== false)
+
   // Vídeos del carrusel: solo los de categoría "hero" (los antiguos sin tipo cuentan como vídeo).
+  // Si el vídeo está enlazado a una categoría (y esa categoría existe y no está oculta), lleva su botón.
   const videos: VideoItem[] = items
     .filter((m) => m.category === 'hero' && (m.type === 'video' || !m.type))
-    .map((m) => ({ id: m.id, title: m.title, url: m.url, category: m.category, type: m.type }))
+    .map((m) => {
+      const cat = m.linkSlug ? visibleCategories.find((c) => c.slug === m.linkSlug) : undefined
+      return {
+        id: m.id,
+        title: m.title,
+        url: m.url,
+        category: m.category,
+        type: m.type,
+        ...(cat ? { link: { slug: cat.slug, title: cat.title } } : {}),
+      }
+    })
 
   // Portadas de las tarjetas (categoría "cover-<slug>"). La última subida gana.
   const covers: Record<string, string> = {}
@@ -118,7 +131,7 @@ export async function loadHomeData(): Promise<HomeData> {
   return {
     videos,
     covers,
-    categories: (Array.isArray(categories) ? categories : CATEGORIES).filter((c) => c.visible !== false),
+    categories: visibleCategories,
     settings,
     promoOverride,
     content: normalizeContent(savedContent),
