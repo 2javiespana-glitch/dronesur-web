@@ -13,6 +13,7 @@ import { warmVideoVariants } from '@/lib/video-warmup'
 // - POST    -> { action: 'check' }  comprueba la contraseña del admin
 //              { action: 'update', id, alt, altEn } escribe la descripción de una foto (solo admin)
 //              { action: 'add', item } añade una foto o vídeo (solo admin)
+//              { action: 'reorder', category, ids } cambia el orden de las tomas de una categoría (solo admin)
 // - DELETE  -> { id } borra un elemento (solo admin)
 
 export const dynamic = 'force-dynamic'
@@ -57,7 +58,16 @@ export async function POST(req: Request) {
   const denied = await requireAdmin(req)
   if (denied) return denied
 
-  let body: { action?: string; item?: Partial<MediaItem>; id?: string; alt?: unknown; altEn?: unknown; linkSlug?: unknown }
+  let body: {
+    action?: string
+    item?: Partial<MediaItem>
+    id?: string
+    alt?: unknown
+    altEn?: unknown
+    linkSlug?: unknown
+    category?: unknown
+    ids?: unknown
+  }
   try {
     body = await req.json()
   } catch {
@@ -98,6 +108,29 @@ export async function POST(req: Request) {
           return next
         }),
       )
+      return NextResponse.json({ items: updated })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
+
+  // Orden de las tomas de una categoría (se usa en el carrusel de inicio): `ids` es la lista de vídeos en el orden
+  // nuevo. Las tomas de esa categoría ocupan los mismos huecos de la lista; el resto de elementos no se mueven.
+  if (body.action === 'reorder') {
+    const category = typeof body.category === 'string' ? body.category : ''
+    const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === 'string') : []
+    if (!category || ids.length === 0 || ids.length > 500) return fail('Orden no válido', 400)
+    try {
+      const updated = await updateJSON<MediaItem[]>(KEY, [], (items) => {
+        const inCategory = items.filter((m) => m.category === category)
+        const byId = new Map(inCategory.map((m) => [m.id, m]))
+        const wanted = ids.filter((id, i) => byId.has(id) && ids.indexOf(id) === i).map((id) => byId.get(id) as MediaItem)
+        // Lo que no venga en la lista (por ejemplo, un vídeo subido a la vez) se queda al final, en su orden.
+        const rest = inCategory.filter((m) => !wanted.includes(m))
+        const ordered = [...wanted, ...rest]
+        let k = 0
+        return items.map((m) => (m.category === category ? ordered[k++] : m))
+      })
       return NextResponse.json({ items: updated })
     } catch (e) {
       return serverError(e)
