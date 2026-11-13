@@ -93,6 +93,7 @@ export default function PoliticaPrivacidadPage() {
       <UL
         items={[
           <>Vercel Inc. — alojamiento de la web.</>,
+          <>Google Ireland Ltd. — estadísticas de uso de la web (Google Analytics), solo si las aceptas en el aviso de cookies.</>,
           <>Upstash — base de datos (opiniones, solicitudes de presupuesto y contenidos de la web).</>,
           <>Telegram — aviso interno al titular cuando llega una solicitud o una opinión nueva.</>,
           <>
@@ -230,6 +231,7 @@ export default function PoliticaPrivacidadPage() {
       <UL
         items={[
           <>Vercel Inc. — website hosting.</>,
+          <>Google Ireland Ltd. — website usage statistics (Google Analytics), only if you accept them in the cookie notice.</>,
           <>Upstash — database (reviews, quote requests and website content).</>,
           <>Telegram — internal notification to the owner when a new request or review arrives.</>,
           <>
