@@ -51,6 +51,13 @@ const ITEMS = [
     duration: 'Según Vercel; no usa cookies',
   },
   {
+    name: '_ga y _ga_8PB8XG7Z04 (Google Analytics 4)',
+    purpose:
+      'Estadísticas de uso de la web (páginas vistas, desplazamiento, clics en enlaces externos y solicitudes de presupuesto) para entender cómo se usa y mejorarla. Solo se cargan si pulsas «Aceptar» en el aviso de cookies; si rechazas o cambias tu elección, se detienen y se borran. No usamos Google Analytics con fines publicitarios.',
+    type: 'Analítica (opcional), de tercero (Google)',
+    duration: 'Hasta 2 años',
+  },
+  {
     name: 'Recuento de visitas por provincia',
     purpose:
       'Cuenta de forma agregada desde qué provincia nos visitan, sin guardar tu IP. Solo se activa si pulsas «Aceptar» en el aviso de cookies.',
@@ -98,6 +105,13 @@ const ITEMS_EN = [
       'Anonymously measures how fast the website loads so we can improve it. It is only activated if you click “Accept” in the cookie notice.',
     type: 'Analytics (optional)',
     duration: 'According to Vercel; does not use cookies',
+  },
+  {
+    name: '_ga and _ga_8PB8XG7Z04 (Google Analytics 4)',
+    purpose:
+      'Website usage statistics (page views, scrolling, clicks on external links and quote requests) to understand how the site is used and improve it. They are only loaded if you click “Accept” in the cookie notice; if you reject or change your choice they are stopped and deleted. We do not use Google Analytics for advertising.',
+    type: 'Analytics (optional), third party (Google)',
+    duration: 'Up to 2 years',
   },
   {
     name: 'Visit count by province',
