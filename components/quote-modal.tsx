@@ -11,6 +11,7 @@ import {
 import Link from 'next/link'
 import { Mail, X } from 'lucide-react'
 import { CATEGORIES, SITE, type Category } from '@/lib/content'
+import { trackEvent } from '@/lib/analytics'
 import { useSite } from '@/components/site-provider'
 import { WhatsAppIcon } from '@/components/icons'
 import { openEmail } from '@/lib/email-link'
@@ -170,9 +171,15 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Medición (solo con cookies aceptadas): se envía el canal elegido y el nombre del servicio de la lista.
+  // Nunca la localidad, los detalles ni el contacto, que escribe el visitante.
+  const trackLead = (method: 'whatsapp' | 'email') =>
+    trackEvent('generate_lead', { method, ...(service ? { service } : {}) })
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
     recordQuote('whatsapp')
+    trackLead('whatsapp')
     const url = `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(buildMessage())}`
     window.open(url, '_blank', 'noopener,noreferrer')
     setIsOpen(false)
@@ -181,6 +188,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   // Misma solicitud, pero abriendo el programa de correo con el mensaje ya escrito.
   const sendByEmail = () => {
     recordQuote('email')
+    trackLead('email')
     const subject = lang === 'es' ? 'Solicitud de presupuesto' : 'Quote request'
     openEmail(LEGAL.email, subject, buildMessage())
     setIsOpen(false)
