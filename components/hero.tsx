@@ -8,6 +8,7 @@ import { useA11y } from '@/components/accessibility-provider'
 import { useLocalePath } from '@/components/use-locale-path'
 import type { VideoItem } from '@/lib/content'
 import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
+import { cachedVideo, fetchVideoToMemory, forgetVideo } from '@/lib/video-cache'
 
 type HeroProps = {
   videos: VideoItem[]
@@ -49,6 +50,10 @@ export function Hero({ videos, music }: HeroProps) {
   // Vídeos para los que la versión reducida del móvil falló: se vuelven a pedir como siempre.
   const [fullQuality, setFullQuality] = useState<Record<string, boolean>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
+  // Guardado en memoria (solo vídeo ligero del móvil, ver lib/video-cache.ts): 'pending' = descargándose,
+  // 'saved' = ya está en memoria, 'network' = no se ha podido guardar y se ve directamente de internet.
+  const [memState, setMemState] = useState<Record<string, 'pending' | 'saved' | 'network'>>({})
+  const memAbort = useRef<Record<string, AbortController>>({})
   // true = móvil, false = escritorio, null = aún no se sabe. Solo se carga el vídeo de UNA
   // de las dos versiones (antes se cargaban las dos, aunque una estuviera oculta).
   const [isMobile, setIsMobile] = useState<boolean | null>(null)
@@ -143,6 +148,44 @@ export function Hero({ videos, music }: HeroProps) {
     if (ok) started.current[id] = true
     return ok
   }
+
+  // Dirección real del vídeo (la reducida de 1280 px en móvil).
+  const lightNow = !!isMobile || phoneDevice
+  const urlOf = (v: VideoItem) =>
+    playableVideoUrl(v.url, lightNow && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
+  // ¿Se guarda este vídeo en memoria? Solo el ligero del móvil.
+  const keepInMemory = (v: VideoItem) => lightNow && !fullQuality[v.id]
+
+  // Vídeos en memoria: cuando le toca descargarse a un vídeo que NO es el que se está viendo, se baja entero a
+  // memoria en vez de verlo «en directo» (así se descarga una sola vez y se queda ahí hasta cerrar la pestaña).
+  // El vídeo que se está viendo siempre se ve en directo (empieza antes); si le toca antes de terminar de
+  // bajarse, se cancela la descarga a memoria y se ve en directo, como siempre.
+  useEffect(() => {
+    videos.forEach((v) => {
+      if (!keepInMemory(v) || memState[v.id]) return
+      const url = urlOf(v)
+      if (cachedVideo(url)) {
+        setMemState((m) => ({ ...m, [v.id]: 'saved' }))
+        return
+      }
+      if (v.id === current?.id || !started.current[v.id]) return
+      // Un vídeo que ya se estaba viendo en directo solo se guarda en memoria cuando ya se ha descargado entero
+      // (así el navegador casi siempre lo tiene en su caché y no hay que bajarlo otra vez).
+      if (ready[v.id] && !full[v.id]) return
+      const ctrl = new AbortController()
+      memAbort.current[v.id] = ctrl
+      const timeout = setTimeout(() => ctrl.abort(), 60000) // si tarda más de un minuto, se ve en directo
+      setMemState((m) => ({ ...m, [v.id]: 'pending' }))
+      void fetchVideoToMemory(url, ctrl.signal).then((saved) => {
+        clearTimeout(timeout)
+        delete memAbort.current[v.id]
+        setMemState((m) => ({ ...m, [v.id]: saved ? 'saved' : 'network' }))
+      })
+    })
+    // Si el que le toca ahora estaba bajándose a memoria, se cancela y se ve en directo.
+    const cur = current?.id
+    if (cur && memState[cur] === 'pending') memAbort.current[cur]?.abort()
+  })
 
   // Solo el vídeo actual se reproduce; los demás se quedan en pausa, ya cargados y listos.
   // Al salir de un vídeo NO se rebobina: saltar al segundo 0 obligaba al navegador a volver a pedir el principio
@@ -263,11 +306,17 @@ export function Hero({ videos, music }: HeroProps) {
                 // Sin "src" = todavía no le toca descargarse. Al tocarle, se pone el enlace.
                 // En móvil se pide una copia reducida a 1280 px de ancho (se ve igual de nítida en
                 // la pantalla y pesa mucho menos). En escritorio, el vídeo igual que siempre.
-                src={
-                  canLoad(i)
-                    ? playableVideoUrl(v.url, lightVideo && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
-                    : undefined
-                }
+                src={(() => {
+                  if (!canLoad(i)) return undefined
+                  const url = playableVideoUrl(v.url, lightVideo && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
+                  if (!(lightVideo && !fullQuality[v.id])) return url
+                  // Móvil: si ya está en memoria se usa esa copia; si no, el vídeo actual se ve en directo y los demás
+                  // esperan a que termine su descarga a memoria (o a que se sepa que no se puede guardar).
+                  const inMemory = cachedVideo(url)
+                  if (inMemory) return inMemory
+                  // (Si ya se estaba viendo en directo, conserva su enlace mientras se guarda en memoria.)
+                  return isCurrent || memState[v.id] === 'network' || ready[v.id] || full[v.id] ? url : undefined
+                })()}
                 poster={v.poster}
                 muted
                 loop
@@ -293,6 +342,12 @@ export function Hero({ videos, music }: HeroProps) {
                   // Si un vídeo falla, se da por terminado para que siga la cola y,
                   // si era el que se estaba viendo, se salta al siguiente.
                   if (!e.currentTarget.getAttribute('src')) return
+                  // Si falla la copia guardada en memoria, se olvida y se vuelve a ver directamente de internet.
+                  if (memState[v.id] === 'saved') {
+                    forgetVideo(urlOf(v))
+                    setMemState((m) => ({ ...m, [v.id]: 'network' }))
+                    return
+                  }
                   // Si falló la copia reducida del móvil, antes de darlo por perdido se prueba
                   // con el vídeo de siempre.
                   if (lightVideo && !fullQuality[v.id] && playableVideoUrl(v.url, MOBILE_VIDEO_WIDTH) !== playableVideoUrl(v.url)) {
