@@ -219,39 +219,45 @@ export function Hero({ videos, music }: HeroProps) {
     })
   }, [videos, current?.id, isMobile, paused])
 
-  // El carrusel avanza 6 segundos DESPUÉS de que el vídeo actual esté listo, no antes.
-  // La cuenta atrás NO se reinicia por las paradas breves del vídeo (por ejemplo, al repetirse un vídeo
-  // corto): antes, un vídeo de menos de 6 s reiniciaba la cuenta en cada vuelta y el carrusel se quedaba
-  // en él para siempre. Si en el momento de pasar el vídeo está parado cargando, espera un segundo y reintenta.
+  // Cada vídeo se ve ENTERO, con la duración que tenga (la que le hayas dejado al editarlo): el carrusel pasa al
+  // siguiente cuando el vídeo actual termina. Ya no hay límite de 6 segundos. Si solo hay un vídeo, se repite en bucle.
   // Tampoco pasa a la siguiente toma hasta que esa esté lista (como mucho espera 20 s extra): así, al cambiar,
   // salta directamente sin enseñar el círculo de carga. Las flechas y los puntos siguen funcionando al momento.
-  const currentReady = !!current && (!!ready[current.id] || !!full[current.id])
-  const stalledNow = useRef<string | null>(null)
-  stalledNow.current = stalledId
   const readyNow = useRef({ ready, full })
   readyNow.current = { ready, full }
-  const currentId = current?.id
-  useEffect(() => {
-    if (slideCount < 2 || !currentReady || paused) return
-    let id: ReturnType<typeof setTimeout>
+  const currentIdRef = useRef<string | undefined>(undefined)
+  currentIdRef.current = current?.id
+  const upcomingRef = useRef<VideoItem | undefined>(undefined)
+  upcomingRef.current = slideCount > 0 ? videos[(safeIndex + 1) % slideCount] : undefined
+  const pausedRef = useRef(false)
+  pausedRef.current = paused
+  const advanceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const advanceWhenReady = (fromId: string) => {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current)
     let extra = 0
     const tick = () => {
-      if (stalledNow.current === currentId) {
-        id = setTimeout(tick, 1000)
+      if (currentIdRef.current !== fromId) return // el visitante ya ha cambiado de toma con las flechas o los puntos
+      if (pausedRef.current) {
+        advanceTimer.current = setTimeout(tick, 500) // en pausa: se queda quieto hasta que se reanude
         return
       }
-      const upcoming = videos[(safeIndex + 1) % slideCount]
+      const upcoming = upcomingRef.current
       const upcomingReady = !!upcoming && (readyNow.current.ready[upcoming.id] || readyNow.current.full[upcoming.id])
       if (!upcomingReady && extra < 20000) {
         extra += 500
-        id = setTimeout(tick, 500)
+        advanceTimer.current = setTimeout(tick, 500)
         return
       }
       next()
     }
-    id = setTimeout(tick, 6000)
-    return () => clearTimeout(id)
-  }, [next, currentReady, currentId, paused, slideCount, safeIndex, videos])
+    tick()
+  }
+  useEffect(
+    () => () => {
+      if (advanceTimer.current) clearTimeout(advanceTimer.current)
+    },
+    [],
+  )
 
   const toggleMute = () => {
     const audio = audioRef.current
@@ -319,7 +325,7 @@ export function Hero({ videos, music }: HeroProps) {
                 })()}
                 poster={v.poster}
                 muted
-                loop
+                loop={slideCount < 2}
                 playsInline
                 preload="auto"
                 onCanPlay={(e) => {
@@ -328,6 +334,9 @@ export function Hero({ videos, music }: HeroProps) {
                   if (isCurrent && !paused) void e.currentTarget.play().catch(() => {})
                 }}
                 onCanPlayThrough={() => setFull((f) => (f[v.id] ? f : { ...f, [v.id]: true }))}
+                onEnded={() => {
+                  if (isCurrent && slideCount > 1) advanceWhenReady(v.id)
+                }}
                 onPlaying={() => {
                   if (stalledId === v.id) setStalledId(null)
                   setPlayed((p) => (p[v.id] ? p : { ...p, [v.id]: true }))
