@@ -23,6 +23,19 @@ export function playableVideoUrl(url: string, maxWidth?: number): string {
     .replace(/\.[a-z0-9]+(\?.*)?$/i, '.mp4')
 }
 
+// Imagen de portada de un vídeo: su primer fotograma, como JPG ligero (lo genera Cloudinary; no es una conversión de
+// vídeo, así que funciona también con vídeos pesados). Sirve para que, mientras el vídeo carga, o si el navegador no
+// le deja arrancar solo (iPhone con el modo de bajo consumo, por ejemplo), se vea una imagen y no un cuadro vacío.
+// Devuelve undefined si el vídeo no es de Cloudinary o ya trae su propia transformación.
+export function videoPosterUrl(url: string, width = MOBILE_VIDEO_WIDTH): string | undefined {
+  const m = url.match(/^(.*\/video\/upload\/)(.+)$/)
+  if (!url.includes('res.cloudinary.com/') || !m) return undefined
+  const rest = m[2]
+  const first = rest.split('/')[0]
+  if (rest.includes('/') && !/^v\d+$/.test(first)) return undefined // ya trae su propia transformación
+  return `${m[1]}so_0,c_limit,w_${width},q_auto/${rest}`.replace(/\.[a-z0-9]+(\?.*)?$/i, '.jpg')
+}
+
 // Vídeos de las carpetas (álbumes) de cada categoría: CALIDAD MÁXIMA, sin reducir el tamaño.
 // Un vídeo en 4K se sirve en 4K y con la mejor calidad que ofrece Cloudinary (q_auto:best), aunque
 // tarde más en cargar. Sigue pidiendo la copia H.264 para que se vea también en Windows (ver arriba).
