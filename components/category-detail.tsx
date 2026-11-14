@@ -20,7 +20,7 @@ import { WhatsAppIcon } from '@/components/icons'
 import { DEFAULT_INCLUDE_KEYS, type Category } from '@/lib/content'
 import type { MediaItem } from '@/lib/media-admin'
 import { useLocalePath } from '@/components/use-locale-path'
-import { playableVideoUrl, thumbUrl } from '@/lib/media-url'
+import { albumVideoUrl, thumbUrl } from '@/lib/media-url'
 import { PanoramaViewer } from '@/components/panorama-viewer'
 import { Model3DViewer } from '@/components/model-3d-viewer'
 import { EmbedViewer } from '@/components/embed-viewer'
@@ -97,6 +97,8 @@ export function CategoryDetail({
   )
   const { custom, looseItems, albums, mediaByAlbum } = gallery
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
+  // Vídeos para los que la copia en máxima calidad no se pudo preparar: se usa el archivo original.
+  const [originalVideo, setOriginalVideo] = useState<Record<string, boolean>>({})
 
   // La descripción de una foto en el idioma de la página (la del otro idioma si falta).
   const altOf = (item: GalleryItem) => (lang === 'en' ? item.altEn || item.alt || '' : item.alt || '')
@@ -217,13 +219,20 @@ export function CategoryDetail({
                 {current.type === 'video' ? (
                   <video
                     key={current.id}
-                    src={playableVideoUrl(current.url)}
+                    src={originalVideo[current.id] ? current.url : albumVideoUrl(current.url)}
+                    onError={() => {
+                      // Si falla la copia en máxima calidad, se prueba con el archivo original (una sola vez).
+                      if (!originalVideo[current.id] && albumVideoUrl(current.url) !== current.url) {
+                        setOriginalVideo((o) => ({ ...o, [current.id]: true }))
+                      }
+                    }}
                     className="h-full w-full object-contain"
                     controls
                     autoPlay
                     muted
                     loop
                     playsInline
+                    preload="auto"
                   />
                 ) : current.type === 'panorama' ? (
                   <div key={current.id} className="absolute inset-0">
