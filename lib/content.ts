@@ -290,10 +290,10 @@ export const T: Dict = {
     en: '3D / photogrammetry projects delivered within 48 hours',
   },
 
-  'guarantee.title': { es: 'Garantía de Satisfacción', en: 'Satisfaction Guarantee' },
+  'guarantee.title': { es: 'Garantía de precio', en: 'Price guarantee' },
   'guarantee.text': {
-    es: 'No pagas por el servicio si no te gusta el resultado',
-    en: "You don't pay for the service if you don't like the result",
+    es: 'Si lo encuentras más barato, te igualamos el precio',
+    en: "If you find it cheaper, we'll match the price",
   },
 
   'reviews.title': { es: 'Reseñas de Clientes', en: 'Client Reviews' },
