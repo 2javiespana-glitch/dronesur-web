@@ -28,6 +28,7 @@ import {
 } from '@/lib/content'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
 import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
+import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS } from '@/lib/showcase'
 import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
 import {
   type AlbumItem,
@@ -50,6 +51,7 @@ import {
 // Habla con /api/categories, /api/media y /api/albums, que solo guardan con la contraseña de admin.
 
 const HERO = 'hero'
+const SHOWCASE = SHOWCASE_CATEGORY // carrusel de la sección «oportunidad» (debajo del descuento)
 
 const inputClass =
   'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]'
@@ -355,6 +357,76 @@ function AltDialog({
             <span className="text-muted-foreground">{altEn.length}/200</span>
           </label>
           <input value={altEn} onChange={(e) => setAltEn(e.target.value)} maxLength={200} className={inputClass} />
+        </div>
+        {error && <Message tone="error">{error}</Message>}
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className={secondaryButton}>
+            Cancelar
+          </button>
+          <button type="submit" disabled={saving} className={primaryButton}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// Ventana para escribir el pie de una foto o vídeo del carrusel de la sección «oportunidad»
+// (el texto que sale sobre la imagen, por ejemplo «Tu viaje, desde el aire»).
+function CaptionDialog({
+  item,
+  onClose,
+  onSave,
+}: {
+  item: MediaItem
+  onClose: () => void
+  onSave: (caption: string, captionEn: string) => Promise<string | null>
+}) {
+  const [caption, setCaption] = useState(item.caption ?? '')
+  const [captionEn, setCaptionEn] = useState(item.captionEn ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  return (
+    <Modal title="Texto sobre la imagen" onClose={onClose}>
+      <div className="mb-4 h-32 w-48 overflow-hidden rounded-lg border border-border">
+        <Thumb src={thumbnailOf(item)} kind={kindOf(item)} alt="" />
+      </div>
+      <p className="mb-4 text-xs text-muted-foreground">
+        Es una frase corta que se ve en la parte de abajo de la imagen dentro del carrusel (por ejemplo «Presume de
+        viaje» o «Enseña tu casa»). También la leen los lectores de pantalla y Google. Déjala en blanco para que
+        la imagen salga sin texto.
+      </p>
+      <form
+        className="space-y-3"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          setSaving(true)
+          setError('')
+          const problem = await onSave(caption, captionEn)
+          setSaving(false)
+          if (problem) setError(problem)
+          else onClose()
+        }}
+      >
+        <div>
+          <label className="mb-1 flex justify-between text-xs font-medium">
+            <span>Texto en español</span>
+            <span className="text-muted-foreground">
+              {caption.length}/{SHOWCASE_LIMITS.caption}
+            </span>
+          </label>
+          <input value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={SHOWCASE_LIMITS.caption} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1 flex justify-between text-xs font-medium">
+            <span>Texto en inglés (opcional)</span>
+            <span className="text-muted-foreground">
+              {captionEn.length}/{SHOWCASE_LIMITS.caption}
+            </span>
+          </label>
+          <input value={captionEn} onChange={(e) => setCaptionEn(e.target.value)} maxLength={SHOWCASE_LIMITS.caption} className={inputClass} />
         </div>
         {error && <Message tone="error">{error}</Message>}
         <div className="flex justify-end gap-2 pt-2">
@@ -765,7 +837,7 @@ export function MediaManager({
   only,
 }: {
   password: string
-  only?: 'hero' | 'categories'
+  only?: 'hero' | 'categories' | 'showcase'
 }) {
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
   const [media, setMedia] = useState<MediaItem[]>([])
@@ -780,6 +852,7 @@ export function MediaManager({
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [special, setSpecial] = useState<Target | null>(null)
   const [altItem, setAltItem] = useState<MediaItem | null>(null)
+  const [captionItem, setCaptionItem] = useState<MediaItem | null>(null)
   // Orden del carrusel: qué toma se está arrastrando y sobre cuál está (solo mientras se arrastra).
   const [dragId, setDragId] = useState<string | null>(null)
   const [overId, setOverId] = useState<string | null>(null)
@@ -843,6 +916,19 @@ export function MediaManager({
     return null
   }
 
+  // Pie de foto del carrusel de la sección «oportunidad».
+  const saveCaption = async (id: string, caption: string, captionEn: string): Promise<string | null> => {
+    const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, {
+      action: 'update',
+      id,
+      caption,
+      captionEn,
+    })
+    if (!res.ok) return res.error
+    setMedia(res.data.items)
+    return null
+  }
+
   // Categoría a la que lleva el botón de un vídeo del carrusel ('' = sin botón).
   const saveLink = async (id: string, linkSlug: string) => {
     const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, { action: 'update', id, linkSlug })
@@ -854,10 +940,10 @@ export function MediaManager({
   }
 
   // Orden de las tomas del carrusel: es el orden en que se reproducen en la web.
-  const saveHeroOrder = async (ids: string[]) => {
+  const saveHeroOrder = async (ids: string[], category: string = HERO) => {
     const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, {
       action: 'reorder',
-      category: HERO,
+      category,
       ids,
     })
     if (!res.ok) {
@@ -869,8 +955,8 @@ export function MediaManager({
   }
 
   // Coloca la toma `id` en el puesto de la toma `targetId` (se ve al instante y se guarda en el servidor).
-  const moveHero = (id: string, targetId: string) => {
-    const ids = media.filter((m) => m.category === HERO).map((m) => m.id)
+  const moveHero = (id: string, targetId: string, category: string = HERO) => {
+    const ids = media.filter((m) => m.category === category).map((m) => m.id)
     const from = ids.indexOf(id)
     const to = ids.indexOf(targetId)
     if (from < 0 || to < 0 || from === to) return
@@ -881,9 +967,9 @@ export function MediaManager({
       const byId = new Map(prev.map((m) => [m.id, m]))
       const reordered = next.map((i) => byId.get(i)).filter((m): m is MediaItem => !!m)
       let k = 0
-      return prev.map((m) => (m.category === HERO ? reordered[k++] ?? m : m))
+      return prev.map((m) => (m.category === category ? reordered[k++] ?? m : m))
     })
-    void saveHeroOrder(next)
+    void saveHeroOrder(next, category)
   }
 
   const endDrag = (drop: boolean) => {
@@ -893,7 +979,7 @@ export function MediaManager({
     overRef.current = null
     setDragId(null)
     setOverId(null)
-    if (drop && from && to && from !== to) moveHero(from, to)
+    if (drop && from && to && from !== to) moveHero(from, to, openSlug === SHOWCASE ? SHOWCASE : HERO)
   }
 
   const removeMedia = async (id: string): Promise<boolean> => {
@@ -1143,6 +1229,13 @@ export function MediaManager({
           onSave={(alt, altEn) => saveAlt(altItem.id, alt, altEn)}
         />
       )}
+      {captionItem && (
+        <CaptionDialog
+          item={captionItem}
+          onClose={() => setCaptionItem(null)}
+          onSave={(caption, captionEn) => saveCaption(captionItem.id, caption, captionEn)}
+        />
+      )}
       {confirm && <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />}
       {special && (
         <SpecialDialog
@@ -1191,28 +1284,41 @@ export function MediaManager({
   )
 
   // ===== Vista 2a: carrusel de inicio =====
-  if (openSlug === HERO) {
-    const items = mediaOf(HERO)
-    const target: Target = { category: HERO }
+  if (openSlug === HERO || openSlug === SHOWCASE) {
+    const isShowcase = openSlug === SHOWCASE
+    const carouselCategory = isShowcase ? SHOWCASE : HERO
+    const items = mediaOf(carouselCategory)
+    const target: Target = { category: carouselCategory }
     return (
       <div ref={topRef} className="mt-10 scroll-mt-4">
         <button type="button" onClick={() => setOpenSlug(null)} className={secondaryButton}>
-          <ArrowLeft className="h-4 w-4" /> {only === 'hero' ? 'Volver' : 'Volver a categorías'}
+          <ArrowLeft className="h-4 w-4" /> {only === 'hero' || only === 'showcase' ? 'Volver' : 'Volver a categorías'}
         </button>
-        <h2 className="mt-4 text-xl font-bold">Carrusel de inicio</h2>
-        <p className="text-sm text-muted-foreground">
-          Los vídeos que se ven al abrir la web, uno detrás de otro. Solo se admiten vídeos.
-          <br />
-          Debajo de cada vídeo elige a qué categoría lleva el botón que sale en el carrusel («Ver Inmobiliaria»,
-          etc.). Si lo dejas en «Sin botón», ese vídeo sale sin enlace.
-        </p>
+        <h2 className="mt-4 text-xl font-bold">{isShowcase ? 'Carrusel de la sección de oportunidad' : 'Carrusel de inicio'}</h2>
+        {isShowcase ? (
+          <p className="text-sm text-muted-foreground">
+            Las fotos (y vídeos, si quieres) que se ven en el carrusel pequeño de la sección, una detrás de otra.
+            Máximo {SHOWCASE_MAX_ITEMS}. Debajo de cada una puedes escribir el texto que sale sobre la imagen. Si
+            solo vas a poner fotos, no hace falta nada más: pesan mucho menos que un vídeo.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Los vídeos que se ven al abrir la web, uno detrás de otro. Solo se admiten vídeos.
+            <br />
+            Debajo de cada vídeo elige a qué categoría lleva el botón que sale en el carrusel («Ver Inmobiliaria»,
+            etc.). Si lo dejas en «Sin botón», ese vídeo sale sin enlace.
+          </p>
+        )}
         <p className="mt-2 text-sm text-muted-foreground">
           <span className="text-foreground">Orden:</span> el número es el orden en que se ven. Para cambiarlo,
           mantén pulsado el icono <GripVertical className="inline h-3.5 w-3.5 align-text-bottom" /> de un vídeo y
           arrástralo sobre el puesto donde quieres ponerlo (o usa las flechas). Toca el vídeo para reproducirlo.
         </p>
         {errorBanner}
-        <Section title="Vídeos del carrusel" subtitle={`${items.length}`}>
+        <Section
+          title={isShowcase ? 'Fotos y vídeos del carrusel' : 'Vídeos del carrusel'}
+          subtitle={isShowcase ? `${items.length} / ${SHOWCASE_MAX_ITEMS}` : `${items.length}`}
+        >
           {items.map((item, index) => (
             <div
               key={item.id}
@@ -1260,7 +1366,7 @@ export function MediaManager({
                 <button
                   type="button"
                   disabled={index === 0}
-                  onClick={() => moveHero(item.id, items[index - 1].id)}
+                  onClick={() => moveHero(item.id, items[index - 1].id, carouselCategory)}
                   aria-label="Subir un puesto (antes)"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-border transition hover:bg-muted disabled:opacity-30"
                 >
@@ -1269,31 +1375,45 @@ export function MediaManager({
                 <button
                   type="button"
                   disabled={index === items.length - 1}
-                  onClick={() => moveHero(item.id, items[index + 1].id)}
+                  onClick={() => moveHero(item.id, items[index + 1].id, carouselCategory)}
                   aria-label="Bajar un puesto (después)"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-border transition hover:bg-muted disabled:opacity-30"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
-              <select
-                value={item.linkSlug ?? ''}
-                onChange={(e) => void saveLink(item.id, e.target.value)}
-                aria-label="Categoría a la que lleva el botón de este vídeo"
-                className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus:border-[var(--gold)]"
-              >
-                <option value="">Sin botón</option>
-                {categories.map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.title.es}
-                    {c.visible === false ? ' (oculta)' : ''}
-                  </option>
-                ))}
-              </select>
+              {isShowcase ? (
+                <button
+                  type="button"
+                  onClick={() => setCaptionItem(item)}
+                  title="Escribir el texto que sale sobre la imagen"
+                  className="flex w-full items-center gap-1.5 rounded-lg border border-input bg-background px-2 py-1.5 text-left text-xs transition hover:border-[var(--gold)]"
+                >
+                  <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className={`min-w-0 flex-1 truncate ${item.caption ? '' : 'text-muted-foreground'}`}>
+                    {item.caption || 'Añadir texto sobre la imagen'}
+                  </span>
+                </button>
+              ) : (
+                <select
+                  value={item.linkSlug ?? ''}
+                  onChange={(e) => void saveLink(item.id, e.target.value)}
+                  aria-label="Categoría a la que lleva el botón de este vídeo"
+                  className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs outline-none focus:border-[var(--gold)]"
+                >
+                  <option value="">Sin botón</option>
+                  {categories.map((c) => (
+                    <option key={c.slug} value={c.slug}>
+                      {c.title.es}
+                      {c.visible === false ? ' (oculta)' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           ))}
           <AddTile
-            accept="video/*"
+            accept={isShowcase ? 'image/*,video/*' : 'video/*'}
             multiple
             upload={upload}
             uploadKey={targetKey(target)}
@@ -1504,7 +1624,14 @@ export function MediaManager({
 
   return (
     <div ref={topRef} className="mt-10 scroll-mt-4">
-      {only === 'hero' ? (
+      {only === 'showcase' ? (
+        <>
+          <h2 className="text-xl font-bold">Carrusel de la sección de oportunidad</h2>
+          <p className="text-sm text-muted-foreground">
+            Las fotos (y vídeos, si quieres) del carrusel pequeño que sale en la sección de debajo del descuento.
+          </p>
+        </>
+      ) : only === 'hero' ? (
         <>
           <h2 className="text-xl font-bold">Vídeos del carrusel</h2>
           <p className="text-sm text-muted-foreground">
@@ -1532,7 +1659,7 @@ export function MediaManager({
       ) : (
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {/* Carrusel de inicio */}
-          {only !== 'categories' && (
+          {only !== 'categories' && only !== 'showcase' && (
           <button
             type="button"
             onClick={() => setOpenSlug(HERO)}
@@ -1552,7 +1679,34 @@ export function MediaManager({
           </button>
           )}
 
-          {only !== 'hero' && categories.map((cat, index) => {
+          {/* Carrusel de la sección «oportunidad» */}
+          {only === 'showcase' && (
+            <button
+              type="button"
+              onClick={() => setOpenSlug(SHOWCASE)}
+              className="group flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-[var(--gold)]"
+            >
+              <div className="relative aspect-[4/3] overflow-hidden">
+                <Thumb
+                  src={mediaOf(SHOWCASE)[0] ? thumbnailOf(mediaOf(SHOWCASE)[0]) : null}
+                  kind="image"
+                  alt="Carrusel de la sección de oportunidad"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                <span className="absolute bottom-3 left-3 rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-bold text-[var(--gold-foreground)]">
+                  Oportunidad
+                </span>
+              </div>
+              <div className="p-4">
+                <h3 className="font-bold">Fotos y vídeos del carrusel</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {mediaOf(SHOWCASE).length} de {SHOWCASE_MAX_ITEMS} · pulsa para añadir, ordenar o quitar
+                </p>
+              </div>
+            </button>
+          )}
+
+          {only !== 'hero' && only !== 'showcase' && categories.map((cat, index) => {
             const cover = coverOf(cat.slug)
             const count = mediaOf(cat.slug).length
             const albumCount = albums.filter((a) => a.category === cat.slug).length
@@ -1615,7 +1769,7 @@ export function MediaManager({
           })}
 
           {/* Nueva categoría */}
-          {only !== 'hero' && (
+          {only !== 'hero' && only !== 'showcase' && (
           <button
             type="button"
             onClick={() => setShowNewCategory(true)}
