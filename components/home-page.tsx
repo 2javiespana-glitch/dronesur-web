@@ -4,6 +4,7 @@ import type { HomeData } from '@/lib/home-data'
 import { SiteHeader } from '@/components/site-header'
 import { Hero } from '@/components/hero'
 import { WelcomePromo } from '@/components/welcome-promo'
+import { ShowcaseSection } from '@/components/showcase-section'
 import { Categories } from '@/components/categories'
 import { CoverageServices } from '@/components/coverage-services'
 import { GuaranteeBanner } from '@/components/guarantee-banner'
@@ -19,7 +20,7 @@ import { CookieBanner } from '@/components/cookie-banner'
 // Los datos (vídeos, categorías, secciones visibles, textos del admin) llegan ya leídos desde el
 // servidor (ver lib/home-data.ts): ya no se piden uno a uno después de abrir la página.
 export function HomePage({ data }: { data: HomeData }) {
-  const { videos, covers, categories, settings, promoOverride, content } = data
+  const { videos, covers, categories, settings, promoOverride, content, showcase } = data
 
   return (
     <>
@@ -27,6 +28,7 @@ export function HomePage({ data }: { data: HomeData }) {
       <main>
         <Hero videos={videos} music={content.music.url} />
         {settings.promo && <WelcomePromo override={promoOverride} />}
+        {showcase && <ShowcaseSection data={showcase} />}
         <Categories categories={categories} covers={covers} />
         {settings.about && <AboutSection content={content.about} />}
         {settings.pilot && <PilotSection content={content.pilot} />}
