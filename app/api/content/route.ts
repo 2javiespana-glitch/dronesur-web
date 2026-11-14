@@ -3,15 +3,15 @@ import { readJSON, updateJSON } from '@/lib/kv'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { EMPTY_CONTENT, normalizeContent, type SiteContent } from '@/lib/site-content'
 
-// Textos y fotos editables desde el admin: música del carrusel, "Sobre Dronesur" y "Sobre el piloto".
+// Textos y fotos editables desde el admin: música del carrusel, "Sobre Dronesur", "Sobre el piloto" y la banda de garantía.
 //
 // - GET  -> devuelve el contenido guardado (público, lo usa la página principal)
-// - POST -> { section: 'music' | 'about' | 'pilot' | 'cities', data: {...} }  guarda esa sección (solo admin)
+// - POST -> { section: 'music' | 'about' | 'pilot' | 'guarantee' | 'cities', data: {...} }  guarda esa sección (solo admin)
 
 export const dynamic = 'force-dynamic'
 
 const KEY = 'dronesur:content'
-const SECTIONS = ['music', 'about', 'pilot', 'cities'] as const
+const SECTIONS = ['music', 'about', 'pilot', 'guarantee', 'cities'] as const
 type Section = (typeof SECTIONS)[number]
 
 export async function GET() {
