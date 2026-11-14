@@ -16,7 +16,7 @@ import {
 // "Sobre Dronesur" y "Sobre el piloto". Cada bloque se guarda solo, sin botón (ver lib/use-autosave.tsx).
 // Habla con /api/content, que solo guarda si la contraseña de admin es correcta.
 
-type Section = 'music' | 'about' | 'pilot' | 'cities'
+type Section = 'music' | 'about' | 'pilot' | 'guarantee' | 'cities'
 type Message = { ok: boolean; text: string } | null
 
 const inputClass =
@@ -406,6 +406,106 @@ function PilotBlock({
 }
 
 // ---------------------------------------------------------------------------
+// Banda dorada de garantía
+// ---------------------------------------------------------------------------
+function GuaranteeBlock({
+  password,
+  initial,
+  autosave,
+}: {
+  password: string
+  initial: SiteContent['guarantee']
+  autosave: boolean
+}) {
+  const defaults = {
+    title: { es: T['guarantee.title']?.es ?? '', en: T['guarantee.title']?.en ?? '' },
+    text: { es: T['guarantee.text']?.es ?? '', en: T['guarantee.text']?.en ?? '' },
+  }
+  // Si todavía no has cambiado nada, se muestran los textos actuales de la web para que los edites.
+  const [titleEs, setTitleEs] = useState(initial.title.es || defaults.title.es)
+  const [titleEn, setTitleEn] = useState(initial.title.en || defaults.title.en)
+  const [textEs, setTextEs] = useState(initial.text.es || defaults.text.es)
+  const [textEn, setTextEn] = useState(initial.text.en || defaults.text.en)
+  const [noteEs, setNoteEs] = useState(initial.note.es)
+  const [noteEn, setNoteEn] = useState(initial.note.en)
+  const [message, setMessage] = useState<Message>(null)
+
+  const auto = useAutoSave({
+    value: {
+      title: { es: titleEs, en: titleEn },
+      text: { es: textEs, en: textEn },
+      note: { es: noteEs, en: noteEn },
+    },
+    enabled: autosave,
+    save: async (data, { keepalive }) => {
+      const result = await saveSection(password, 'guarantee', data, keepalive)
+      return result.ok ? null : result.error
+    },
+  })
+
+  const restore = () => {
+    setTitleEs(defaults.title.es)
+    setTitleEn(defaults.title.en)
+    setTextEs(defaults.text.es)
+    setTextEn(defaults.text.en)
+    setNoteEs('')
+    setNoteEn('')
+    setMessage({ ok: true, text: 'Textos originales cargados.' })
+  }
+
+  return (
+    <Card
+      title="Banda dorada de garantía"
+      description="El título y el texto de la banda dorada. Si dejas el inglés vacío, esa versión mostrará el texto en español. Escribe solo lo que de verdad puedas cumplir: lo que pones aquí es una promesa pública a tus clientes."
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Título (español)</label>
+          <input value={titleEs} onChange={(e) => setTitleEs(e.target.value)} maxLength={80} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Título (inglés)</label>
+          <input value={titleEn} onChange={(e) => setTitleEn(e.target.value)} maxLength={80} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Texto (español)</label>
+          <textarea rows={3} value={textEs} onChange={(e) => setTextEs(e.target.value)} maxLength={200} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">Texto (inglés)</label>
+          <textarea rows={3} value={textEn} onChange={(e) => setTextEn(e.target.value)} maxLength={200} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">
+            Condiciones, letra pequeña (español){' '}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </label>
+          <textarea rows={3} value={noteEs} onChange={(e) => setNoteEs(e.target.value)} maxLength={500} className={inputClass} />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium">
+            Condiciones, letra pequeña (inglés){' '}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </label>
+          <textarea rows={3} value={noteEn} onChange={(e) => setNoteEn(e.target.value)} maxLength={500} className={inputClass} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Las condiciones salen debajo del texto, en pequeño, y solo si las escribes. Déjalas en blanco para no mostrar nada.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={restore} className={secondaryButton}>
+          Volver al texto original
+        </button>
+        <AutoSaveStatus status={auto.status} error={auto.error} />
+        <Status message={message} />
+      </div>
+    </Card>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Páginas por ciudad
 // ---------------------------------------------------------------------------
 function CitiesBlock({
@@ -497,7 +597,7 @@ function CitiesBlock({
 }
 
 // ---------------------------------------------------------------------------
-export type ContentBlockKey = 'music' | 'about' | 'pilot' | 'cities'
+export type ContentBlockKey = 'music' | 'about' | 'pilot' | 'guarantee' | 'cities'
 
 // Sin props extra muestra los cuatro bloques (como antes). Con `show` solo los que se indiquen,
 // para poder colocar cada uno en su sitio dentro del admin.
@@ -558,6 +658,7 @@ export function ContentPanel({
           {has('music') && <MusicBlock password={password} initial={content.music} autosave={!failed} />}
           {has('about') && <AboutBlock password={password} initial={content.about} autosave={!failed} />}
           {has('pilot') && <PilotBlock password={password} initial={content.pilot} autosave={!failed} />}
+          {has('guarantee') && <GuaranteeBlock password={password} initial={content.guarantee} autosave={!failed} />}
           {has('cities') && <CitiesBlock password={password} initial={content.cities} autosave={!failed} />}
         </>
       )}
