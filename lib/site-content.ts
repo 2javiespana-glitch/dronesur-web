@@ -5,6 +5,7 @@ import { CITIES } from '@/lib/cities'
 // - la música del carrusel
 // - la sección "Sobre Dronesur"
 // - la sección "Sobre el piloto"
+// - la banda dorada de garantía (título, texto y condiciones)
 // - el texto de cada página de ciudad (dronesur.es/dron/<ciudad>)
 // Todo lo que esté vacío ('') significa "usa lo de siempre" (o no muestres nada).
 
@@ -12,6 +13,9 @@ export type SiteContent = {
   music: { url: string }
   about: { image: string; p1: Localized; p2: Localized }
   pilot: { name: string; image: string; text: Localized }
+  // Banda dorada de garantía. Título y texto vacíos = se usan los de siempre. `note` = condiciones en letra
+  // pequeña: solo se muestran si las escribes.
+  guarantee: { title: Localized; text: Localized; note: Localized }
   // Texto de cada página de ciudad, por "slug" (ej. { granada: '...' }). Sin texto = la página no existe.
   cities: Record<string, string>
 }
@@ -20,6 +24,7 @@ export const EMPTY_CONTENT: SiteContent = {
   music: { url: '' },
   about: { image: '', p1: { es: '', en: '' }, p2: { es: '', en: '' } },
   pilot: { name: '', image: '', text: { es: '', en: '' } },
+  guarantee: { title: { es: '', en: '' }, text: { es: '', en: '' }, note: { es: '', en: '' } },
   cities: {},
 }
 
@@ -47,6 +52,7 @@ export function normalizeContent(raw: unknown): SiteContent {
   const music = section('music')
   const about = section('about')
   const pilot = section('pilot')
+  const guarantee = section('guarantee')
   const citiesRaw = section('cities')
   const cities: Record<string, string> = {}
   for (const city of CITIES) {
@@ -57,6 +63,7 @@ export function normalizeContent(raw: unknown): SiteContent {
     music: { url: url(music.url) },
     about: { image: url(about.image), p1: loc(about.p1, 1200), p2: loc(about.p2, 1200) },
     pilot: { name: str(pilot.name, 80), image: url(pilot.image), text: loc(pilot.text, 2000) },
+    guarantee: { title: loc(guarantee.title, 80), text: loc(guarantee.text, 200), note: loc(guarantee.note, 500) },
     cities,
   }
 }
