@@ -17,6 +17,7 @@ import {
   type QuoteDiscount,
 } from '@/lib/quotes'
 import { translate } from '@/lib/content'
+import { EMPTY_SHOWCASE_TEXT, SHOWCASE_LIMITS, normalizeShowcaseText, type ShowcaseText } from '@/lib/showcase'
 import { AutoSaveStatus, flushAllAutosaves, useAutoSave } from '@/lib/use-autosave'
 
 type Review = {
@@ -160,6 +161,9 @@ export default function AdminPage() {
     pilot: boolean
     promoOverride: PromoOverride
     quoteDiscount: QuoteDiscount
+    showcase: boolean // sección «oportunidad» (empieza oculta)
+    showcaseCarousel: boolean // carrusel de fotos dentro de esa sección
+    showcaseText: ShowcaseText
   }
   const DEFAULT_SETTINGS: SiteSettings = {
     promo: true,
@@ -171,6 +175,9 @@ export default function AdminPage() {
     pilot: true,
     promoOverride: EMPTY_PROMO_OVERRIDE,
     quoteDiscount: DEFAULT_QUOTE_DISCOUNT,
+    showcase: false,
+    showcaseCarousel: true,
+    showcaseText: EMPTY_SHOWCASE_TEXT,
   }
 
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SETTINGS)
@@ -189,6 +196,7 @@ export default function AdminPage() {
             ...data,
             promoOverride: { ...EMPTY_PROMO_OVERRIDE, ...(data.promoOverride ?? {}) },
             quoteDiscount: normalizeQuoteDiscount(data.quoteDiscount),
+            showcaseText: normalizeShowcaseText(data.showcaseText),
           })
           setSettingsLoaded(true)
         }
@@ -240,7 +248,7 @@ export default function AdminPage() {
   settingsRef.current = settings
   const { enabled: _discountEnabled, ...discountTexts } = settings.quoteDiscount
   const settingsAuto = useAutoSave({
-    value: { promoOverride: settings.promoOverride, quoteDiscount: discountTexts },
+    value: { promoOverride: settings.promoOverride, quoteDiscount: discountTexts, showcaseText: settings.showcaseText },
     enabled: settingsLoaded,
     save: async (_texts, { keepalive }) => {
       try {
@@ -326,7 +334,11 @@ export default function AdminPage() {
   const discountMismatch = settings.promo !== settings.quoteDiscount.enabled
 
   // Casilla "mostrar / ocultar" de cada sección de la página principal.
-  const visibilityToggle = (key: Exclude<keyof SiteSettings, 'promoOverride' | 'quoteDiscount'>, label: string) => (
+  const visibilityToggle = (
+    key: Exclude<keyof SiteSettings, 'promoOverride' | 'quoteDiscount' | 'showcaseText'>,
+    label: string,
+    prefix = 'Mostrar en la web',
+  ) => (
     <label className="mt-4 flex items-center gap-2.5 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium transition hover:bg-muted">
       <input
         type="checkbox"
@@ -334,7 +346,7 @@ export default function AdminPage() {
         onChange={(e) => saveSettings({ ...settings, [key]: e.target.checked })}
         className="h-4 w-4 rounded border-input accent-[var(--gold)]"
       />
-      Mostrar en la web: {label}
+      {prefix}: {label}
       <span className="ml-auto text-xs font-normal text-muted-foreground">
         {settingsSaving ? 'Guardando…' : settingsSaved ? 'Guardado ✓' : ''}
       </span>
@@ -362,6 +374,7 @@ export default function AdminPage() {
   const INDEX: { id: string; label: string }[] = [
     { id: 'admin-inicio', label: 'Inicio' },
     { id: 'admin-descuento', label: 'Descuento' },
+    { id: 'admin-oportunidad', label: 'Oportunidad' },
     { id: 'admin-servicios', label: 'Servicios' },
     { id: 'admin-sobre', label: 'Sobre nosotros' },
     { id: 'admin-piloto', label: 'Piloto' },
@@ -711,49 +724,163 @@ export default function AdminPage() {
 
       </section>
 
-      {/* 3 · SERVICIOS (categorías, fotos y vídeos) */}
+      {/* 3 · SECCIÓN DE OPORTUNIDAD (debajo del banner de descuento) */}
+      <section id="admin-oportunidad" className={sectionClass}>
+        {sectionHead(3, 'Sección de oportunidad', 'Una sección debajo del banner de descuento: un texto, un botón y, si quieres, un carrusel pequeño de fotos con ideas de para qué aprovechar la oferta. Sirve para explicar el descuento de ahora o el de mañana.')}
+        <p className="mt-3 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+          Esta sección empieza <span className="font-semibold text-foreground">oculta</span>. Prepara los textos y las
+          fotos de abajo y, cuando esté lista, marca la casilla para que se vea en la web.
+        </p>
+        {visibilityToggle('showcase', 'Sección de oportunidad')}
+        {visibilityToggle('showcaseCarousel', 'Carrusel de fotos', 'Mostrar dentro de la sección')}
+        {!settings.showcase && settings.showcaseCarousel && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            El carrusel solo se ve si la sección está activada.
+          </p>
+        )}
+        {settingsError && <p className="mt-2 text-sm text-destructive">{settingsError}</p>}
+
+        <div className="mt-8">
+          <h3 className="text-lg font-bold">Texto de la sección</h3>
+          <p className="text-sm text-muted-foreground">
+            El título y el botón, si los dejas en blanco, usan el texto de siempre (el que ves en gris). La insignia y
+            el texto descriptivo solo salen si los escribes. El botón abre el formulario de presupuesto.
+          </p>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void settingsAuto.flush()
+            }}
+            className="mt-4 grid gap-6 rounded-2xl border border-border bg-card p-6 sm:grid-cols-2"
+          >
+            {(
+              [
+                {
+                  lang: 'Español',
+                  badge: 'badgeEs',
+                  title: 'titleEs',
+                  text: 'textEs',
+                  cta: 'ctaEs',
+                  ph: {
+                    badge: 'Ej.: Hasta 2027',
+                    title: 'Aprovecha la oportunidad',
+                    text: 'Ej.: Úsalo para presumir de viaje, enseñar tu casa o sorprender a tu pareja con una foto desde el aire.',
+                    cta: '¡Aprovecha la oportunidad!',
+                  },
+                },
+                {
+                  lang: 'English',
+                  badge: 'badgeEn',
+                  title: 'titleEn',
+                  text: 'textEn',
+                  cta: 'ctaEn',
+                  ph: {
+                    badge: 'E.g.: Until 2027',
+                    title: 'Make the most of this opportunity',
+                    text: 'E.g.: Use it to show off a trip, showcase your home or surprise your partner with an aerial photo.',
+                    cta: 'Take the opportunity!',
+                  },
+                },
+              ] as const
+            ).map((col) => (
+              <div key={col.lang} className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">{col.lang}</h3>
+                {(
+                  [
+                    { key: col.badge, label: 'Insignia (opcional)', max: SHOWCASE_LIMITS.badge, ph: col.ph.badge, area: false },
+                    { key: col.title, label: 'Título', max: SHOWCASE_LIMITS.title, ph: col.ph.title, area: false },
+                    { key: col.text, label: 'Texto descriptivo (opcional)', max: SHOWCASE_LIMITS.text, ph: col.ph.text, area: true },
+                    { key: col.cta, label: 'Texto del botón', max: SHOWCASE_LIMITS.cta, ph: col.ph.cta, area: false },
+                  ] as const
+                ).map((f) => {
+                  const value = settings.showcaseText[f.key]
+                  const onChange = (v: string) =>
+                    setSettings((prev) => ({ ...prev, showcaseText: { ...prev.showcaseText, [f.key]: v } }))
+                  const cls =
+                    'w-full rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:border-[var(--gold)] focus:ring-1 focus:ring-[var(--gold)]'
+                  return (
+                    <div key={f.key}>
+                      <label className="mb-1 flex justify-between text-xs font-medium">
+                        <span>{f.label}</span>
+                        <span className="text-muted-foreground">
+                          {value.length}/{f.max}
+                        </span>
+                      </label>
+                      {f.area ? (
+                        <textarea
+                          rows={4}
+                          value={value}
+                          maxLength={f.max}
+                          placeholder={f.ph}
+                          onChange={(e) => onChange(e.target.value)}
+                          className={`${cls} resize-none`}
+                        />
+                      ) : (
+                        <input
+                          value={value}
+                          maxLength={f.max}
+                          placeholder={f.ph}
+                          onChange={(e) => onChange(e.target.value)}
+                          className={cls}
+                        />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+            <div className="sm:col-span-2">
+              <AutoSaveStatus status={settingsAuto.status} error={settingsAuto.error} />
+            </div>
+          </form>
+        </div>
+
+        <MediaManager password={pass} only="showcase" />
+      </section>
+
+      {/* 4 · SERVICIOS (categorías, fotos y vídeos) */}
       <section id="admin-servicios" className={sectionClass}>
-        {sectionHead(3, 'Servicios', 'Las categorías de servicios de la web, con sus fotos, vídeos, álbumes, precios y textos. Siempre visibles.')}
+        {sectionHead(4, 'Servicios', 'Las categorías de servicios de la web, con sus fotos, vídeos, álbumes, precios y textos. Siempre visibles.')}
         <MediaManager password={pass} only="categories" />
       </section>
 
-      {/* 4 · SOBRE NOSOTROS */}
+      {/* 5 · SOBRE NOSOTROS */}
       <section id="admin-sobre" className={sectionClass}>
-        {sectionHead(4, 'Sobre Nosotros', 'Textos y fotos de la sección «Sobre Dronesur».')}
+        {sectionHead(5, 'Sobre Nosotros', 'Textos y fotos de la sección «Sobre Dronesur».')}
         {visibilityToggle('about', 'Sobre Nosotros')}
         <ContentPanel password={pass} show={['about']} />
       </section>
 
-      {/* 5 · SOBRE EL PILOTO */}
+      {/* 6 · SOBRE EL PILOTO */}
       <section id="admin-piloto" className={sectionClass}>
-        {sectionHead(5, 'Sobre el piloto', 'Textos y foto de la sección del piloto.')}
+        {sectionHead(6, 'Sobre el piloto', 'Textos y foto de la sección del piloto.')}
         {visibilityToggle('pilot', 'Sobre el piloto')}
         <ContentPanel password={pass} show={['pilot']} />
       </section>
 
       {/* 6 · ZONAS DE COBERTURA */}
       <section id="admin-cobertura" className={sectionClass}>
-        {sectionHead(6, 'Zonas de cobertura', 'La sección de zonas donde trabajas y las páginas propias de cada ciudad.')}
+        {sectionHead(7, 'Zonas de cobertura', 'La sección de zonas donde trabajas y las páginas propias de cada ciudad.')}
         {visibilityToggle('coverage', 'Zonas de cobertura')}
         <ContentPanel password={pass} show={['cities']} />
       </section>
 
       {/* 7 · SECCIÓN LEGAL */}
       <section id="admin-legal" className={sectionClass}>
-        {sectionHead(7, 'Sección legal', 'Información legal sobre el uso de drones. El texto es fijo: aquí solo se muestra u oculta.')}
+        {sectionHead(8, 'Sección legal', 'Información legal sobre el uso de drones. El texto es fijo: aquí solo se muestra u oculta.')}
         {visibilityToggle('legal', 'Sección legal')}
       </section>
 
       {/* 8 · GARANTÍA LEGAL */}
       <section id="admin-garantia" className={sectionClass}>
-        {sectionHead(8, 'Garantía legal', 'La banda dorada de garantía: cambia aquí su título y su texto, o muéstrala u ocúltala.')}
+        {sectionHead(9, 'Garantía legal', 'La banda dorada de garantía: cambia aquí su título y su texto, o muéstrala u ocúltala.')}
         {visibilityToggle('guarantee', 'Garantía legal')}
         <ContentPanel password={pass} show={['guarantee']} />
       </section>
 
       {/* 9 · RESEÑAS */}
       <section id="admin-resenas" className={sectionClass}>
-        {sectionHead(9, 'Reseñas de clientes', 'Opiniones que se ven en la web: añade, edita, aprueba o borra, y controla el límite que puede enviar el público.')}
+        {sectionHead(10, 'Reseñas de clientes', 'Opiniones que se ven en la web: añade, edita, aprueba o borra, y controla el límite que puede enviar el público.')}
         {visibilityToggle('reviews', 'Reseñas de clientes')}
       <div className="mt-6">
         {!showForm && (
@@ -951,13 +1078,13 @@ export default function AdminPage() {
 
       {/* 10 · CONTACTO (solicitudes de presupuesto) */}
       <section id="admin-contacto" className={sectionClass}>
-        {sectionHead(10, 'Contacto', 'Los formularios de contacto y presupuesto que llegan desde la web. Siempre visible.')}
+        {sectionHead(11, 'Contacto', 'Los formularios de contacto y presupuesto que llegan desde la web. Siempre visible.')}
         <QuotesPanel password={pass} />
       </section>
 
       {/* 11 · VISITAS (por provincia) */}
       <section id="admin-visitas" className={sectionClass}>
-        {sectionHead(11, 'Visitas', 'Quién entra a la web, agrupado por provincia (solo quien acepta las cookies de estadísticas).')}
+        {sectionHead(12, 'Visitas', 'Quién entra a la web, agrupado por provincia (solo quien acepta las cookies de estadísticas).')}
         <VisitsPanel password={pass} />
       </section>
     </main>
