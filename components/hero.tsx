@@ -7,7 +7,7 @@ import { useSite } from '@/components/site-provider'
 import { useA11y } from '@/components/accessibility-provider'
 import { useLocalePath } from '@/components/use-locale-path'
 import type { VideoItem } from '@/lib/content'
-import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
+import { MOBILE_VIDEO_WIDTH, playableVideoUrl, videoPosterUrl } from '@/lib/media-url'
 import { cachedVideo, fetchVideoToMemory, forgetVideo } from '@/lib/video-cache'
 
 type HeroProps = {
@@ -50,6 +50,24 @@ export function Hero({ videos, music }: HeroProps) {
   // Vídeos para los que la versión reducida del móvil falló: se vuelven a pedir como siempre.
   const [fullQuality, setFullQuality] = useState<Record<string, boolean>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
+  // Algunos navegadores NO dejan arrancar un vídeo solos hasta que el visitante toca la pantalla (en iPhone, sobre
+  // todo con el modo de bajo consumo). Si pasa, no se deja el círculo de carga girando para siempre: se ve la imagen
+  // del vídeo con un botón de play, y el vídeo arranca solo con el primer toque en cualquier parte.
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false)
+  const blockedRef = useRef(false)
+  blockedRef.current = autoplayBlocked
+  // Vídeos para los que se usa el archivo original, sin ninguna conversión (último recurso si la copia no arranca).
+  const [original, setOriginal] = useState<Record<string, boolean>>({})
+  const tryPlay = useCallback((el: HTMLVideoElement) => {
+    try {
+      const p = el.play()
+      if (p && typeof p.catch === 'function') {
+        p.catch((err: unknown) => {
+          if ((err as { name?: string } | null)?.name === 'NotAllowedError') setAutoplayBlocked(true)
+        })
+      }
+    } catch {}
+  }, [])
   // Guardado en memoria (solo vídeo ligero del móvil, ver lib/video-cache.ts): 'pending' = descargándose,
   // 'saved' = ya está en memoria, 'network' = no se ha podido guardar y se ve directamente de internet.
   const [memState, setMemState] = useState<Record<string, 'pending' | 'saved' | 'network'>>({})
@@ -126,7 +144,10 @@ export function Hero({ videos, music }: HeroProps) {
   // a salir: si al volver a él el navegador tarda un instante en recuperar el principio, se queda la imagen
   // quieta un momento, sin el círculo ensuciando la portada.
   const loading =
-    !!current && !played[current.id] && ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
+    !!current &&
+    !autoplayBlocked &&
+    !played[current.id] &&
+    ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
 
   // Cola de descarga: primero el vídeo actual, luego el siguiente, el siguiente...
   // Un vídeo solo empieza a descargarse cuando los que van antes ya terminaron, con una excepción: el
@@ -152,9 +173,9 @@ export function Hero({ videos, music }: HeroProps) {
   // Dirección real del vídeo (la reducida de 1280 px en móvil).
   const lightNow = !!isMobile || phoneDevice
   const urlOf = (v: VideoItem) =>
-    playableVideoUrl(v.url, lightNow && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
+    original[v.id] ? v.url : playableVideoUrl(v.url, lightNow && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
   // ¿Se guarda este vídeo en memoria? Solo el ligero del móvil.
-  const keepInMemory = (v: VideoItem) => lightNow && !fullQuality[v.id]
+  const keepInMemory = (v: VideoItem) => lightNow && !fullQuality[v.id] && !original[v.id]
 
   // Vídeos en memoria: cuando le toca descargarse a un vídeo que NO es el que se está viendo, se baja entero a
   // memoria en vez de verlo «en directo» (así se descarga una sola vez y se queda ahí hasta cerrar la pestaña).
@@ -212,12 +233,12 @@ export function Hero({ videos, music }: HeroProps) {
           } catch {}
         }
         if (paused) el.pause()
-        else void el.play().catch(() => {})
+        else tryPlay(el)
       } else {
         el.pause()
       }
     })
-  }, [videos, current?.id, isMobile, paused])
+  }, [videos, current?.id, isMobile, paused, tryPlay])
 
   // Cada vídeo se ve ENTERO, con la duración que tenga (la que le hayas dejado al editarlo): el carrusel pasa al
   // siguiente cuando el vídeo actual termina. Ya no hay límite de 6 segundos. Si solo hay un vídeo, se repite en bucle.
@@ -258,6 +279,43 @@ export function Hero({ videos, music }: HeroProps) {
     },
     [],
   )
+
+  // Primer toque del visitante: si el vídeo actual aún no ha arrancado (el navegador esperaba un gesto), se arranca.
+  // En iPhone, solo los toques «completos» (al levantar el dedo) cuentan como gesto; por eso se escucha touchend y click.
+  const anyPlayed = Object.keys(played).length > 0
+  useEffect(() => {
+    if (anyPlayed) return
+    const retry = () => {
+      const id = currentIdRef.current
+      const el = id ? videoRefs.current[id] : null
+      if (el && el.paused && !pausedRef.current) tryPlay(el)
+    }
+    const events = ['touchend', 'pointerup', 'click', 'keydown']
+    events.forEach((e) => window.addEventListener(e, retry, { passive: true }))
+    return () => events.forEach((e) => window.removeEventListener(e, retry))
+  }, [anyPlayed, tryPlay])
+
+  // Red de seguridad: el círculo de carga NUNCA se queda girando para siempre.
+  //  · a los 6 s, si el vídeo ni siquiera ha empezado (sigue en pausa): el navegador está esperando un toque
+  //    → se enseña la imagen del vídeo con el botón de play;
+  //  · a los 15 s, si ha empezado pero sigue sin tener datos suficientes: se prueba con el archivo original.
+  const curId = current?.id
+  const curStarted = !!curId && !!played[curId]
+  useEffect(() => {
+    if (!curId || paused || curStarted) return
+    const t1 = setTimeout(() => {
+      const el = videoRefs.current[curId]
+      if (el && el.paused && el.readyState < 3) setAutoplayBlocked(true)
+    }, 6000)
+    const t2 = setTimeout(() => {
+      const el = videoRefs.current[curId]
+      if (el && !blockedRef.current && el.readyState < 3) setOriginal((o) => (o[curId] ? o : { ...o, [curId]: true }))
+    }, 15000)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
+  }, [curId, paused, curStarted, autoplayBlocked])
 
   const toggleMute = () => {
     const audio = audioRef.current
@@ -314,8 +372,10 @@ export function Hero({ videos, music }: HeroProps) {
                 // la pantalla y pesa mucho menos). En escritorio, el vídeo igual que siempre.
                 src={(() => {
                   if (!canLoad(i)) return undefined
-                  const url = playableVideoUrl(v.url, lightVideo && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
-                  if (!(lightVideo && !fullQuality[v.id])) return url
+                  const url = original[v.id]
+                    ? v.url
+                    : playableVideoUrl(v.url, lightVideo && !fullQuality[v.id] ? MOBILE_VIDEO_WIDTH : undefined)
+                  if (original[v.id] || !(lightVideo && !fullQuality[v.id])) return url
                   // Móvil: si ya está en memoria se usa esa copia; si no, el vídeo actual se ve en directo y los demás
                   // esperan a que termine su descarga a memoria (o a que se sepa que no se puede guardar).
                   const inMemory = cachedVideo(url)
@@ -323,7 +383,7 @@ export function Hero({ videos, music }: HeroProps) {
                   // (Si ya se estaba viendo en directo, conserva su enlace mientras se guarda en memoria.)
                   return isCurrent || memState[v.id] === 'network' || ready[v.id] || full[v.id] ? url : undefined
                 })()}
-                poster={v.poster}
+                poster={v.poster ?? (isCurrent ? videoPosterUrl(v.url, mobile ? MOBILE_VIDEO_WIDTH : 1920) : undefined)}
                 muted
                 loop={slideCount < 2}
                 playsInline
@@ -331,13 +391,14 @@ export function Hero({ videos, music }: HeroProps) {
                 onCanPlay={(e) => {
                   setReady((r) => (r[v.id] ? r : { ...r, [v.id]: true }))
                   if (stalledId === v.id) setStalledId(null)
-                  if (isCurrent && !paused) void e.currentTarget.play().catch(() => {})
+                  if (isCurrent && !paused) tryPlay(e.currentTarget)
                 }}
                 onCanPlayThrough={() => setFull((f) => (f[v.id] ? f : { ...f, [v.id]: true }))}
                 onEnded={() => {
                   if (isCurrent && slideCount > 1) advanceWhenReady(v.id)
                 }}
                 onPlaying={() => {
+                  setAutoplayBlocked(false)
                   if (stalledId === v.id) setStalledId(null)
                   setPlayed((p) => (p[v.id] ? p : { ...p, [v.id]: true }))
                 }}
@@ -363,6 +424,11 @@ export function Hero({ videos, music }: HeroProps) {
                     setFullQuality((f) => ({ ...f, [v.id]: true }))
                     return
                   }
+                  // Último recurso: el archivo original, sin conversión (por si Cloudinary no puede prepararlo).
+                  if (!original[v.id] && v.url !== urlOf(v)) {
+                    setOriginal((o) => ({ ...o, [v.id]: true }))
+                    return
+                  }
                   setReady((r) => ({ ...r, [v.id]: true }))
                   setFull((f) => ({ ...f, [v.id]: true }))
                   if (isCurrent && slideCount > 1) next()
@@ -371,6 +437,21 @@ export function Hero({ videos, music }: HeroProps) {
             </div>
           )
         })}
+        {autoplayBlocked && !paused && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = current ? videoRefs.current[current.id] : null
+              if (el) tryPlay(el)
+            }}
+            aria-label={lang === 'en' ? 'Play video' : 'Reproducir vídeo'}
+            className="absolute inset-0 z-[15] flex items-center justify-center"
+          >
+            <span className="rounded-full border border-white/40 bg-black/50 p-4 text-white shadow-lg backdrop-blur-sm sm:p-5">
+              <Play className="h-7 w-7 sm:h-9 sm:w-9" />
+            </span>
+          </button>
+        )}
         {loading && (
           <div
             className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
@@ -481,8 +562,18 @@ export function Hero({ videos, music }: HeroProps) {
       {/* ---------- ESCRITORIO: igual que siempre, vídeo a pantalla completa con el texto encima ---------- */}
       <div className="absolute inset-0 hidden sm:block">
         {renderSlides(false)}
-        <div className="pointer-events-none absolute inset-0 bg-black/40" />
-        <div className="pointer-events-none absolute inset-0 bg-hero-fade" />
+        {/* Sin oscurecer el vídeo ni la parte de arriba. Solo dos degradados, ambos abajo (el primero queda por encima del segundo):
+            1) una transición corta del vídeo al fondo de la web (negro en modo oscuro, claro en modo claro);
+            2) una sombra suave en la parte baja, para que el texto blanco se lea bien. */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: [
+              'linear-gradient(to top, var(--background) 0%, color-mix(in srgb, var(--background) 0%, transparent) 14%)',
+              'linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.35) 28%, rgba(0,0,0,0) 58%)',
+            ].join(', '),
+          }}
+        />
 
         <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-end px-4 pb-24 text-center">
           <h1 className="animate-fade-up text-balance text-3xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-4xl md:text-[2.6rem] lg:text-[3.25rem]">
