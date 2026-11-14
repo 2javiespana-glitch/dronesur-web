@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
 
 // Panel del admin para ajustar cuántas reseñas puede enviar el público.
 // Habla con /api/reviews (acciones getLimits y setLimits), que solo responde con la contraseña de admin.
+// Se guarda solo al cambiar un valor (ver lib/use-autosave.tsx).
 
 type Limits = { max: number; period: 'hour' | 'day'; scope: 'ip' | 'global' }
 
@@ -48,9 +50,6 @@ export function ReviewLimitsPanel({ password }: { password: string }) {
   const [period, setPeriod] = useState<Limits['period']>(DEFAULT_LIMITS.period)
   const [scope, setScope] = useState<Limits['scope']>(DEFAULT_LIMITS.scope)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
-
   const headers = { 'Content-Type': 'application/json', 'x-admin-password': password }
 
   useEffect(() => {
@@ -81,34 +80,30 @@ export function ReviewLimitsPanel({ password }: { password: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [password])
 
-  const save = async () => {
-    setMessage(null)
-    const max = Math.round(Number(maxText))
-    if (maxText.trim() === '' || !Number.isFinite(max) || max < 0 || max > 1000) {
-      setMessage({ ok: false, text: 'Pon un número entre 0 y 1000 (0 = sin límite).' })
-      return
-    }
-    setSaving(true)
-    try {
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'setLimits', limits: { max, period, scope } }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setMessage({ ok: false, text: data?.error || 'No se pudo guardar. Inténtalo de nuevo.' })
-        return
+  const auto = useAutoSave({
+    value: { maxText, period, scope },
+    enabled: !loading, // hasta que no se carga lo guardado no se toca nada
+    save: async (v, { keepalive }) => {
+      const max = Math.round(Number(v.maxText))
+      if (v.maxText.trim() === '' || !Number.isFinite(max) || max < 0 || max > 1000) {
+        return 'Pon un número entre 0 y 1000 (0 = sin límite). No se guarda hasta que sea válido.'
       }
-      setSaved(data.limits)
-      setMaxText(String(data.limits.max))
-      setMessage({ ok: true, text: 'Guardado.' })
-    } catch {
-      setMessage({ ok: false, text: 'No se pudo guardar. Revisa tu conexión.' })
-    } finally {
-      setSaving(false)
-    }
-  }
+      try {
+        const res = await fetch('/api/reviews', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'setLimits', limits: { max, period: v.period, scope: v.scope } }),
+          keepalive,
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) return data?.error || 'No se pudo guardar. Inténtalo de nuevo.'
+        setSaved(data.limits) // solo la frase de arriba; no se toca el número que estás escribiendo
+        return null
+      } catch {
+        return 'No se pudo guardar. Revisa tu conexión.'
+      }
+    },
+  })
 
   return (
     <div className="mt-10">
@@ -168,19 +163,7 @@ export function ReviewLimitsPanel({ password }: { password: string }) {
         </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving || loading}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--gold-foreground)] transition hover:bg-[var(--gold-soft)] disabled:opacity-60"
-          >
-            {saving ? 'Guardando...' : 'Guardar límite'}
-          </button>
-          {message && (
-            <span className={message.ok ? 'text-sm text-muted-foreground' : 'text-sm text-destructive'}>
-              {message.text}
-            </span>
-          )}
+          <AutoSaveStatus status={auto.status} error={auto.error} />
         </div>
       </div>
     </div>
