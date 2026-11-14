@@ -4,6 +4,7 @@ import { categorySlugs } from '@/lib/categories-db'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { isAllowedEmbed } from '@/lib/media-url'
 import { warmVideoVariants } from '@/lib/video-warmup'
+import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS } from '@/lib/showcase'
 
 // Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría, y opcionalmente
 // su álbum) en una base de datos Upstash Redis, para que TODOS los visitantes vean lo
@@ -12,6 +13,7 @@ import { warmVideoVariants } from '@/lib/video-warmup'
 // - GET     -> devuelve la lista (pública, la usan el hero, las portadas y las subpáginas)
 // - POST    -> { action: 'check' }  comprueba la contraseña del admin
 //              { action: 'update', id, alt, altEn } escribe la descripción de una foto (solo admin)
+//              { action: 'update', id, caption, captionEn } escribe el pie de una foto del carrusel «oportunidad» (solo admin)
 //              { action: 'add', item } añade una foto o vídeo (solo admin)
 //              { action: 'reorder', category, ids } cambia el orden de las tomas de una categoría (solo admin)
 // - DELETE  -> { id } borra un elemento (solo admin)
@@ -25,7 +27,7 @@ const KEY = 'dronesur:media'
 // Las categorías de servicio se crean/ocultan desde el admin, así que comprobamos
 // contra la lista real guardada en la base de datos (ver lib/categories-db.ts).
 async function isAllowedCategory(category: string): Promise<boolean> {
-  if (category === 'hero') return true
+  if (category === 'hero' || category === SHOWCASE_CATEGORY) return true
   const slugs = await categorySlugs()
   if (slugs.includes(category)) return true
   if (category.startsWith('cover-') && slugs.includes(category.replace('cover-', ''))) return true
@@ -42,6 +44,8 @@ type MediaItem = {
   alt?: string // descripción de la foto (para Google y lectores de pantalla)
   altEn?: string
   linkSlug?: string // solo vídeos del carrusel: categoría a la que lleva su botón
+  caption?: string // pie de foto del carrusel «oportunidad» (español)
+  captionEn?: string // lo mismo en inglés
 }
 
 export async function GET() {
@@ -65,6 +69,8 @@ export async function POST(req: Request) {
     alt?: unknown
     altEn?: unknown
     linkSlug?: unknown
+    caption?: unknown
+    captionEn?: unknown
     category?: unknown
     ids?: unknown
   }
@@ -86,6 +92,12 @@ export async function POST(req: Request) {
     const touchesAlt = body.alt !== undefined || body.altEn !== undefined
     // Categoría a la que lleva el botón de un vídeo del carrusel (vacío = sin botón).
     const touchesLink = body.linkSlug !== undefined
+    // Pie de foto del carrusel de la sección «oportunidad» (vacío = sin pie).
+    const cleanCaption = (value: unknown) =>
+      typeof value === 'string' ? value.trim().slice(0, SHOWCASE_LIMITS.caption) : ''
+    const caption = cleanCaption(body.caption)
+    const captionEn = cleanCaption(body.captionEn)
+    const touchesCaption = body.caption !== undefined || body.captionEn !== undefined
     const linkSlug = typeof body.linkSlug === 'string' ? body.linkSlug.trim() : ''
     try {
       if (touchesLink && linkSlug && !(await isAllowedCategory(linkSlug))) {
@@ -104,6 +116,12 @@ export async function POST(req: Request) {
           if (touchesLink) {
             if (linkSlug) next.linkSlug = linkSlug
             else delete next.linkSlug
+          }
+          if (touchesCaption) {
+            if (caption) next.caption = caption
+            else delete next.caption
+            if (captionEn) next.captionEn = captionEn
+            else delete next.captionEn
           }
           return next
         }),
@@ -151,6 +169,10 @@ export async function POST(req: Request) {
       if (mediaType === 'embed' && !isAllowedEmbed(item.url)) {
         return fail('Solo se admiten enlaces de Sketchfab, Kuula o Matterport.', 400)
       }
+      // El carrusel de la sección «oportunidad» solo admite fotos y vídeos, y tiene un tope.
+      if (item.category === SHOWCASE_CATEGORY && mediaType !== 'image' && mediaType !== 'video') {
+        return fail('Este carrusel solo admite fotos y vídeos.', 400)
+      }
       const newItem: MediaItem = {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         title: String(item.title ?? '').slice(0, 200),
@@ -159,7 +181,15 @@ export async function POST(req: Request) {
         type: mediaType,
         ...(item.albumId ? { albumId: String(item.albumId) } : {}),
       }
-      const updated = await updateJSON<MediaItem[]>(KEY, [], (items) => [...items, newItem])
+      let full = false
+      const updated = await updateJSON<MediaItem[]>(KEY, [], (items) => {
+        if (newItem.category === SHOWCASE_CATEGORY && items.filter((m) => m.category === SHOWCASE_CATEGORY).length >= SHOWCASE_MAX_ITEMS) {
+          full = true
+          return items
+        }
+        return [...items, newItem]
+      })
+      if (full) return fail(`Este carrusel admite como máximo ${SHOWCASE_MAX_ITEMS} fotos o vídeos. Elimina alguno para añadir más.`, 400)
       // Vídeo nuevo del carrusel: se pide ya a Cloudinary que prepare sus copias (móvil y escritorio),
       // DESPUÉS de responder al admin, para que el primer visitante no tenga que esperar.
       if (newItem.type === 'video' && newItem.category === 'hero') {
