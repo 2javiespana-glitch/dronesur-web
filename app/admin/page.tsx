@@ -746,8 +746,9 @@ export default function AdminPage() {
 
       {/* 8 · GARANTÍA LEGAL */}
       <section id="admin-garantia" className={sectionClass}>
-        {sectionHead(8, 'Garantía legal', 'El banner de garantía. El texto es fijo: aquí solo se muestra u oculta.')}
+        {sectionHead(8, 'Garantía legal', 'La banda dorada de garantía: cambia aquí su título y su texto, o muéstrala u ocúltala.')}
         {visibilityToggle('guarantee', 'Garantía legal')}
+        <ContentPanel password={pass} show={['guarantee']} />
       </section>
 
       {/* 9 · RESEÑAS */}
