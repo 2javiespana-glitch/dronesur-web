@@ -20,7 +20,7 @@ import { fail, serverError, requireAdmin } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
 
-const RESERVED_SLUGS = ['hero', 'admin', 'api']
+const RESERVED_SLUGS = ['hero', 'showcase', 'admin', 'api']
 
 function slugify(text: string) {
   const slug = text
