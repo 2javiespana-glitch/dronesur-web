@@ -23,6 +23,19 @@ export function playableVideoUrl(url: string, maxWidth?: number): string {
     .replace(/\.[a-z0-9]+(\?.*)?$/i, '.mp4')
 }
 
+// Vídeos de las carpetas (álbumes) de cada categoría: CALIDAD MÁXIMA, sin reducir el tamaño.
+// Un vídeo en 4K se sirve en 4K y con la mejor calidad que ofrece Cloudinary (q_auto:best), aunque
+// tarde más en cargar. Sigue pidiendo la copia H.264 para que se vea también en Windows (ver arriba).
+// Si Cloudinary no puede preparar esa copia (por ejemplo, un vídeo muy pesado en el plan gratuito),
+// la página usa el archivo original: ver category-detail.tsx.
+export function albumVideoUrl(url: string): string {
+  if (!url.includes('res.cloudinary.com/') || !url.includes('/video/upload/')) return url
+  if (/\/video\/upload\/[^/]*vc_/.test(url)) return url // ya trae su propia transformación
+  return url
+    .replace('/video/upload/', '/video/upload/vc_h264,q_auto:best/')
+    .replace(/\.[a-z0-9]+(\?.*)?$/i, '.mp4')
+}
+
 // ---------- Fotos 360° ----------
 // Limita el ancho a 5000 px y optimiza el peso: carga más rápido y funciona en móviles
 // antiguos (que no aguantan texturas gigantes).
