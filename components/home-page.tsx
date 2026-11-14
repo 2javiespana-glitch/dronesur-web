@@ -32,7 +32,7 @@ export function HomePage({ data }: { data: HomeData }) {
         {settings.pilot && <PilotSection content={content.pilot} />}
         {settings.coverage && <CoverageServices />}
         {settings.legal && <LegalSection />}
-        {settings.guarantee && <GuaranteeBanner />}
+        {settings.guarantee && <GuaranteeBanner content={content.guarantee} />}
         {settings.reviews && <ReviewsSection />}
         <ContactSection />
       </main>
