@@ -3,6 +3,7 @@ import { readCategoriesPublic } from '@/lib/categories-db'
 import { CATEGORIES, type Category, type VideoItem } from '@/lib/content'
 import { normalizeContent, type SiteContent } from '@/lib/site-content'
 import type { MediaItem } from '@/lib/media-admin'
+import { SHOWCASE_CATEGORY, SHOWCASE_MAX_ITEMS, normalizeShowcaseText, type ShowcaseData, type ShowcaseSlide } from '@/lib/showcase'
 
 // Todo lo que necesita la portada (/ y /en), leído UNA sola vez en el servidor y en paralelo.
 // Antes, el navegador pedía estos datos uno a uno después de abrir la página (6 peticiones,
@@ -42,6 +43,7 @@ export type HomeData = {
   settings: SectionToggles
   promoOverride: PromoOverride | null
   content: SiteContent
+  showcase: ShowcaseData | null // sección «oportunidad» (null = oculta)
 }
 
 const DEFAULT_TOGGLES: SectionToggles = {
@@ -128,6 +130,26 @@ export async function loadHomeData(): Promise<HomeData> {
     promoOverride = clean
   }
 
+  // Sección «oportunidad»: solo se prepara si está activada (empieza oculta hasta que la actives en el admin).
+  // El carrusel son las fotos y vídeos de la categoría interna 'showcase', en el orden del admin.
+  let showcase: ShowcaseData | null = null
+  if (savedSettings?.showcase === true) {
+    const carousel = savedSettings.showcaseCarousel !== false
+    const slides: ShowcaseSlide[] = carousel
+      ? items
+          .filter((m) => m.category === SHOWCASE_CATEGORY && (m.type === 'image' || m.type === 'video') && m.url.startsWith('https://'))
+          .slice(0, SHOWCASE_MAX_ITEMS)
+          .map((m) => ({
+            id: m.id,
+            kind: m.type === 'video' ? ('video' as const) : ('image' as const),
+            url: m.url,
+            caption: { es: m.caption ?? '', en: m.captionEn ?? '' },
+            alt: { es: m.alt ?? '', en: m.altEn ?? '' },
+          }))
+      : []
+    showcase = { carousel, text: normalizeShowcaseText(savedSettings.showcaseText), slides }
+  }
+
   return {
     videos,
     covers,
@@ -135,5 +157,6 @@ export async function loadHomeData(): Promise<HomeData> {
     settings,
     promoOverride,
     content: normalizeContent(savedContent),
+    showcase,
   }
 }
