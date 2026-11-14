@@ -9,12 +9,14 @@ export type MediaItem = {
   id: string
   title: string
   url: string
-  category: string // 'hero', el slug de una categoría, o 'cover-<slug>' (portada de la tarjeta)
+  category: string // 'hero', 'showcase' (carrusel de la sección «oportunidad»), el slug de una categoría, o 'cover-<slug>' (portada de la tarjeta)
   type?: MediaKind // los elementos antiguos sin tipo eran vídeos
   albumId?: string
   alt?: string // descripción de la foto en español (para Google y lectores de pantalla)
   altEn?: string // lo mismo en inglés
   linkSlug?: string // solo vídeos del carrusel: slug de la categoría a la que lleva el botón del carrusel
+  caption?: string // solo carrusel de la sección «oportunidad»: pie de foto en español
+  captionEn?: string // lo mismo en inglés
 }
 
 export type AlbumItem = { id: string; category: string; title: string; createdAt: number }
