@@ -44,6 +44,8 @@ export function Hero({ videos, music }: HeroProps) {
   const [full, setFull] = useState<Record<string, boolean>>({})
   // Id del vídeo actual si se ha quedado a medias cargando (círculo de carga a mitad de vídeo).
   const [stalledId, setStalledId] = useState<string | null>(null)
+  // Vídeos que ya se han reproducido alguna vez. El círculo de carga solo sale la primera vez de cada uno.
+  const [played, setPlayed] = useState<Record<string, boolean>>({})
   // Vídeos para los que la versión reducida del móvil falló: se vuelven a pedir como siempre.
   const [fullQuality, setFullQuality] = useState<Record<string, boolean>>({})
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({})
@@ -115,7 +117,11 @@ export function Hero({ videos, music }: HeroProps) {
         <ArrowRight className="h-3.5 w-3.5 shrink-0" />
       </Link>
     ) : null
-  const loading = !!current && ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
+  // El círculo de carga solo sale la PRIMERA vez que se carga un vídeo. Una vez que ya se ha visto, nunca vuelve
+  // a salir: si al volver a él el navegador tarda un instante en recuperar el principio, se queda la imagen
+  // quieta un momento, sin el círculo ensuciando la portada.
+  const loading =
+    !!current && !played[current.id] && ((!ready[current.id] && !full[current.id]) || stalledId === current.id)
 
   // Cola de descarga: primero el vídeo actual, luego el siguiente, el siguiente...
   // Un vídeo solo empieza a descargarse cuando los que van antes ya terminaron, con una excepción: el
@@ -139,19 +145,33 @@ export function Hero({ videos, music }: HeroProps) {
   }
 
   // Solo el vídeo actual se reproduce; los demás se quedan en pausa, ya cargados y listos.
+  // Al salir de un vídeo NO se rebobina: saltar al segundo 0 obligaba al navegador a volver a pedir el principio
+  // (que ya había descartado) y por eso reaparecía la carga al volver. Rebobinar se hace al volver a ese vídeo,
+  // y solo si el principio sigue en memoria; si no, continúa por donde iba.
+  const lastShown = useRef<string | undefined>(undefined)
   useEffect(() => {
+    const changed = lastShown.current !== current?.id
+    lastShown.current = current?.id
     videos.forEach((v) => {
       const el = videoRefs.current[v.id]
       if (!el) return
       if (v.id === current?.id) {
         el.muted = true
+        if (changed && el.currentTime > 0.1) {
+          try {
+            const b = el.buffered
+            for (let i = 0; i < b.length; i++) {
+              if (b.start(i) <= 0.05 && b.end(i) > 1) {
+                el.currentTime = 0
+                break
+              }
+            }
+          } catch {}
+        }
         if (paused) el.pause()
         else void el.play().catch(() => {})
       } else {
         el.pause()
-        try {
-          el.currentTime = 0
-        } catch {}
       }
     })
   }, [videos, current?.id, isMobile, paused])
@@ -261,6 +281,7 @@ export function Hero({ videos, music }: HeroProps) {
                 onCanPlayThrough={() => setFull((f) => (f[v.id] ? f : { ...f, [v.id]: true }))}
                 onPlaying={() => {
                   if (stalledId === v.id) setStalledId(null)
+                  setPlayed((p) => (p[v.id] ? p : { ...p, [v.id]: true }))
                 }}
                 onWaiting={(e) => {
                   // Al repetirse un vídeo en bucle el navegador avisa de una espera mínima: no es una carga a medias.
