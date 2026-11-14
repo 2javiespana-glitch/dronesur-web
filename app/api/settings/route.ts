@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { readJSON, updateJSON } from '@/lib/kv'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { DEFAULT_QUOTE_DISCOUNT, normalizeQuoteDiscount, type QuoteDiscount } from '@/lib/quotes'
+import { EMPTY_SHOWCASE_TEXT, normalizeShowcaseText, type ShowcaseText } from '@/lib/showcase'
 
 // Guarda qué secciones de la web están visibles u ocultas (lo que se controla desde
 // el panel de admin, apartado "Qué se ve en la web").
@@ -36,6 +37,9 @@ export type SiteSettings = {
   pilot: boolean
   promoOverride: PromoOverride
   quoteDiscount: QuoteDiscount // casilla de descuento del formulario de presupuesto
+  showcase: boolean // sección «oportunidad» (debajo del banner de descuento). Empieza oculta hasta que la actives
+  showcaseCarousel: boolean // dentro de esa sección: mostrar o no el carrusel de fotos y vídeos
+  showcaseText: ShowcaseText // textos de esa sección (español e inglés)
 }
 
 const EMPTY_PROMO_OVERRIDE: PromoOverride = {
@@ -61,9 +65,22 @@ const DEFAULT_SETTINGS: SiteSettings = {
   pilot: true,
   promoOverride: EMPTY_PROMO_OVERRIDE,
   quoteDiscount: DEFAULT_QUOTE_DISCOUNT,
+  showcase: false,
+  showcaseCarousel: true,
+  showcaseText: EMPTY_SHOWCASE_TEXT,
 }
 
-const BOOLEAN_KEYS = ['promo', 'coverage', 'guarantee', 'reviews', 'legal', 'about', 'pilot'] as const
+const BOOLEAN_KEYS = [
+  'promo',
+  'coverage',
+  'guarantee',
+  'reviews',
+  'legal',
+  'about',
+  'pilot',
+  'showcase',
+  'showcaseCarousel',
+] as const
 
 // Solo se guardan los ajustes conocidos (y con el tipo correcto). Así nadie puede colar
 // campos raros en la base de datos aunque envíe una petición a mano.
@@ -84,6 +101,9 @@ function sanitizeSettings(input: unknown): Partial<SiteSettings> {
   if (src.quoteDiscount && typeof src.quoteDiscount === 'object') {
     out.quoteDiscount = normalizeQuoteDiscount(src.quoteDiscount)
   }
+  if (src.showcaseText && typeof src.showcaseText === 'object') {
+    out.showcaseText = normalizeShowcaseText(src.showcaseText)
+  }
   return out
 }
 
@@ -93,7 +113,12 @@ export async function GET() {
     // Fusionamos con los valores por defecto para que, si en el futuro se añade una
     // sección nueva, aparezca activada aunque todavía no se haya guardado nada para ella.
     return NextResponse.json(
-      { ...DEFAULT_SETTINGS, ...saved, quoteDiscount: normalizeQuoteDiscount(saved.quoteDiscount) },
+      {
+        ...DEFAULT_SETTINGS,
+        ...saved,
+        quoteDiscount: normalizeQuoteDiscount(saved.quoteDiscount),
+        showcaseText: normalizeShowcaseText(saved.showcaseText),
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch {
