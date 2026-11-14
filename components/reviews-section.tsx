@@ -176,12 +176,17 @@ export function ReviewsSection() {
 
       <div className="mt-10 flex justify-center">
         {!showForm ? (
-          <button
-            onClick={() => setShowForm(true)}
-            className="rounded-full border border-[var(--gold)] px-6 py-3 text-sm font-semibold text-gold transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)]"
-          >
-            {es ? 'Deja tu reseña' : 'Leave a review'}
-          </button>
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={() => setShowForm(true)}
+              className="rounded-full border border-[var(--gold)] px-6 py-3 text-sm font-semibold text-gold transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)]"
+            >
+              {es ? 'Deja tu reseña' : 'Leave a review'}
+            </button>
+            <p className="text-xs text-muted-foreground">
+              {es ? 'Se publicará cuando sea revisada.' : 'It will be published once it has been reviewed.'}
+            </p>
+          </div>
         ) : (
           <form
             onSubmit={submit}
@@ -198,6 +203,9 @@ export function ReviewsSection() {
             ) : (
               <>
                 <h3 className="text-lg font-bold">{es ? 'Cuéntanos tu experiencia' : 'Tell us about your experience'}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {es ? 'Tu reseña se publicará cuando sea revisada.' : 'Your review will be published once it has been reviewed.'}
+                </p>
 
                 <label className="mt-4 block text-sm font-medium">{es ? 'Tu nombre' : 'Your name'}</label>
                 <input
