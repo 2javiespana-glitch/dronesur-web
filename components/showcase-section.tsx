@@ -33,7 +33,6 @@ const LABELS = {
     pause: 'Pausar carrusel',
     play: 'Reanudar carrusel',
     title: 'Aprovecha la oportunidad',
-    cta: '¡Aprovecha la oportunidad!',
   },
   en: {
     region: 'Ideas to make the most of the offer',
@@ -44,7 +43,6 @@ const LABELS = {
     pause: 'Pause carousel',
     play: 'Resume carousel',
     title: 'Make the most of this opportunity',
-    cta: 'Take the opportunity!',
   },
 } as const
 
@@ -54,8 +52,6 @@ function ShowcaseCarousel({ slides: allSlides, lang }: { slides: ShowcaseSlide[]
   const { reduceMotion: reduced } = useA11y()
   const [index, setIndex] = useState(0)
   const [userPaused, setUserPaused] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  const [focused, setFocused] = useState(false)
   const [visible, setVisible] = useState(false) // el carrusel se ve ahora mismo en pantalla
   const [seen, setSeen] = useState(false) // ya se ha visto alguna vez: a partir de aquí se cargan los vídeos
   const [tabHidden, setTabHidden] = useState(false) // la pestaña está en segundo plano
@@ -125,7 +121,9 @@ function ShowcaseCarousel({ slides: allSlides, lang }: { slides: ShowcaseSlide[]
 
   // Avance automático. Una foto se ve SLIDE_MS desde que ya se ve (si tarda en cargar, espera, con un tope);
   // un vídeo avanza solo al terminar (con un tope por si falla).
-  const autoplay = count > 1 && visible && !tabHidden && !userPaused && !reduced && !hovered && !focused
+  // Solo se detiene con el botón de pausa (o si no se ve en pantalla, la pestaña está en segundo plano o la persona
+  // ha pedido menos animaciones). Ya NO se detiene por poner el ratón encima ni por tener el foco del teclado.
+  const autoplay = count > 1 && visible && !tabHidden && !userPaused && !reduced
   const currentReady = currentKind !== 'image' || (currentId !== undefined && loaded.has(currentId))
   useEffect(() => {
     if (!autoplay || !currentKind) return
@@ -150,19 +148,6 @@ function ShowcaseCarousel({ slides: allSlides, lang }: { slides: ShowcaseSlide[]
       role="group"
       aria-roledescription="carousel"
       aria-label={L.region}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onFocus={(e) => {
-        // Solo el foco de teclado pausa el avance: tras hacer clic con el ratón en una flecha, el carrusel sigue su curso.
-        try {
-          if (e.target.matches(':focus-visible')) setFocused(true)
-        } catch {
-          setFocused(true) // navegadores antiguos sin :focus-visible
-        }
-      }}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false)
-      }}
       onKeyDown={(e) => {
         if (count < 2) return
         if (e.key === 'ArrowLeft') go(safeIndex - 1)
@@ -235,15 +220,9 @@ function ShowcaseCarousel({ slides: allSlides, lang }: { slides: ShowcaseSlide[]
                   preload="metadata"
                   loop={count === 1}
                   controls={reduced}
-                  onEnded={(e) => {
+                  onEnded={() => {
                     if (count < 2 || reduced) return
-                    if (hovered || focused) {
-                      // Con el ratón o el teclado encima el carrusel está quieto: el vídeo se repite.
-                      e.currentTarget.currentTime = 0
-                      void e.currentTarget.play().catch(() => {})
-                    } else {
-                      setIndex((safeIndex + 1) % count)
-                    }
+                    setIndex((safeIndex + 1) % count)
                   }}
                   onError={() => markFailed(slide.id)}
                   className="h-full w-full object-cover"
@@ -330,12 +309,13 @@ export function ShowcaseSection({ data }: { data: ShowcaseData }) {
   const L = LABELS[lang]
   const { text, slides, carousel } = data
 
-  // Cada idioma usa solo sus textos. Título y botón, si se dejan en blanco, llevan un texto de siempre;
-  // la insignia y el texto descriptivo solo salen si los escribes tú.
+  // Cada idioma usa solo sus textos. El título, si se deja en blanco, lleva un texto de siempre;
+  // la insignia, el texto descriptivo y el botón solo salen si los escribes tú.
+  // Sin texto en el botón, no hay botón.
   const badge = (lang === 'en' ? text.badgeEn : text.badgeEs).trim()
   const title = (lang === 'en' ? text.titleEn : text.titleEs).trim() || L.title
   const body = (lang === 'en' ? text.textEn : text.textEs).trim()
-  const cta = (lang === 'en' ? text.ctaEn : text.ctaEs).trim() || L.cta
+  const cta = (lang === 'en' ? text.ctaEn : text.ctaEs).trim()
   const hasCarousel = carousel && slides.length > 0
 
   return (
@@ -344,7 +324,7 @@ export function ShowcaseSection({ data }: { data: ShowcaseData }) {
         <div className="relative overflow-hidden rounded-3xl border border-[var(--gold)]/30 bg-gradient-to-br from-card via-card to-[var(--gold)]/10 p-6 shadow-xl sm:p-10">
           <div className="pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-[var(--gold)]/15 blur-3xl" />
           <div className={`relative grid items-center gap-x-10 gap-y-6 ${hasCarousel ? 'md:grid-cols-2' : ''}`}>
-            <div className={hasCarousel ? 'md:col-start-1 md:row-start-1 md:self-end' : ''}>
+            <div className={hasCarousel ? (cta ? 'md:col-start-1 md:row-start-1 md:self-end' : 'md:col-start-1 md:row-span-2 md:row-start-1 md:self-center') : ''}>
               {badge && (
                 <span className="inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-3 py-1 text-xs font-bold uppercase tracking-wider text-[var(--gold-foreground)]">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -363,15 +343,17 @@ export function ShowcaseSection({ data }: { data: ShowcaseData }) {
               </div>
             )}
 
-            <div className={hasCarousel ? 'md:col-start-1 md:row-start-2 md:self-start' : ''}>
-              <button
-                type="button"
-                onClick={() => open({ discount: true })}
-                className="rounded-full bg-[var(--gold)] px-7 py-3.5 text-sm font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)]"
-              >
-                {cta}
-              </button>
-            </div>
+            {cta && (
+              <div className={hasCarousel ? 'md:col-start-1 md:row-start-2 md:self-start' : ''}>
+                <button
+                  type="button"
+                  onClick={() => open({ discount: true })}
+                  className="rounded-full bg-[var(--gold)] px-7 py-3.5 text-sm font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)]"
+                >
+                  {cta}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
