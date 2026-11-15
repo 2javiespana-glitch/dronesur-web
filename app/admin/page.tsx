@@ -743,8 +743,9 @@ export default function AdminPage() {
         <div className="mt-8">
           <h3 className="text-lg font-bold">Texto de la sección</h3>
           <p className="text-sm text-muted-foreground">
-            El título y el botón, si los dejas en blanco, usan el texto de siempre (el que ves en gris). La insignia y
-            el texto descriptivo solo salen si los escribes. El botón abre el formulario de presupuesto.
+            El título, si lo dejas en blanco, usa el texto de siempre (el que ves en gris). La insignia, el texto
+            descriptivo y el botón solo salen si los escribes: si dejas el botón en blanco, no sale ningún botón. El
+            botón abre el formulario de presupuesto.
           </p>
           <form
             onSubmit={(e) => {
@@ -765,7 +766,7 @@ export default function AdminPage() {
                     badge: 'Ej.: Hasta 2027',
                     title: 'Aprovecha la oportunidad',
                     text: 'Ej.: Úsalo para presumir de viaje, enseñar tu casa o sorprender a tu pareja con una foto desde el aire.',
-                    cta: '¡Aprovecha la oportunidad!',
+                    cta: 'Ej.: ¡Aprovecha la oportunidad! (en blanco = sin botón)',
                   },
                 },
                 {
@@ -778,7 +779,7 @@ export default function AdminPage() {
                     badge: 'E.g.: Until 2027',
                     title: 'Make the most of this opportunity',
                     text: 'E.g.: Use it to show off a trip, showcase your home or surprise your partner with an aerial photo.',
-                    cta: 'Take the opportunity!',
+                    cta: 'E.g.: Take the opportunity! (blank = no button)',
                   },
                 },
               ] as const
