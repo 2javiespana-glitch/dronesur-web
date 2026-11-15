@@ -5,7 +5,7 @@
 // admite más (créditos o almacenamiento agotados), la subida pasa sola a la siguiente, sin que tengas que
 // hacer nada. Los archivos que ya estaban subidos se siguen viendo desde la cuenta donde se subieron.
 //
-// Para añadir la segunda cuenta: pon su «cloud name» en `cloudName` (Cloudinary → Settings → arriba a la
+// Para añadir otra cuenta: pon su «cloud name» en `cloudName` (Cloudinary → Settings → arriba a la
 // izquierda, o en el Dashboard) y crea en ella un «upload preset» SIN FIRMAR (unsigned) con el mismo nombre
 // que pone en `preset`. Mientras `cloudName` esté vacío, esa cuenta se ignora.
 export type CloudinaryAccount = {
@@ -15,7 +15,7 @@ export type CloudinaryAccount = {
 
 export const CLOUDINARY_ACCOUNTS: CloudinaryAccount[] = [
   { cloudName: 'bar5rrho', preset: 'dronesur videos' },
-  { cloudName: '', preset: 'dronesur videos' }, // ← escribe aquí el cloud name de la segunda cuenta
+  { cloudName: 'ylxgfxzg', preset: 'dronesur videos' }, // segunda cuenta
 ]
 
 // Solo las cuentas que están rellenadas.
