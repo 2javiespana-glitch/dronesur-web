@@ -7,7 +7,9 @@ import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
 //
 // Si algo falla (red, límite de Cloudinary, tiempo), no pasa nada: se ignora y la web funciona
 // igual, solo que la primera visita tardaría un poco más.
-export async function warmVideoVariants(url: string): Promise<void> {
+// widths: los anchos de las copias a preparar (undefined = la de escritorio, sin límite de ancho).
+// Sin indicarlos se preparan las dos del carrusel de inicio (móvil y escritorio).
+export async function warmVideoVariants(url: string, widths: (number | undefined)[] = [MOBILE_VIDEO_WIDTH, undefined]): Promise<void> {
   let host = ''
   try {
     host = new URL(url).hostname
@@ -17,7 +19,7 @@ export async function warmVideoVariants(url: string): Promise<void> {
   // Solo vídeos de tu Cloudinary (nunca una dirección cualquiera).
   if (host !== 'res.cloudinary.com') return
 
-  const variants = [playableVideoUrl(url, MOBILE_VIDEO_WIDTH), playableVideoUrl(url)].filter((v) => v !== url)
+  const variants = widths.map((w) => playableVideoUrl(url, w)).filter((v) => v !== url)
 
   await Promise.allSettled(
     variants.map(async (variant) => {
