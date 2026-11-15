@@ -1,23 +1,27 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Pause, Play, Sparkles } from 'lucide-react'
+import { useA11y } from '@/components/accessibility-provider'
 import { useSite } from '@/components/site-provider'
 import { useQuote } from '@/components/quote-modal'
 import { playableVideoUrl, videoPosterUrl } from '@/lib/media-url'
 import { localizedOr, optimizeImage } from '@/lib/site-content'
 import type { Lang } from '@/lib/content'
-import type { ShowcaseData, ShowcaseSlide } from '@/lib/showcase'
+import { SHOWCASE_VIDEO_WIDTH, type ShowcaseData, type ShowcaseSlide } from '@/lib/showcase'
 
 // Sección «oportunidad» (debajo del banner de descuento): texto, botón y un carrusel pequeño de
 // fotos o vídeos con ideas de para qué aprovechar la oferta. Todo se edita en el admin.
 // Los datos llegan ya leídos desde el servidor (lib/home-data.ts).
 
-// Tiempo que se ve cada foto antes de pasar a la siguiente.
+// Tiempo que se ve cada foto antes de pasar a la siguiente (cuenta desde que la foto ya se ve).
 const SLIDE_MS = 2000
-// Anchos que se piden a Cloudinary (el carrusel es pequeño, no hace falta más).
+// Si una foto tarda en cargar, el reloj no empieza hasta que se ve; este es el tope de espera por si nunca llega.
+const LOAD_WAIT_MS = 8000
+// Tope para un vídeo: normalmente pasa al siguiente cuando termina; esto es por si algo falla.
+const VIDEO_MAX_MS = 30000
+// Ancho que se pide a Cloudinary para las fotos (el carrusel es pequeño, no hace falta más).
 const IMAGE_WIDTH = 900
-const VIDEO_WIDTH = 960
 
 const LABELS = {
   es: {
@@ -44,33 +48,38 @@ const LABELS = {
   },
 } as const
 
-function ShowcaseCarousel({ slides, lang }: { slides: ShowcaseSlide[]; lang: Lang }) {
+function ShowcaseCarousel({ slides: allSlides, lang }: { slides: ShowcaseSlide[]; lang: Lang }) {
   const L = LABELS[lang]
-  const count = slides.length
+  // «Reducir animaciones» (panel de accesibilidad de la web o ajuste del sistema): sin avance automático.
+  const { reduceMotion: reduced } = useA11y()
   const [index, setIndex] = useState(0)
   const [userPaused, setUserPaused] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [visible, setVisible] = useState(false) // el carrusel se ve ahora mismo en pantalla
   const [seen, setSeen] = useState(false) // ya se ha visto alguna vez: a partir de aquí se cargan los vídeos
-  const [reduced, setReduced] = useState(false) // la persona prefiere menos movimiento
+  const [tabHidden, setTabHidden] = useState(false) // la pestaña está en segundo plano
+  const [failed, setFailed] = useState<Set<string>>(() => new Set()) // fotos o vídeos que no cargan: se saltan
+  const [loaded, setLoaded] = useState<Set<string>>(() => new Set()) // fotos que ya se ven
+  const [kept, setKept] = useState<Set<string>>(() => new Set()) // fotos cuya descarga ya se ha pedido
   const rootRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const swipeStart = useRef<number | null>(null)
 
-  const safeIndex = Math.min(index, count - 1)
-  const current = slides[safeIndex]
+  // Lo que no carga (foto rota, vídeo que falla) se quita de la rotación en vez de verse roto o repetirse sin fin.
+  const slides = failed.size ? allSlides.filter((sl) => !failed.has(sl.id)) : allSlides
+  const count = slides.length
+  const safeIndex = Math.min(index, Math.max(count - 1, 0))
+  const current = slides[safeIndex] as ShowcaseSlide | undefined
+  const currentKind = current?.kind
+  const currentId = current?.id
 
-  const go = (to: number) => setIndex(((to % count) + count) % count)
+  const markFailed = useCallback((id: string) => setFailed((s) => (s.has(id) ? s : new Set(s).add(id))), [])
+  const markLoaded = useCallback((id: string) => setLoaded((s) => (s.has(id) ? s : new Set(s).add(id))), [])
 
-  // «Reducir movimiento» del sistema: sin avance automático y los vídeos no arrancan solos.
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(query.matches)
-    const onChange = () => setReduced(query.matches)
-    query.addEventListener('change', onChange)
-    return () => query.removeEventListener('change', onChange)
-  }, [])
+  const go = (to: number) => {
+    if (count > 0) setIndex(((to % count) + count) % count)
+  }
 
   // Solo se mueve y reproduce mientras se ve en pantalla (y los vídeos no se descargan antes de llegar aquí).
   useEffect(() => {
@@ -91,22 +100,49 @@ function ShowcaseCarousel({ slides, lang }: { slides: ShowcaseSlide[]; lang: Lan
     return () => observer.disconnect()
   }, [])
 
-  // Avance automático. Una foto se ve SLIDE_MS; un vídeo avanza solo al terminar (con un tope por si falla).
-  const autoplay = count > 1 && visible && !userPaused && !reduced && !hovered && !focused
+  // Con la pestaña en segundo plano no se mueve nada ni se reproduce ningún vídeo.
   useEffect(() => {
-    if (!autoplay) return
-    const wait = current.kind === 'video' ? 30000 : SLIDE_MS
-    const timer = setTimeout(() => setIndex((i) => (i + 1) % count), wait)
-    return () => clearTimeout(timer)
-  }, [autoplay, safeIndex, count, current.kind])
+    const onChange = () => setTabHidden(document.visibilityState === 'hidden')
+    onChange()
+    document.addEventListener('visibilitychange', onChange)
+    return () => document.removeEventListener('visibilitychange', onChange)
+  }, [])
 
-  // Reproduce o pausa el vídeo visible según si se ve y si se ha pausado.
+  // Las fotos se piden poco a poco: la que se ve, la siguiente, la otra siguiente y la anterior (por si se
+  // vuelve atrás). Así la página no descarga las 12 fotos de golpe, y las que ya se pidieron no se sueltan.
+  useEffect(() => {
+    if (count === 0) return
+    setKept((prev) => {
+      let next = prev
+      for (const off of [-1, 0, 1, 2]) {
+        const sl = slides[(((safeIndex + off) % count) + count) % count]
+        if (sl && !next.has(sl.id)) next = new Set(next).add(sl.id)
+      }
+      return next
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeIndex, count])
+
+  // Avance automático. Una foto se ve SLIDE_MS desde que ya se ve (si tarda en cargar, espera, con un tope);
+  // un vídeo avanza solo al terminar (con un tope por si falla).
+  const autoplay = count > 1 && visible && !tabHidden && !userPaused && !reduced && !hovered && !focused
+  const currentReady = currentKind !== 'image' || (currentId !== undefined && loaded.has(currentId))
+  useEffect(() => {
+    if (!autoplay || !currentKind) return
+    const wait = currentKind === 'video' ? VIDEO_MAX_MS : currentReady ? SLIDE_MS : LOAD_WAIT_MS
+    const timer = setTimeout(() => setIndex((safeIndex + 1) % count), wait)
+    return () => clearTimeout(timer)
+  }, [autoplay, safeIndex, count, currentKind, currentReady])
+
+  // Reproduce o pausa el vídeo visible según si se ve, si la pestaña está activa y si se ha pausado.
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
-    if (visible && !userPaused && !reduced) void video.play().catch(() => {})
+    if (visible && !tabHidden && !userPaused && !reduced) void video.play().catch(() => {})
     else video.pause()
-  }, [visible, userPaused, reduced, safeIndex, seen])
+  }, [visible, tabHidden, userPaused, reduced, safeIndex, seen])
+
+  if (count === 0) return null
 
   return (
     <div
@@ -153,9 +189,10 @@ function ShowcaseCarousel({ slides, lang }: { slides: ShowcaseSlide[]; lang: Lan
       >
         {slides.map((slide, i) => {
           const active = i === safeIndex
+          const wantSrc = active || kept.has(slide.id)
           const caption = localizedOr(slide.caption, lang)
           const alt = localizedOr(slide.alt, lang) || caption
-          const poster = slide.kind === 'video' ? videoPosterUrl(slide.url, VIDEO_WIDTH) : undefined
+          const poster = slide.kind === 'video' ? videoPosterUrl(slide.url, SHOWCASE_VIDEO_WIDTH) : undefined
           return (
             <div
               key={slide.id}
@@ -168,18 +205,29 @@ function ShowcaseCarousel({ slides, lang }: { slides: ShowcaseSlide[]; lang: Lan
               }`}
             >
               {slide.kind === 'image' ? (
-                <img
-                  src={optimizeImage(slide.url, IMAGE_WIDTH)}
-                  alt={alt}
-                  loading="lazy"
-                  decoding="async"
-                  draggable={false}
-                  className="h-full w-full object-cover"
-                />
+                wantSrc && (
+                  <img
+                    // Si la foto ya terminó de cargar antes de que la página estuviera lista, onLoad no llegaría a avisar.
+                    ref={(el) => {
+                      if (el?.complete) {
+                        if (el.naturalWidth > 0) markLoaded(slide.id)
+                        else markFailed(slide.id)
+                      }
+                    }}
+                    src={optimizeImage(slide.url, IMAGE_WIDTH)}
+                    alt={alt}
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                    onLoad={() => markLoaded(slide.id)}
+                    onError={() => markFailed(slide.id)}
+                    className="h-full w-full object-cover"
+                  />
+                )
               ) : active && seen ? (
                 <video
                   ref={videoRef}
-                  src={playableVideoUrl(slide.url, VIDEO_WIDTH)}
+                  src={playableVideoUrl(slide.url, SHOWCASE_VIDEO_WIDTH)}
                   poster={poster}
                   aria-label={alt || undefined}
                   muted
@@ -187,16 +235,31 @@ function ShowcaseCarousel({ slides, lang }: { slides: ShowcaseSlide[]; lang: Lan
                   preload="metadata"
                   loop={count === 1}
                   controls={reduced}
-                  onEnded={() => {
-                    if (count > 1) setIndex((n) => (n + 1) % count)
+                  onEnded={(e) => {
+                    if (count < 2 || reduced) return
+                    if (hovered || focused) {
+                      // Con el ratón o el teclado encima el carrusel está quieto: el vídeo se repite.
+                      e.currentTarget.currentTime = 0
+                      void e.currentTarget.play().catch(() => {})
+                    } else {
+                      setIndex((safeIndex + 1) % count)
+                    }
                   }}
-                  onError={() => {
-                    if (count > 1) setIndex((n) => (n + 1) % count)
+                  onError={() => markFailed(slide.id)}
+                  className="h-full w-full object-cover"
+                />
+              ) : poster && wantSrc ? (
+                <img
+                  src={poster}
+                  alt={alt}
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none' // sin portada se ve el fondo liso, no una imagen rota
                   }}
                   className="h-full w-full object-cover"
                 />
-              ) : poster ? (
-                <img src={poster} alt={alt} loading="lazy" decoding="async" draggable={false} className="h-full w-full object-cover" />
               ) : null}
 
               {caption && (
