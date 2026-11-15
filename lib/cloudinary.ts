@@ -56,6 +56,7 @@ function markFull(cloudName: string) {
     all[cloudName] = Date.now()
     window.localStorage.setItem(FULL_KEY, JSON.stringify(all))
   } catch {}
+  notifyTarget()
 }
 
 function isMarkedFull(cloudName: string): boolean {
@@ -64,9 +65,45 @@ function isMarkedFull(cloudName: string): boolean {
 }
 
 // Orden en que se prueban las cuentas: primero las que no están marcadas como llenas.
-function uploadOrder(): CloudinaryAccount[] {
-  const accounts = configuredAccounts().map((a) => a.account)
-  return [...accounts.filter((a) => !isMarkedFull(a.cloudName)), ...accounts.filter((a) => isMarkedFull(a.cloudName))]
+function uploadOrder() {
+  const accounts = configuredAccounts()
+  return [
+    ...accounts.filter((a) => !isMarkedFull(a.account.cloudName)),
+    ...accounts.filter((a) => isMarkedFull(a.account.cloudName)),
+  ]
+}
+
+// ---------- Para enseñarlo en el admin ----------
+// A qué cuenta irá ahora la siguiente subida («Cloudinary 1», «Cloudinary 2»...).
+export type UploadTarget = {
+  number: number // 1 = primera cuenta, 2 = segunda...
+  cloudName: string
+  configured: number // cuántas cuentas hay rellenadas
+  skippedFull: boolean // true si se está saltando alguna cuenta anterior por estar llena
+}
+
+export function currentUploadTarget(): UploadTarget | null {
+  const order = uploadOrder()
+  if (order.length === 0) return null
+  const first = order[0]
+  return {
+    number: first.index + 1,
+    cloudName: first.account.cloudName,
+    configured: order.length,
+    skippedFull: first.index !== Math.min(...order.map((o) => o.index)),
+  }
+}
+
+const targetListeners = new Set<() => void>()
+function notifyTarget() {
+  targetListeners.forEach((fn) => fn())
+}
+// Para que el texto del admin se actualice solo cuando una cuenta pasa a estar llena.
+export function subscribeUploadTarget(fn: () => void): () => void {
+  targetListeners.add(fn)
+  return () => {
+    targetListeners.delete(fn)
+  }
 }
 
 // ---------- Errores ----------
@@ -152,11 +189,11 @@ export async function uploadToCloudinaryDetailed(
   for (let i = 0; i < accounts.length; i++) {
     try {
       onProgress?.(0)
-      return await uploadToAccount(accounts[i], file, endpoint, onProgress)
+      return await uploadToAccount(accounts[i].account, file, endpoint, onProgress)
     } catch (e) {
       last = e
       if (e instanceof UploadError && e.accountFull) {
-        markFull(accounts[i].cloudName)
+        markFull(accounts[i].account.cloudName)
         continue // probar con la siguiente cuenta
       }
       allFull = false
