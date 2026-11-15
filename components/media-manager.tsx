@@ -27,6 +27,7 @@ import {
   type Localized,
 } from '@/lib/content'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { CloudinaryTarget, useUploadTarget } from '@/components/cloudinary-target'
 import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
 import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS } from '@/lib/showcase'
 import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
@@ -458,6 +459,7 @@ function AddTile({
   onFiles: (files: File[]) => void
 }) {
   const [dragOver, setDragOver] = useState(false)
+  const target = useUploadTarget()
   const busy = upload?.key === uploadKey
   const otherBusy = !!upload && !busy
 
@@ -492,7 +494,9 @@ function AddTile({
       {busy ? (
         <>
           <span className="text-sm font-semibold">Subiendo {upload?.label}</span>
-          <span className="text-xs text-muted-foreground">{upload?.percent}%</span>
+          <span className="text-xs text-muted-foreground">
+            {upload?.percent}%{target ? ` · Cloudinary ${target.number}` : ''}
+          </span>
         </>
       ) : (
         <>
@@ -1647,6 +1651,9 @@ export function MediaManager({
           </p>
         </>
       )}
+      <div className="mt-1">
+        <CloudinaryTarget />
+      </div>
       {loadError && (
         <div className="mt-3">
           <Message tone="error">{loadError}</Message>
