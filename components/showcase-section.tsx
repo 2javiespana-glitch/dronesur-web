@@ -14,7 +14,7 @@ import type { ShowcaseData, ShowcaseSlide } from '@/lib/showcase'
 // Los datos llegan ya leídos desde el servidor (lib/home-data.ts).
 
 // Tiempo que se ve cada foto antes de pasar a la siguiente.
-const SLIDE_MS = 5000
+const SLIDE_MS = 2000
 // Anchos que se piden a Cloudinary (el carrusel es pequeño, no hace falta más).
 const IMAGE_WIDTH = 900
 const VIDEO_WIDTH = 960
