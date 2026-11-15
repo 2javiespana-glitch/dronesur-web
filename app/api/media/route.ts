@@ -4,6 +4,7 @@ import { categorySlugs } from '@/lib/categories-db'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { isAllowedEmbed } from '@/lib/media-url'
 import { warmVideoVariants } from '@/lib/video-warmup'
+import { scheduleCloudinaryRelease } from '@/lib/cloudinary-cleanup'
 import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS, SHOWCASE_VIDEO_WIDTH } from '@/lib/showcase'
 
 // Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría, y opcionalmente
@@ -215,7 +216,13 @@ export async function DELETE(req: Request) {
   if (denied) return denied
   try {
     const { id } = await req.json()
-    const updated = await updateJSON<MediaItem[]>(KEY, [], (items) => items.filter((m) => m.id !== id))
+    let removedUrl = ''
+    const updated = await updateJSON<MediaItem[]>(KEY, [], (items) => {
+      removedUrl = items.find((m) => m.id === id)?.url ?? ''
+      return items.filter((m) => m.id !== id)
+    })
+    // Ya quitado de la web: se borra también de Cloudinary (si nada más lo usa).
+    scheduleCloudinaryRelease([removedUrl])
     return NextResponse.json({ items: updated })
   } catch (e) {
     return serverError(e)
