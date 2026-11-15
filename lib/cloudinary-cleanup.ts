@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { after } from 'next/server'
-import { CLOUDINARY_CLOUD_NAME } from '@/lib/cloudinary'
+import { configuredAccounts } from '@/lib/cloudinary'
 import { redis } from '@/lib/kv'
 
 // Borra de Cloudinary los archivos que ya no usa la web.
@@ -9,21 +9,36 @@ import { redis } from '@/lib/kv'
 // el archivo seguía ahí ocupando espacio y créditos. Esto lo elimina también de Cloudinary.
 //
 // Es una operación SIN VUELTA ATRÁS, así que va con todas las precauciones:
-//   · Solo borra archivos de TU cuenta de Cloudinary (nunca una dirección cualquiera).
+//   · Solo borra archivos de TUS cuentas de Cloudinary (las de lib/cloudinary.ts; nunca una dirección cualquiera).
 //   · Antes de borrar comprueba que ese archivo no se usa en ningún otro sitio de la web (otra foto, la foto de
 //     «Sobre Dronesur», la del piloto, la música...). Si se usa, NO se toca.
 //   · Si no se puede comprobar (la base de datos no responde, por ejemplo), NO se borra nada.
 //   · Si falla algo, se ignora: quitar la foto de la web nunca se bloquea por esto.
-//   · Hace falta la clave secreta de Cloudinary en Vercel (CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET). Sin ellas
-//     no hace nada y todo sigue funcionando como antes.
+//   · Hace falta la clave secreta de cada cuenta en Vercel. Primera cuenta: CLOUDINARY_API_KEY y
+//     CLOUDINARY_API_SECRET. Segunda: CLOUDINARY_API_KEY_2 y CLOUDINARY_API_SECRET_2 (y así con la tercera: _3).
+//     Los archivos de una cuenta sin sus claves no se borran (se quitan de la web, pero siguen en Cloudinary).
 
 // Sitios de la base de datos donde la web guarda direcciones de archivos de Cloudinary.
 const KEYS_WITH_FILES = ['dronesur:media', 'dronesur:content', 'dronesur:categories', 'dronesur:settings']
 
-export type CloudinaryAsset = { resourceType: 'image' | 'video' | 'raw'; publicId: string }
+export type CloudinaryAsset = {
+  cloudName: string
+  // Posición de la cuenta en la lista de lib/cloudinary.ts (0 = primera). Decide qué claves se usan.
+  accountIndex: number
+  resourceType: 'image' | 'video' | 'raw'
+  publicId: string
+}
+
+// Claves secretas de una cuenta (están en Vercel). La primera cuenta usa los nombres de siempre.
+function credentialsFor(accountIndex: number): { apiKey: string; apiSecret: string } | null {
+  const suffix = accountIndex === 0 ? '' : `_${accountIndex + 1}`
+  const apiKey = process.env[`CLOUDINARY_API_KEY${suffix}`]
+  const apiSecret = process.env[`CLOUDINARY_API_SECRET${suffix}`]
+  return apiKey && apiSecret ? { apiKey, apiSecret } : null
+}
 
 // Dirección típica: https://res.cloudinary.com/<cuenta>/<tipo>/upload/[transformaciones/][v123/]<nombre>.<extensión>
-// Devuelve el tipo y el identificador del archivo, o null si no es un archivo de TU cuenta.
+// Devuelve la cuenta, el tipo y el identificador del archivo, o null si no es un archivo de TUS cuentas.
 export function parseCloudinaryUrl(url: string): CloudinaryAsset | null {
   let u: URL
   try {
@@ -33,7 +48,8 @@ export function parseCloudinaryUrl(url: string): CloudinaryAsset | null {
   }
   if (u.protocol !== 'https:' || u.hostname !== 'res.cloudinary.com') return null
   const parts = u.pathname.split('/').filter(Boolean) // [cuenta, tipo, 'upload', ...resto]
-  if (parts[0] !== CLOUDINARY_CLOUD_NAME) return null // solo tu cuenta
+  const owner = configuredAccounts().find((a) => a.account.cloudName === parts[0])
+  if (!owner) return null // solo tus cuentas
   const type = parts[1]
   if (type !== 'image' && type !== 'video' && type !== 'raw') return null
   if (parts[2] !== 'upload') return null // nada de archivos privados, remotos ('fetch') ni autenticados
@@ -54,10 +70,11 @@ export function parseCloudinaryUrl(url: string): CloudinaryAsset | null {
   }
   // En fotos y vídeos el identificador va sin la extensión; en archivos «raw» (modelos 3D) la lleva.
   if (type !== 'raw') publicId = publicId.replace(/\.[A-Za-z0-9]+$/, '')
-  return publicId ? { resourceType: type, publicId } : null
+  return publicId ? { cloudName: owner.account.cloudName, accountIndex: owner.index, resourceType: type, publicId } : null
 }
 
-const assetKey = (a: CloudinaryAsset) => `${a.resourceType}:${a.publicId}`
+// Incluye la cuenta: dos cuentas pueden tener archivos con el mismo nombre y no son el mismo archivo.
+const assetKey = (a: CloudinaryAsset) => `${a.cloudName}:${a.resourceType}:${a.publicId}`
 
 // Firma que pide Cloudinary: los parámetros ordenados, unidos con «&», más la clave secreta, en SHA-1.
 export function signParams(params: Record<string, string>, secret: string): string {
@@ -96,7 +113,7 @@ async function destroyAsset(asset: CloudinaryAsset, apiKey: string, apiSecret: s
   const signed = { invalidate: 'true', public_id: asset.publicId, timestamp }
   const body = new URLSearchParams({ ...signed, api_key: apiKey, signature: signParams(signed, apiSecret) })
   try {
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${asset.resourceType}/destroy`, {
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${asset.cloudName}/${asset.resourceType}/destroy`, {
       method: 'POST',
       body,
       signal: AbortSignal.timeout(15_000),
@@ -114,15 +131,11 @@ async function destroyAsset(asset: CloudinaryAsset, apiKey: string, apiSecret: s
 // quitar y borra de Cloudinary las que ya no usa nadie. No lanza errores.
 export async function releaseCloudinaryAssets(urls: string[]): Promise<void> {
   try {
-    const apiKey = process.env.CLOUDINARY_API_KEY
-    const apiSecret = process.env.CLOUDINARY_API_SECRET
-    if (!apiKey || !apiSecret) return // sin la clave secreta, esta función está apagada
-
-    // Solo archivos de tu cuenta y sin repetir.
+    // Solo archivos de tus cuentas, sin repetir, y solo de las cuentas cuya clave secreta está en Vercel.
     const candidates = new Map<string, CloudinaryAsset>()
     for (const url of urls) {
       const asset = url ? parseCloudinaryUrl(url) : null
-      if (asset) candidates.set(assetKey(asset), asset)
+      if (asset && credentialsFor(asset.accountIndex)) candidates.set(assetKey(asset), asset)
     }
     if (candidates.size === 0) return
 
@@ -138,7 +151,12 @@ export async function releaseCloudinaryAssets(urls: string[]): Promise<void> {
 
     // De 4 en 4, para no saturar a Cloudinary con un álbum grande.
     for (let i = 0; i < toDelete.length; i += 4) {
-      const results = await Promise.all(toDelete.slice(i, i + 4).map((a) => destroyAsset(a, apiKey, apiSecret)))
+      const results = await Promise.all(
+        toDelete.slice(i, i + 4).map((a) => {
+          const creds = credentialsFor(a.accountIndex)
+          return creds ? destroyAsset(a, creds.apiKey, creds.apiSecret) : Promise.resolve('failed' as DestroyResult)
+        }),
+      )
       results.forEach((result, n) => {
         if (result === 'failed') console.error(`[cloudinary-cleanup] No se pudo borrar ${toDelete[i + n].publicId}`)
       })
