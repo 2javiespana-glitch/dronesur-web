@@ -7,9 +7,47 @@
 //
 // Para añadir otra cuenta: pon su «cloud name» en `cloudName` (Cloudinary → Settings → arriba a la
 // izquierda, o en el Dashboard) y crea en ella un «upload preset» SIN FIRMAR (unsigned) con el mismo nombre
-// que p
+// que pone en `preset`. Mientras `cloudName` esté vacío, esa cuenta se ignora.
+export type CloudinaryAccount = {
+  cloudName: string
+  preset: string
+}
+
+export const CLOUDINARY_ACCOUNTS: CloudinaryAccount[] = [
+  { cloudName: 'bar5rrho', preset: 'dronesur videos' },
+  { cloudName: 'ylxgfxzg', preset: 'dronesur videos' }, // segunda cuenta
+]
+
+// Solo las cuentas que están rellenadas.
+export function configuredAccounts(): { account: CloudinaryAccount; index: number }[] {
+  return CLOUDINARY_ACCOUNTS.map((account, index) => ({ account, index })).filter((a) => !!a.account.cloudName.trim())
+}
+
+// La primera cuenta (la principal).
+export const CLOUDINARY_CLOUD_NAME = CLOUDINARY_ACCOUNTS[0].cloudName
+export const CLOUDINARY_UPLOAD_PRESET = CLOUDINARY_ACCOUNTS[0].preset
+
 export type UploadResult = {
-  u
+  url: string
+  // 'image', 'video' o 'raw' (archivos como los modelos 3D), tal como lo clasifica Cloudinary.
+  resourceType: string
+}
+
+// ---------- Qué cuentas están llenas ----------
+// Cuando una cuenta rechaza una subida por falta de cupo, se anota en este navegador durante unas horas
+// para no volver a intentarla con cada archivo. Pasado ese tiempo se vuelve a probar (por si has liberado
+// espacio o ha empezado el mes nuevo de créditos). Si todas están marcadas, se prueban igualmente en orden.
+const FULL_KEY = 'dronesur:cloudinary-full'
+const FULL_HOURS = 6
+
+function readFull(): Record<string, number> {
+  try {
+    const raw = window.localStorage.getItem(FULL_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 function markFull(cloudName: string) {
@@ -22,17 +60,34 @@ function markFull(cloudName: string) {
 }
 
 function isMarkedFull(cloudName: string): boolean {
-  const rlo en el admin ----------
+  const at = readFull()[cloudName]
+  return typeof at === 'number' && Date.now() - at < FULL_HOURS * 3600_000
+}
+
+// Orden en que se prueban las cuentas: primero las que no están marcadas como llenas.
+function uploadOrder() {
+  const accounts = configuredAccounts()
+  return [
+    ...accounts.filter((a) => !isMarkedFull(a.account.cloudName)),
+    ...accounts.filter((a) => isMarkedFull(a.account.cloudName)),
+  ]
+}
+
+// ---------- Para enseñarlo en el admin ----------
 // A qué cuenta irá ahora la siguiente subida («Cloudinary 1», «Cloudinary 2»...).
 export type UploadTarget = {
   number: number // 1 = primera cuenta, 2 = segunda...
-  cloudName: s
+  cloudName: string
+  configured: number // cuántas cuentas hay rellenadas
+  skippedFull: boolean // true si se está saltando alguna cuenta anterior por estar llena
+}
 
 export function currentUploadTarget(): UploadTarget | null {
   const order = uploadOrder()
   if (order.length === 0) return null
   const first = order[0]
-  return {,
+  return {
+    number: first.index + 1,
     cloudName: first.account.cloudName,
     configured: order.length,
     skippedFull: first.index !== Math.min(...order.map((o) => o.index)),
@@ -64,7 +119,16 @@ class UploadError extends Error {
 // Decide si Cloudinary rechazó la subida porque la CUENTA está llena o bloqueada, y no por un problema del
 // archivo (demasiado grande, formato raro...), que fallaría igual en otra cuenta.
 function looksLikeAccountFull(status: number, detail: string): boolean {
-  if (status === 420 || status =
+  if (status === 420 || status === 429 || status === 403) return true
+  if (/file size|too large|maximum (file|video|image)|video length|duration|megapixel|resolution|dimension|format|invalid (image|video|file)/i.test(detail)) {
+    return false
+  }
+  return /quota|over (the |its |your )?limit|limit (reached|exceeded)|exceed|credit|storage|usage|plan|disabled|suspended|blocked|untrusted/i.test(detail)
+}
+
+// Sube un archivo a UNA cuenta concreta.
+function uploadToAccount(
+  account: CloudinaryAccount,
   file: File,
   endpoint: 'image' | 'auto' | 'raw',
   onProgress?: (percent: number) => void,
@@ -103,7 +167,26 @@ function looksLikeAccountFull(status: number, detail: string): boolean {
     xhr.onerror = () =>
       reject(
         new UploadError('Error de conexión al subir el archivo. Comprueba tu internet e inténtalo de nuevo.', false),
-      )ength; i++) {
+      )
+
+    xhr.send(formData)
+  })
+}
+
+// Sube un archivo a Cloudinary y devuelve su dirección https y su tipo.
+// "image" para fotos; "auto" para fotos, vídeo y audio; "raw" para modelos 3D (.glb).
+// Si la cuenta en uso está llena, lo intenta con la siguiente.
+export async function uploadToCloudinaryDetailed(
+  file: File,
+  endpoint: 'image' | 'auto' | 'raw',
+  onProgress?: (percent: number) => void,
+): Promise<UploadResult> {
+  const accounts = uploadOrder()
+  if (accounts.length === 0) throw new Error('No hay ninguna cuenta de Cloudinary configurada.')
+
+  let last: unknown
+  let allFull = true
+  for (let i = 0; i < accounts.length; i++) {
     try {
       onProgress?.(0)
       return await uploadToAccount(accounts[i].account, file, endpoint, onProgress)
