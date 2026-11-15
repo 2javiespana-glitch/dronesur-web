@@ -9,6 +9,7 @@ import { ReviewLimitsPanel } from '@/components/review-limits-panel'
 import { ContentPanel } from '@/components/content-panel'
 import { QuotesPanel } from '@/components/quotes-panel'
 import { VisitsPanel } from '@/components/visits-panel'
+import { LinksPanel } from '@/components/links-panel'
 import { MediaManager } from '@/components/media-manager'
 import {
   DEFAULT_QUOTE_DISCOUNT,
@@ -384,6 +385,7 @@ export default function AdminPage() {
     { id: 'admin-resenas', label: 'Reseñas' },
     { id: 'admin-contacto', label: 'Contacto' },
     { id: 'admin-visitas', label: 'Visitas' },
+    { id: 'admin-enlaces', label: 'Carteles' },
   ]
 
   if (!authed) {
@@ -1087,6 +1089,12 @@ export default function AdminPage() {
       <section id="admin-visitas" className={sectionClass}>
         {sectionHead(12, 'Visitas', 'Quién entra a la web, agrupado por provincia (solo quien acepta las cookies de estadísticas).')}
         <VisitsPanel password={pass} />
+      </section>
+
+      {/* 12 · CARTELES Y ENLACES (dronesur.es/cartel1...) */}
+      <section id="admin-enlaces" className={sectionClass}>
+        {sectionHead(13, 'Carteles y enlaces', 'Direcciones cortas para carteles, tarjetas y QR, con su contador de aperturas. Siempre visible.')}
+        <LinksPanel password={pass} />
       </section>
     </main>
     </div>
