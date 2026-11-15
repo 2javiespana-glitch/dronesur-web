@@ -4,7 +4,7 @@ import { categorySlugs } from '@/lib/categories-db'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { isAllowedEmbed } from '@/lib/media-url'
 import { warmVideoVariants } from '@/lib/video-warmup'
-import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS } from '@/lib/showcase'
+import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS, SHOWCASE_VIDEO_WIDTH } from '@/lib/showcase'
 
 // Esta ruta guarda y lee la lista de fotos y vídeos (con su categoría, y opcionalmente
 // su álbum) en una base de datos Upstash Redis, para que TODOS los visitantes vean lo
@@ -192,9 +192,11 @@ export async function POST(req: Request) {
       if (full) return fail(`Este carrusel admite como máximo ${SHOWCASE_MAX_ITEMS} fotos o vídeos. Elimina alguno para añadir más.`, 400)
       // Vídeo nuevo del carrusel: se pide ya a Cloudinary que prepare sus copias (móvil y escritorio),
       // DESPUÉS de responder al admin, para que el primer visitante no tenga que esperar.
-      if (newItem.type === 'video' && newItem.category === 'hero') {
+      if (newItem.type === 'video' && (newItem.category === 'hero' || newItem.category === SHOWCASE_CATEGORY)) {
         try {
-          after(() => warmVideoVariants(newItem.url))
+          // El de la sección «oportunidad» usa una sola copia, más pequeña (SHOWCASE_VIDEO_WIDTH).
+          const widths = newItem.category === SHOWCASE_CATEGORY ? [SHOWCASE_VIDEO_WIDTH] : undefined
+          after(() => warmVideoVariants(newItem.url, widths))
         } catch {
           // si no se puede programar, no pasa nada: la web funciona igual
         }
