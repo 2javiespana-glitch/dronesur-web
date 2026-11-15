@@ -1,46 +1,4 @@
-export type Lang = 'es' | 'en'
-export type Localized = { es: string; en: string }
-
-export interface VideoItem {
-  id: string
-  title: string
-  url: string
-  category?: string
-  type?: 'image' | 'video' | 'panorama' | 'model3d' | 'embed'
-  poster?: string
-  albumId?: string
-  // Solo vídeos del carrusel: categoría a la que lleva el botón del carrusel (si no hay, no sale botón).
-  link?: { slug: string; title: Localized }
-}
-
-export const INITIAL_VIDEOS: VideoItem[] = [
-  { id: '1', title: 'Vídeo Carrusel 1', url: '/videos/hero1.mp4', category: 'hero' },
-  { id: '2', title: 'Vídeo Bodas 1', url: '/videos/bodas1.mp4', category: 'bodas' },
-]
-
-// ---------------------------------------------------------------------------
-// Business constants – replace with the real values when available.
-// ---------------------------------------------------------------------------
-export const SITE = {
-  name: 'Dronesur',
-  instagram: 'dronesur',
-  instagramUrl: 'https://instagram.com/dronesur',
-  // WhatsApp number in international format WITHOUT "+" or spaces.
-  whatsapp: '34644424448',
-  email: 'info@dronesur.es',
-  coverage: ['Almería', 'Granada', 'Málaga', 'Jaén', 'Cádiz', 'Murcia'],
-}
-
-// ---------------------------------------------------------------------------
-// Hero slides — drop your own videos into /public/hero and set `video`.
-// Each slide already has a poster image as a fallback / while loading.
-// ---------------------------------------------------------------------------
-export type HeroSlide = {
-  poster: string
-  video?: string // e.g. '/hero/reel-1.mp4'
-  captionEs: string
-  captionEn: string
-}
+ing;
 
 export const HERO_SLIDES: HeroSlide[] = [
   {
