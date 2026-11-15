@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { readJSON, updateJSON } from '@/lib/kv'
 import { fail, serverError, requireAdmin } from '@/lib/api'
 import { EMPTY_CONTENT, normalizeContent, type SiteContent } from '@/lib/site-content'
+import { scheduleCloudinaryRelease } from '@/lib/cloudinary-cleanup'
 
 // Textos y fotos editables desde el admin: música del carrusel, "Sobre Dronesur", "Sobre el piloto" y la banda de garantía.
 //
@@ -42,10 +43,16 @@ export async function POST(req: Request) {
   const incoming = normalizeContent({ [section]: body.data })[section]
 
   try {
-    const updated = await updateJSON<SiteContent>(KEY, EMPTY_CONTENT, (current) => ({
-      ...normalizeContent(current),
-      [section]: incoming,
-    }))
+    // Archivos que había antes (música, foto de «Sobre Dronesur», foto del piloto), para borrar de Cloudinary
+    // los que se hayan sustituido o quitado.
+    let before: string[] = []
+    const updated = await updateJSON<SiteContent>(KEY, EMPTY_CONTENT, (current) => {
+      const now = normalizeContent(current)
+      before = [now.music.url, now.about.image, now.pilot.image]
+      return { ...now, [section]: incoming }
+    })
+    const after_ = [updated.music.url, updated.about.image, updated.pilot.image]
+    scheduleCloudinaryRelease(before.filter((url) => url && !after_.includes(url)))
     return NextResponse.json(updated)
   } catch (e) {
     return serverError(e)
