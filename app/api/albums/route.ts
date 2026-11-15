@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { readJSON, updateJSON } from '@/lib/kv'
 import { categorySlugs } from '@/lib/categories-db'
 import { fail, serverError, requireAdmin } from '@/lib/api'
+import { scheduleCloudinaryRelease } from '@/lib/cloudinary-cleanup'
 
 // Álbumes = "carpetas" dentro de una categoría (ej. dentro de "Eventos": la boda de
 // García-Pérez, la comunión de Pedro...). Cada foto/vídeo se puede asociar a un álbum
@@ -12,6 +13,8 @@ import { fail, serverError, requireAdmin } from '@/lib/api'
 // - DELETE -> { id }  borra un álbum Y todas las fotos/vídeos que tuviera dentro (solo admin)
 
 export const dynamic = 'force-dynamic'
+// Un álbum grande tiene varios archivos que borrar también de Cloudinary: se deja margen.
+export const maxDuration = 60
 
 const ALBUMS_KEY = 'dronesur:albums'
 const MEDIA_KEY = 'dronesur:media'
@@ -76,12 +79,18 @@ export async function DELETE(req: Request) {
   try {
     const { id } = await req.json()
 
+    let removedUrls: string[] = []
     const updatedAlbums = await updateJSON<Album[]>(ALBUMS_KEY, [], async (albums) => {
       // Al borrar un álbum, se borran también las fotos/vídeos que tuviera dentro,
       // para no dejar archivos "huérfanos" sin carpeta.
-      await updateJSON<MediaItem[]>(MEDIA_KEY, [], (media) => media.filter((m) => m.albumId !== id))
+      await updateJSON<MediaItem[]>(MEDIA_KEY, [], (media) => {
+        removedUrls = media.filter((m) => m.albumId === id).map((m) => (typeof m.url === 'string' ? m.url : ''))
+        return media.filter((m) => m.albumId !== id)
+      })
       return albums.filter((a) => a.id !== id)
     })
+    // Ya quitado de la web: se borra también de Cloudinary (lo que nada más use).
+    scheduleCloudinaryRelease(removedUrls)
 
     return NextResponse.json({ albums: updatedAlbums })
   } catch (e) {
