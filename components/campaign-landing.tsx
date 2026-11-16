@@ -6,6 +6,7 @@ import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/contact-footer'
 import { WhatsAppFab } from '@/components/whatsapp-fab'
 import { CookieBanner } from '@/components/cookie-banner'
+import { LinkCarousel } from '@/components/link-carousel'
 import { useSite } from '@/components/site-provider'
 import { toEnglishPath } from '@/lib/i18n-routes'
 import { localizedOr } from '@/lib/site-content'
@@ -27,6 +28,7 @@ export function CampaignLanding({ link, preview }: { link: CampaignLink; preview
       <main className="mx-auto flex min-h-[80vh] max-w-2xl flex-col items-center justify-center px-5 pb-20 pt-32 text-center">
         <h1 className="text-3xl font-extrabold leading-tight sm:text-5xl">{title}</h1>
         <div className="mt-5 h-1 w-16 rounded-full bg-[var(--gold)]" />
+        <LinkCarousel media={link.media} />
         {text && <p className="mt-8 whitespace-pre-line text-lg leading-relaxed text-muted-foreground">{text}</p>}
         <Link
           href={href}
