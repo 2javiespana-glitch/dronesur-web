@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { readJSON, redis, updateJSON } from '@/lib/kv'
 import { fail, requireAdmin, serverError } from '@/lib/api'
+import { scheduleCloudinaryRelease } from '@/lib/cloudinary-cleanup'
 import {
   LINKS_KEY,
   LINK_LIMITS,
@@ -10,6 +11,7 @@ import {
   isValidTarget,
   madridDay,
   normalizeLinks,
+  normalizeMedia,
   validateSlug,
   type CampaignLink,
 } from '@/lib/campaign-links'
@@ -87,7 +89,14 @@ export async function POST(req: Request) {
     if (body.action === 'delete') {
       const slug = text(body.slug, 30)
       if (!slug) return fail('Falta la dirección del enlace.', 400)
-      await updateJSON<unknown>(LINKS_KEY, [], (current) => normalizeLinks(current).filter((l) => l.slug !== slug))
+      const removed: string[] = []
+      await updateJSON<unknown>(LINKS_KEY, [], (current) => {
+        removed.length = 0
+        const links = normalizeLinks(current)
+        for (const l of links) if (l.slug === slug) removed.push(...l.media.map((m) => m.url))
+        return links.filter((l) => l.slug !== slug)
+      })
+      scheduleCloudinaryRelease(removed) // borra de Cloudinary las fotos y vídeos del carrusel (si hay claves en Vercel)
       return NextResponse.json({ ok: true })
     }
 
@@ -116,21 +125,28 @@ export async function POST(req: Request) {
       title,
       text: loc(raw.text, LINK_LIMITS.text),
       button: loc(raw.button, LINK_LIMITS.button),
+      media: mode === 'landing' ? normalizeMedia(raw.media) : [],
     } satisfies Omit<CampaignLink, 'createdAt'>
 
+    const removed: string[] = []
     await updateJSON<unknown>(LINKS_KEY, [], (current) => {
+      removed.length = 0
       const links = normalizeLinks(current)
       const index = links.findIndex((l) => l.slug === slug)
       if (isNew && index >= 0) throw new Error('LINK_EXISTS')
       if (!isNew && index < 0) throw new Error('LINK_MISSING')
       if (isNew && links.length >= MAX_LINKS) throw new Error('LINK_LIMIT')
       if (index >= 0) {
+        // Las fotos y vídeos que has quitado del carrusel se borran de Cloudinary (ocupaban espacio).
+        const keep = new Set(candidate.media.map((m) => m.url))
+        removed.push(...links[index].media.map((m) => m.url).filter((u) => !keep.has(u)))
         links[index] = { ...candidate, createdAt: links[index].createdAt || Date.now() }
       } else {
         links.push({ ...candidate, createdAt: Date.now() })
       }
       return links
     })
+    scheduleCloudinaryRelease(removed)
     return NextResponse.json({ ok: true })
   } catch (e) {
     if (e instanceof Error) {
