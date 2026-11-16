@@ -31,7 +31,7 @@ export type CloudinaryAsset = {
 }
 
 // Claves secretas de una cuenta (están en Vercel). La primera cuenta usa los nombres de siempre.
-function credentialsFor(accountIndex: number): { apiKey: string; apiSecret: string } | null {
+export function credentialsFor(accountIndex: number): { apiKey: string; apiSecret: string } | null {
   const suffix = accountIndex === 0 ? '' : `_${accountIndex + 1}`
   const apiKey = process.env[`CLOUDINARY_API_KEY${suffix}`]
   const apiSecret = process.env[`CLOUDINARY_API_SECRET${suffix}`]
