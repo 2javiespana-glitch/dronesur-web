@@ -57,6 +57,25 @@ export function VisitsPanel({ password }: { password: string }) {
     void load()
   }, [load])
 
+  const reset = async () => {
+    if (
+      !window.confirm(
+        '¿Poner a 0 el recuento de visitas de la web?\n\nSe borran las visitas por provincia, las últimas visitas y las visitas que trajeron los carteles. No se puede deshacer.',
+      )
+    )
+      return
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/visits', { method: 'DELETE', headers: { 'x-admin-password': password } })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error || 'No se pudo reiniciar el recuento.')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo reiniciar el recuento.')
+    }
+    await load()
+  }
+
   const max = data?.totals[0]?.visits || 1
   const refMax = data?.refs?.[0]?.visits || 1
 
@@ -75,6 +94,9 @@ export function VisitsPanel({ password }: { password: string }) {
         ))}
         <button type="button" onClick={() => void load()} disabled={loading} className={secondaryButton}>
           Actualizar
+        </button>
+        <button type="button" onClick={() => void reset()} disabled={loading} className={`${secondaryButton} ml-auto`}>
+          Reiniciar recuento
         </button>
       </div>
 
