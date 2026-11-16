@@ -64,13 +64,39 @@ function isMarkedFull(cloudName: string): boolean {
   return typeof at === 'number' && Date.now() - at < FULL_HOURS * 3600_000
 }
 
-// Orden en que se prueban las cuentas: primero las que no están marcadas como llenas.
+// ---------- Cuenta elegida por ti ----------
+// En el admin puedes elegir a qué cuenta subir («Automático» o una concreta). Se recuerda en este navegador.
+// Aunque elijas una, si rechaza la subida por estar llena se prueba con las demás (mejor que fallar).
+const PREF_KEY = 'dronesur:cloudinary-pref'
+
+export function getUploadPreference(): string {
+  try {
+    const value = window.localStorage.getItem(PREF_KEY)
+    return value && configuredAccounts().some((a) => a.account.cloudName === value) ? value : 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+
+export function setUploadPreference(value: string) {
+  try {
+    if (value === 'auto') window.localStorage.removeItem(PREF_KEY)
+    else window.localStorage.setItem(PREF_KEY, value)
+  } catch {}
+  notifyTarget()
+}
+
+// Orden en que se prueban las cuentas: la que hayas elegido (si has elegido) y, después, primero las que no
+// están marcadas como llenas.
 function uploadOrder() {
   const accounts = configuredAccounts()
-  return [
+  const ordered = [
     ...accounts.filter((a) => !isMarkedFull(a.account.cloudName)),
     ...accounts.filter((a) => isMarkedFull(a.account.cloudName)),
   ]
+  const preferred = getUploadPreference()
+  const chosen = preferred === 'auto' ? undefined : accounts.find((a) => a.account.cloudName === preferred)
+  return chosen ? [chosen, ...ordered.filter((a) => a !== chosen)] : ordered
 }
 
 // ---------- Para enseñarlo en el admin ----------
@@ -80,17 +106,20 @@ export type UploadTarget = {
   cloudName: string
   configured: number // cuántas cuentas hay rellenadas
   skippedFull: boolean // true si se está saltando alguna cuenta anterior por estar llena
+  manual: boolean // true si la cuenta la has elegido tú (no «Automático»)
 }
 
 export function currentUploadTarget(): UploadTarget | null {
   const order = uploadOrder()
   if (order.length === 0) return null
   const first = order[0]
+  const manual = getUploadPreference() !== 'auto'
   return {
     number: first.index + 1,
     cloudName: first.account.cloudName,
     configured: order.length,
-    skippedFull: first.index !== Math.min(...order.map((o) => o.index)),
+    skippedFull: !manual && first.index !== Math.min(...order.map((o) => o.index)),
+    manual,
   }
 }
 
