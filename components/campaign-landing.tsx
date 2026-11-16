@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { SiteHeader } from '@/components/site-header'
 import { SiteFooter } from '@/components/contact-footer'
@@ -30,13 +29,16 @@ export function CampaignLanding({ link, preview }: { link: CampaignLink; preview
         <div className="mt-5 h-1 w-16 rounded-full bg-[var(--gold)]" />
         <LinkCarousel media={link.media} />
         {text && <p className="mt-8 whitespace-pre-line text-lg leading-relaxed text-muted-foreground">{text}</p>}
-        <Link
+        {/* Enlace normal (no «Link» de Next): así la web principal se carga de cero y el contador de visitas
+            (components/visit-tracker.tsx) apunta de qué cartel viene («?ref=»). Con navegación interna no se enteraría. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a
           href={href}
           className="mt-10 inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-7 py-3.5 text-base font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)]"
         >
           {label}
           <ArrowRight className="h-5 w-5" />
-        </Link>
+        </a>
         {preview && (
           <p className="mt-6 text-xs text-muted-foreground">
             Vista de prueba: no se ha contado como visita.
