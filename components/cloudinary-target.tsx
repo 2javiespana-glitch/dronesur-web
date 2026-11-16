@@ -1,53 +1,147 @@
 'use client'
 
-import { ArrowRight } from 'lucide-react'
-import { SiteHeader } from '@/components/site-header'
-import { SiteFooter } from '@/components/contact-footer'
-import { WhatsAppFab } from '@/components/whatsapp-fab'
-import { CookieBanner } from '@/components/cookie-banner'
-import { LinkCarousel } from '@/components/link-carousel'
-import { useSite } from '@/components/site-provider'
-import { toEnglishPath } from '@/lib/i18n-routes'
-import { localizedOr } from '@/lib/site-content'
-import { withRef, type CampaignLink } from '@/lib/campaign-links'
+import { useCallback, useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
+import {
+  configuredAccounts,
+  currentUploadTarget,
+  getUploadPreference,
+  setUploadPreference,
+  subscribeUploadTarget,
+  type UploadTarget,
+} from '@/lib/cloudinary'
+import type { AccountUsage } from '@/lib/cloudinary-usage'
 
-// Página de aviso de un cartel (dronesur.es/<nombre>): explica la oferta y tiene un botón a la web principal.
-// Solo la ve quien entra por el enlace del cartel; desde la web normal no hay forma de llegar a ella.
-// El botón añade «?ref=<nombre>» para que las visitas se apunten a ese cartel.
-export function CampaignLanding({ link, preview }: { link: CampaignLink; preview: boolean }) {
-  const { lang } = useSite()
-  const title = localizedOr(link.title, lang) || link.name
-  const text = localizedOr(link.text, lang)
-  const label = localizedOr(link.button, lang) || (lang === 'es' ? 'Ir a la web principal' : 'Go to the main site')
-  const href = withRef(lang === 'en' ? toEnglishPath(link.target) : link.target, preview ? null : link.slug)
+// Pequeño texto del admin que dice a qué cuenta de Cloudinary van las subidas («Cloudinary 1», «Cloudinary 2»).
+// Se actualiza solo cuando una cuenta se llena y las subidas pasan a la siguiente.
+export function useUploadTarget(): UploadTarget | null {
+  const [target, setTarget] = useState<UploadTarget | null>(null)
+  useEffect(() => {
+    const update = () => setTarget(currentUploadTarget())
+    update()
+    return subscribeUploadTarget(update)
+  }, [])
+  return target
+}
+
+// Línea informativa para la parte de arriba del panel de archivos.
+export function CloudinaryTarget() {
+  const target = useUploadTarget()
+  if (!target) return null
+  return (
+    <p className="text-xs text-muted-foreground">
+      Las subidas van a: <span className="font-semibold text-foreground">Cloudinary {target.number}</span>
+      {target.manual && <> (elegida por ti)</>}
+      {target.skippedFull && <> (la anterior está llena)</>}
+      {target.configured < 2 && <> · la 2ª cuenta aún no está configurada</>}
+    </p>
+  )
+}
+
+// Cuadro del admin con los créditos gastados de cada cuenta de Cloudinary y el selector de a cuál subir.
+// Los créditos los da Cloudinary (se actualizan solos cada minuto mientras tienes el admin abierto), así que pueden ir
+// algo por detrás de la realidad. Necesita las claves de cada cuenta en Vercel; sin ellas, esa cuenta no muestra el %.
+export function CloudinaryAccounts({ password }: { password: string }) {
+  const target = useUploadTarget() // también sirve para que se redibuje al cambiar la elección
+  const [usage, setUsage] = useState<AccountUsage[] | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/cloudinary-usage', { cache: 'no-store', headers: { 'x-admin-password': password } })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error || 'No se pudieron consultar los créditos.')
+      setUsage(json.accounts as AccountUsage[])
+      setError('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudieron consultar los créditos.')
+    } finally {
+      setLoading(false)
+    }
+  }, [password])
+
+  useEffect(() => {
+    void load()
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load()
+    }, 60_000)
+    return () => window.clearInterval(timer)
+  }, [load])
+
+  const accounts = configuredAccounts()
+  if (accounts.length === 0) return null
+  const preference = typeof window === 'undefined' ? 'auto' : getUploadPreference()
+  const options = [
+    { value: 'auto', label: 'Automático' },
+    ...accounts.map((a) => ({ value: a.account.cloudName, label: `Cloudinary ${a.index + 1}` })),
+  ]
 
   return (
-    <>
-      <SiteHeader />
-      <main className="mx-auto flex min-h-[80vh] max-w-2xl flex-col items-center justify-center px-5 pb-20 pt-32 text-center">
-        <h1 className="text-3xl font-extrabold leading-tight sm:text-5xl">{title}</h1>
-        <div className="mt-5 h-1 w-16 rounded-full bg-[var(--gold)]" />
-        <LinkCarousel media={link.media} />
-        {text && <p className="mt-8 whitespace-pre-line text-lg leading-relaxed text-muted-foreground">{text}</p>}
-        {/* Enlace normal (no «Link» de Next): así la web principal se carga de cero y el contador de visitas
-            (components/visit-tracker.tsx) apunta de qué cartel viene («?ref=»). Con navegación interna no se enteraría. */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a
-          href={href}
-          className="mt-10 inline-flex items-center gap-2 rounded-full bg-[var(--gold)] px-7 py-3.5 text-base font-semibold text-[var(--gold-foreground)] shadow-lg transition hover:bg-[var(--gold-soft)]"
+    <div className="mt-3 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="font-semibold">Subir a:</span>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setUploadPreference(o.value)}
+              className={`rounded-full px-3 py-1 font-semibold transition ${
+                preference === o.value
+                  ? 'bg-[var(--gold)] text-[var(--gold-foreground)]'
+                  : 'border border-border hover:bg-muted'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground transition hover:text-foreground disabled:opacity-60"
         >
-          {label}
-          <ArrowRight className="h-5 w-5" />
-        </a>
-        {preview && (
-          <p className="mt-6 text-xs text-muted-foreground">
-            Vista de prueba: no se ha contado como visita.
-          </p>
-        )}
-      </main>
-      <SiteFooter />
-      <WhatsAppFab />
-      <CookieBanner />
-    </>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Actualizar
+        </button>
+      </div>
+
+      <ul className="mt-3 space-y-2.5">
+        {accounts.map((a) => {
+          const u = usage?.find((x) => x.number === a.index + 1)
+          const pct = u?.percent ?? null
+          const color = pct === null ? 'bg-muted' : pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-[var(--gold)]'
+          return (
+            <li key={a.account.cloudName} className="text-xs">
+              <div className="flex items-baseline justify-between gap-2">
+                <span>
+                  <span className="font-semibold">Cloudinary {a.index + 1}</span>{' '}
+                  <span className="text-muted-foreground">· {a.account.cloudName}</span>
+                  {target && target.number === a.index + 1 && (
+                    <span className="ml-1.5 rounded-full bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] font-semibold">
+                      recibe las subidas
+                    </span>
+                  )}
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {pct !== null ? `${pct}% de créditos` : usage ? '—' : 'Cargando…'}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+              </div>
+              {u?.message && <p className="mt-1 text-muted-foreground">{u.message}</p>}
+            </li>
+          )
+        })}
+      </ul>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+        Si eliges una cuenta y está llena, la subida pasa sola a la otra. Los créditos los calcula Cloudinary y pueden ir un
+        poco por detrás.
+      </p>
+    </div>
   )
 }
