@@ -1,9 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, ExternalLink, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, Film, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { LEGAL } from '@/lib/legal'
-import { LINK_LIMITS, slugify, type CampaignLink, type LinkMode } from '@/lib/campaign-links'
+import { LINK_LIMITS, MAX_LINK_MEDIA, slugify, type CampaignLink, type LinkMedia, type LinkMode } from '@/lib/campaign-links'
+import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { checkFile } from '@/lib/media-admin'
+import { optimizeImage } from '@/lib/site-content'
+import { videoPosterUrl } from '@/lib/media-url'
+import { useUploadTarget } from '@/components/cloudinary-target'
 
 // Panel del admin: «Carteles y enlaces».
 // Crea direcciones cortas (dronesur.es/cartel1) para carteles, tarjetas y QR. Cada una puede llevar directo a la
@@ -21,6 +26,7 @@ type Draft = {
   title: { es: string; en: string }
   text: { es: string; en: string }
   button: { es: string; en: string }
+  media: LinkMedia[]
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -33,6 +39,7 @@ const EMPTY_DRAFT: Draft = {
   title: { es: '', en: '' },
   text: { es: '', en: '' },
   button: { es: '', en: '' },
+  media: [],
 }
 
 const inputClass =
@@ -56,6 +63,9 @@ export function LinksPanel({ password }: { password: string }) {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [copied, setCopied] = useState('')
+  const [uploading, setUploading] = useState<{ name: string; percent: number } | null>(null)
+  const [mediaError, setMediaError] = useState('')
+  const target = useUploadTarget()
 
   const load = useCallback(async () => {
     setLoadError('')
@@ -140,11 +150,54 @@ export function LinksPanel({ password }: { password: string }) {
       title: { ...row.title },
       text: { ...row.text },
       button: { ...row.button },
+      media: row.media ? row.media.map((m) => ({ ...m })) : [],
     })
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => (d ? { ...d, [key]: value } : d))
   const setLoc = (key: 'title' | 'text' | 'button', lang: 'es' | 'en', value: string) =>
     setDraft((d) => (d ? { ...d, [key]: { ...d[key], [lang]: value } } : d))
+
+  // Sube fotos y vídeos al carrusel de la página de aviso (a Cloudinary, con el salto automático entre cuentas).
+  const addMedia = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !draft) return
+    setMediaError('')
+    let count = draft.media.length
+    for (const file of Array.from(files)) {
+      const problem = checkFile(file, 'normal')
+      if (problem) {
+        setMediaError(problem)
+        break
+      }
+      if (count >= MAX_LINK_MEDIA) {
+        setMediaError(`El carrusel admite hasta ${MAX_LINK_MEDIA} fotos o vídeos.`)
+        break
+      }
+      setUploading({ name: file.name, percent: 0 })
+      try {
+        const result = await uploadToCloudinaryDetailed(file, 'auto', (percent) => setUploading({ name: file.name, percent }))
+        const item: LinkMedia = { url: result.url, type: result.resourceType === 'video' ? 'video' : 'image' }
+        setDraft((d) => (d && d.media.length < MAX_LINK_MEDIA ? { ...d, media: [...d.media, item] } : d))
+        count += 1
+      } catch (e) {
+        setMediaError(e instanceof Error ? e.message : 'No se pudo subir el archivo.')
+        break
+      }
+    }
+    setUploading(null)
+  }
+
+  const moveMedia = (index: number, delta: number) =>
+    setDraft((d) => {
+      if (!d) return d
+      const to = index + delta
+      if (to < 0 || to >= d.media.length) return d
+      const media = [...d.media]
+      ;[media[index], media[to]] = [media[to], media[index]]
+      return { ...d, media }
+    })
+
+  const removeMedia = (index: number) =>
+    setDraft((d) => (d ? { ...d, media: d.media.filter((_, i) => i !== index) } : d))
 
   const max = Math.max(1, ...(rows ?? []).map((r) => r.scans))
 
@@ -336,6 +389,94 @@ export function LinksPanel({ password }: { password: string }) {
                   className={inputClass}
                 />
               </div>
+              <div className="md:col-span-2">
+                <label className="mb-1.5 block text-sm font-medium">
+                  Carrusel de fotos y vídeos <span className="font-normal text-muted-foreground">(opcional)</span>
+                </label>
+                {draft.media.length > 0 && (
+                  <ul className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {draft.media.map((m, i) => {
+                      const thumb = m.type === 'video' ? videoPosterUrl(m.url, 300) : optimizeImage(m.url, 300)
+                      return (
+                        <li key={m.url} className="overflow-hidden rounded-xl border border-border bg-background">
+                          <div className="relative aspect-[4/3] bg-muted">
+                            {thumb ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={thumb} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <Film className="absolute inset-0 m-auto h-6 w-6 text-muted-foreground" />
+                            )}
+                            {m.type === 'video' && (
+                              <span className="absolute left-1.5 top-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                Vídeo
+                              </span>
+                            )}
+                            <span className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                              {i + 1}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-1 p-1.5">
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => moveMedia(i, -1)}
+                                disabled={i === 0}
+                                aria-label="Mover antes"
+                                className="rounded-md border border-border p-1 transition hover:bg-muted disabled:opacity-30"
+                              >
+                                <ArrowUp className="h-3.5 w-3.5 -rotate-90" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => moveMedia(i, 1)}
+                                disabled={i === draft.media.length - 1}
+                                aria-label="Mover después"
+                                className="rounded-md border border-border p-1 transition hover:bg-muted disabled:opacity-30"
+                              >
+                                <ArrowDown className="h-3.5 w-3.5 -rotate-90" />
+                              </button>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeMedia(i)}
+                              aria-label="Quitar"
+                              className="rounded-md border border-border p-1 text-destructive transition hover:bg-muted"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+                <label
+                  className={`inline-flex cursor-pointer items-center gap-2 ${secondaryButton} ${
+                    uploading || draft.media.length >= MAX_LINK_MEDIA ? 'pointer-events-none opacity-60' : ''
+                  }`}
+                >
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  {uploading
+                    ? `Subiendo ${uploading.percent}%${target ? ` · Cloudinary ${target.number}` : ''}`
+                    : 'Añadir fotos o vídeos'}
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      void addMedia(e.target.files)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Hasta {MAX_LINK_MEDIA}. Fotos de hasta 10 MB y vídeos de hasta 100 MB. Se muestran en este orden y pasan
+                  solos (los vídeos van sin sonido). Se guardan al pulsar «Guardar enlace».
+                </p>
+                {mediaError && <p className="mt-2 text-sm text-destructive">{mediaError}</p>}
+              </div>
+
               <p className="text-xs text-muted-foreground md:col-span-2">
                 Si dejas el inglés vacío, esa versión mostrará el texto en español. Escribe solo ofertas que puedas
                 cumplir: lo que pones aquí es una promesa pública.
@@ -356,7 +497,7 @@ export function LinksPanel({ password }: { password: string }) {
           {formError && <p className="mt-4 text-sm text-destructive">{formError}</p>}
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" className={primaryButton} onClick={() => void save()} disabled={saving}>
+            <button type="button" className={primaryButton} onClick={() => void save()} disabled={saving || !!uploading}>
               {saving ? 'Guardando…' : 'Guardar enlace'}
             </button>
             <button
