@@ -35,10 +35,14 @@ export function LinkCarousel({ media }: { media: LinkMedia[] }) {
       const track = trackRef.current
       if (!track || count === 0) return
       const target = (index + count) % count
-      track.scrollTo({ left: target * track.clientWidth, behavior: reduceMotion ? 'auto' : 'smooth' })
+      // Solo se desliza suavemente al pasar a la toma de al lado. Si el salto es largo (por ejemplo, de la última a
+      // la primera), se cambia directamente: así no se «activan» una a una las tomas del medio (y no se ponen a
+      // reproducir ni a descargar los vídeos por los que pasaría).
+      const adjacent = Math.abs(target - active) <= 1
+      track.scrollTo({ left: target * track.clientWidth, behavior: reduceMotion || !adjacent ? 'auto' : 'smooth' })
       setActive(target)
     },
-    [count, reduceMotion],
+    [count, reduceMotion, active],
   )
 
   // Al deslizar con el dedo, se actualiza la diapositiva activa.
