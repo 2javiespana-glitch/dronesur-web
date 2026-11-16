@@ -11,11 +11,12 @@
 export type CloudinaryAccount = {
   cloudName: string
   preset: string
+  label?: string // solo para ti: con qué cuenta (de Google, correo...) se entra a esta cuenta. Sale en el admin.
 }
 
 export const CLOUDINARY_ACCOUNTS: CloudinaryAccount[] = [
-  { cloudName: 'bar5rrho', preset: 'dronesur videos' },
-  { cloudName: 'ylxgfxzg', preset: 'dronesur videos' }, // segunda cuenta
+  { cloudName: 'bar5rrho', preset: 'dronesur videos', label: 'jlv20044' },
+  { cloudName: 'ylxgfxzg', preset: 'dronesur videos', label: 'dronesur' }, // segunda cuenta
 ]
 
 // Solo las cuentas que están rellenadas.
