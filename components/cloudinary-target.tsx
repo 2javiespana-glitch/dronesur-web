@@ -119,6 +119,11 @@ export function CloudinaryAccounts({ password }: { password: string }) {
                 <span>
                   <span className="font-semibold">Cloudinary {a.index + 1}</span>{' '}
                   <span className="text-muted-foreground">· {a.account.cloudName}</span>
+                  {a.account.label && (
+                    <span className="ml-1.5 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      Google: {a.account.label}
+                    </span>
+                  )}
                   {target && target.number === a.index + 1 && (
                     <span className="ml-1.5 rounded-full bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] font-semibold">
                       recibe las subidas
