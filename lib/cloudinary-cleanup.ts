@@ -19,7 +19,8 @@ import { redis } from '@/lib/kv'
 //     Los archivos de una cuenta sin sus claves no se borran (se quitan de la web, pero siguen en Cloudinary).
 
 // Sitios de la base de datos donde la web guarda direcciones de archivos de Cloudinary.
-const KEYS_WITH_FILES = ['dronesur:media', 'dronesur:content', 'dronesur:categories', 'dronesur:settings']
+// (dronesur:links = las fotos y vídeos del carrusel de las páginas de aviso de los carteles)
+const KEYS_WITH_FILES = ['dronesur:media', 'dronesur:content', 'dronesur:categories', 'dronesur:settings', 'dronesur:links']
 
 export type CloudinaryAsset = {
   cloudName: string
