@@ -12,6 +12,7 @@ import { fail, serverError, requireAdmin } from '@/lib/api'
 //   · un registro por visita: hora, provincia, ciudad aproximada, tipo de dispositivo, web de
 //     procedencia y página de entrada (se borra solo a los 30 días)
 //   · una huella cifrada de la conexión durante 30 minutos, solo para no contar dos veces la misma visita
+// - DELETE  solo admin: reinicia el recuento de la web (pone a 0 provincias, últimas visitas y visitas por cartel)
 
 export const dynamic = 'force-dynamic'
 
@@ -125,6 +126,28 @@ export async function POST(req: Request) {
     await redis(['LTRIM', LIST_KEY(day), '0', String(MAX_LIST_PER_DAY - 1)])
     await redis(['EXPIRE', LIST_KEY(day), String(LIST_TTL)])
     return NextResponse.json({ ok: true, counted: true })
+  } catch (e) {
+    return serverError(e)
+  }
+}
+
+// Reinicia el recuento de la web: borra los contadores por provincia, la lista de últimas visitas y los contadores
+// por «ref» (las visitas que traen los carteles). Los contadores se guardan como mucho ~13 meses, así que se
+// borran todos los días de ese periodo. No toca las aperturas de los enlaces (eso se reinicia en «Carteles y enlaces»).
+export async function DELETE(req: Request) {
+  const denied = await requireAdmin(req)
+  if (denied) return denied
+  try {
+    const keys: string[] = []
+    for (let i = 0; i < Math.ceil(COUNTER_TTL / 86400) + 3; i++) {
+      const d = madridDay(i)
+      keys.push(DAY_KEY(d), LIST_KEY(d), REF_KEY(d))
+    }
+    let removed = 0
+    for (let i = 0; i < keys.length; i += 150) {
+      removed += Number(await redis(['DEL', ...keys.slice(i, i + 150)])) || 0
+    }
+    return NextResponse.json({ ok: true, removed })
   } catch (e) {
     return serverError(e)
   }
