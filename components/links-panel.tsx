@@ -9,6 +9,7 @@ import { checkFile } from '@/lib/media-admin'
 import { optimizeImage } from '@/lib/site-content'
 import { videoPosterUrl } from '@/lib/media-url'
 import { useUploadTarget } from '@/components/cloudinary-target'
+import { AutoSaveStatus, flushAllAutosaves, useAutoSave } from '@/lib/use-autosave'
 
 // Panel del admin: «Carteles y enlaces».
 // Crea direcciones cortas (dronesur.es/cartel1) para carteles, tarjetas y QR. Cada una puede llevar directo a la
@@ -55,6 +56,19 @@ function publicUrl(slug: string) {
   return `https://${LEGAL.web}/${slug}`
 }
 
+// Lleva el guardado automático de UN enlace. Se monta con key = dirección del enlace, así cada uno parte de lo que
+// ya tiene guardado (nunca guarda nada solo por abrirlo). Mientras se sube una foto o vídeo no cambia el contenido.
+function DraftAutoSave({
+  draft,
+  save,
+}: {
+  draft: Draft
+  save: (d: Draft, opts: { keepalive: boolean }) => Promise<string | null>
+}) {
+  const { status, error } = useAutoSave({ value: draft, save })
+  return <AutoSaveStatus status={status} error={error} />
+}
+
 export function LinksPanel({ password }: { password: string }) {
   const [days, setDays] = useState(30)
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -83,10 +97,11 @@ export function LinksPanel({ password }: { password: string }) {
     void load()
   }, [load])
 
-  const call = async (payload: unknown): Promise<string | null> => {
+  const call = async (payload: unknown, keepalive = false): Promise<string | null> => {
     try {
       const res = await fetch('/api/links', {
         method: 'POST',
+        keepalive,
         headers: { 'Content-Type': 'application/json', 'x-admin-password': password },
         body: JSON.stringify(payload),
       })
@@ -112,7 +127,26 @@ export function LinksPanel({ password }: { password: string }) {
       setFormError(error)
       return
     }
+    if (draft.isNew) {
+      // Recién creado: se queda abierto para seguir editando, y desde aquí se guarda solo.
+      setDraft({ ...draft, isNew: false, slug })
+    } else {
+      setDraft(null)
+    }
+    void load()
+  }
+
+  // Guardado automático de un enlace que ya existe (cada cambio se guarda solo, sin pulsar nada).
+  const autosaveLink = async (d: Draft, opts: { keepalive: boolean }): Promise<string | null> =>
+    call({ action: 'save', isNew: false, link: { ...d, slug: slugify(d.slug) } }, opts.keepalive)
+
+  // Cerrar el editor: antes se guarda lo pendiente y se recarga la lista.
+  const closeEditor = async () => {
+    setSaving(true)
+    await flushAllAutosaves()
+    setSaving(false)
     setDraft(null)
+    setFormError('')
     void load()
   }
 
@@ -472,7 +506,7 @@ export function LinksPanel({ password }: { password: string }) {
                 </label>
                 <p className="mt-1.5 text-xs text-muted-foreground">
                   Hasta {MAX_LINK_MEDIA}. Fotos de hasta 10 MB y vídeos de hasta 100 MB. Se muestran en este orden y pasan
-                  solos (los vídeos van sin sonido). Se guardan al pulsar «Guardar enlace».
+                  solos (los vídeos van sin sonido). Se guardan solas.
                 </p>
                 {mediaError && <p className="mt-2 text-sm text-destructive">{mediaError}</p>}
               </div>
@@ -496,22 +530,35 @@ export function LinksPanel({ password }: { password: string }) {
 
           {formError && <p className="mt-4 text-sm text-destructive">{formError}</p>}
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button type="button" className={primaryButton} onClick={() => void save()} disabled={saving || !!uploading}>
-              {saving ? 'Guardando…' : 'Guardar enlace'}
-            </button>
-            <button
-              type="button"
-              className={secondaryButton}
-              onClick={() => {
-                setDraft(null)
-                setFormError('')
-              }}
-              disabled={saving}
-            >
-              Cancelar
-            </button>
-          </div>
+          {draft.isNew ? (
+            <div className="mt-5 flex flex-wrap items-center gap-2">
+              <button type="button" className={primaryButton} onClick={() => void save()} disabled={saving || !!uploading}>
+                {saving ? 'Creando…' : 'Crear enlace'}
+              </button>
+              <button
+                type="button"
+                className={secondaryButton}
+                onClick={() => {
+                  setDraft(null)
+                  setFormError('')
+                }}
+                disabled={saving}
+              >
+                Cancelar
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Al crearlo, todo lo que cambies después se guarda solo.
+              </span>
+            </div>
+          ) : (
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <button type="button" className={primaryButton} onClick={() => void closeEditor()} disabled={saving || !!uploading}>
+                {saving ? 'Guardando…' : 'Cerrar'}
+              </button>
+              {/* key = dirección: cada enlace empieza con su propio «último guardado» */}
+              <DraftAutoSave key={draft.slug} draft={draft} save={autosaveLink} />
+            </div>
+          )}
         </div>
       )}
 
