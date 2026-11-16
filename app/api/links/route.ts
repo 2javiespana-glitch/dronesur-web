@@ -8,6 +8,7 @@ import {
   MAX_LINKS,
   REF_VISITS_KEY,
   SCANS_KEY,
+  SCANS_TTL,
   isValidTarget,
   madridDay,
   normalizeLinks,
@@ -20,6 +21,7 @@ import {
 // - GET   ?days=30  lista de enlaces + cuántas veces se han abierto y cuántas visitas han llegado a la web
 // - POST  { action: 'save', isNew, link }   crea o edita un enlace
 //         { action: 'delete', slug }        lo borra
+//         { action: 'reset', slug? }        pone a 0 las aperturas y las visitas de un enlace (o de todos si no hay slug)
 // Quien abre el enlace no pasa por aquí: lo atiende app/[slug]/page.tsx.
 
 export const dynamic = 'force-dynamic'
@@ -97,6 +99,25 @@ export async function POST(req: Request) {
         return links.filter((l) => l.slug !== slug)
       })
       scheduleCloudinaryRelease(removed) // borra de Cloudinary las fotos y vídeos del carrusel (si hay claves en Vercel)
+      return NextResponse.json({ ok: true })
+    }
+
+    if (body.action === 'reset') {
+      // Reinicia el recuento. Los contadores se guardan por día (como mucho ~13 meses).
+      const slug = text(body.slug, 30)
+      const dates = Array.from({ length: Math.ceil(SCANS_TTL / 86400) + 3 }, (_, i) => madridDay(i))
+      if (!slug) {
+        // Todos los enlaces: se borran los contadores de aperturas y de visitas por «ref» de cada día.
+        const keys = dates.flatMap((d) => [SCANS_KEY(d), REF_VISITS_KEY(d)])
+        for (let i = 0; i < keys.length; i += 150) await redis(['DEL', ...keys.slice(i, i + 150)])
+      } else {
+        // Un enlace: solo se quita su nombre de cada día. Se mira hasta 90 días atrás, que es lo máximo que enseña el panel.
+        const cmds = dates.slice(0, 92).flatMap((d) => [
+          ['HDEL', SCANS_KEY(d), slug],
+          ['HDEL', REF_VISITS_KEY(d), slug],
+        ])
+        for (let i = 0; i < cmds.length; i += 25) await Promise.all(cmds.slice(i, i + 25).map((c) => redis(c)))
+      }
       return NextResponse.json({ ok: true })
     }
 
