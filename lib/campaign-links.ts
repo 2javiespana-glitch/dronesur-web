@@ -7,10 +7,14 @@ import type { Localized } from '@/lib/content'
 
 export const LINKS_KEY = 'dronesur:links'
 export const MAX_LINKS = 60
+export const MAX_LINK_MEDIA = 8 // fotos y vídeos del carrusel de la página de aviso
 
 export const LINK_LIMITS = { name: 60, target: 200, title: 100, text: 1500, button: 40 }
 
 export type LinkMode = 'redirect' | 'landing'
+
+// Una foto o un vídeo del carrusel de la página de aviso (suben a Cloudinary desde el admin).
+export type LinkMedia = { url: string; type: 'image' | 'video' }
 
 export type CampaignLink = {
   slug: string // lo que va tras dronesur.es/ (también es el nombre con el que se cuentan las visitas: ?ref=slug)
@@ -21,6 +25,7 @@ export type CampaignLink = {
   title: Localized // solo en modo «página de aviso»
   text: Localized
   button: Localized
+  media: LinkMedia[] // carrusel opcional, solo en modo «página de aviso»
   createdAt: number
 }
 
@@ -80,6 +85,23 @@ function loc(value: unknown, max: number): Localized {
   return { es: str(o.es, max), en: str(o.en, max) }
 }
 
+// Limpia la lista del carrusel: solo direcciones https, tipo foto o vídeo, sin repetir y con un máximo.
+export function normalizeMedia(raw: unknown): LinkMedia[] {
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: LinkMedia[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const r = item as Record<string, unknown>
+    const url = str(r.url, 600)
+    if (!url.startsWith('https://') || seen.has(url)) continue
+    seen.add(url)
+    out.push({ url, type: r.type === 'video' ? 'video' : 'image' })
+    if (out.length >= MAX_LINK_MEDIA) break
+  }
+  return out
+}
+
 // Limpia un enlace que llega de la base de datos. Devuelve null si no vale (por ejemplo, dirección inválida).
 export function normalizeLink(raw: unknown): CampaignLink | null {
   if (!raw || typeof raw !== 'object') return null
@@ -96,6 +118,7 @@ export function normalizeLink(raw: unknown): CampaignLink | null {
     title: loc(r.title, LINK_LIMITS.title),
     text: loc(r.text, LINK_LIMITS.text),
     button: loc(r.button, LINK_LIMITS.button),
+    media: normalizeMedia(r.media),
     createdAt: typeof r.createdAt === 'number' && Number.isFinite(r.createdAt) ? r.createdAt : 0,
   }
 }
