@@ -363,7 +363,7 @@ export const T: Dict = {
   'wa.close': { es: 'Cerrar', en: 'Close' },
   'wa.selectPlaceholder': { es: 'Selecciona un servicio', en: 'Select a service' },
 
-  'admin.title': { es: 'Panel de Reseñas', en: 'Reviews Panel' },
+  'admin.title': { es: 'Panel de admin', en: 'Admin panel' },
   'admin.login': { es: 'Acceso administrador', en: 'Admin access' },
   'admin.password': { es: 'Contraseña', en: 'Password' },
   'admin.enter': { es: 'Entrar', en: 'Enter' },
