@@ -16,6 +16,7 @@ import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS, SHOWCASE_VIDEO_
 //              { action: 'update', id, alt, altEn } escribe la descripción de una foto (solo admin)
 //              { action: 'update', id, caption, captionEn } escribe el pie de una foto del carrusel «oportunidad» (solo admin)
 //              { action: 'add', item } añade una foto o vídeo (solo admin)
+//              { action: 'retype', id, type: 'image' | 'panorama' } cambia una foto de normal a 360° o al revés (solo admin)
 //              { action: 'reorder', category, ids } cambia el orden de las tomas de una categoría (solo admin)
 // - DELETE  -> { id } borra un elemento (solo admin)
 
@@ -74,6 +75,7 @@ export async function POST(req: Request) {
     captionEn?: unknown
     category?: unknown
     ids?: unknown
+    type?: unknown
   }
   try {
     body = await req.json()
@@ -127,6 +129,35 @@ export async function POST(req: Request) {
           return next
         }),
       )
+      return NextResponse.json({ items: updated })
+    } catch (e) {
+      return serverError(e)
+    }
+  }
+
+  // Corrige el tipo de una foto: normal <-> 360°. Es la salida de emergencia cuando el detector automático
+  // del admin (lib/media-detect.ts) se equivoca. No se puede convertir un vídeo, un modelo 3D ni un enlace.
+  if (body.action === 'retype') {
+    const id = typeof body.id === 'string' ? body.id : ''
+    const type = body.type === 'panorama' || body.type === 'image' ? body.type : null
+    if (!id || !type) return fail('Petición no válida', 400)
+    try {
+      let problem = ''
+      const updated = await updateJSON<MediaItem[]>(KEY, [], (items) =>
+        items.map((m) => {
+          if (m.id !== id) return m
+          if (m.type !== 'image' && m.type !== 'panorama') {
+            problem = 'Solo se puede cambiar el tipo de las fotos.'
+            return m
+          }
+          if (type === 'panorama' && (m.category === 'hero' || m.category === SHOWCASE_CATEGORY || m.category.startsWith('cover-'))) {
+            problem = 'Aquí solo caben fotos normales, no fotos 360°.'
+            return m
+          }
+          return { ...m, type }
+        }),
+      )
+      if (problem) return fail(problem, 400)
       return NextResponse.json({ items: updated })
     } catch (e) {
       return serverError(e)
