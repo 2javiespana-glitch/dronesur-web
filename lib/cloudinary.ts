@@ -179,7 +179,11 @@ function uploadToAccount(
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const response = JSON.parse(xhr.responseText)
-          resolve({ url: response.secure_url, resourceType: String(response.resource_type ?? '') })
+          // Los navegadores no abren HEIC (fotos de iPhone) ni TIFF. Cambiando la extensión de la dirección
+          // a .jpg, Cloudinary los entrega ya convertidos a JPG, y se ven en cualquier móvil u ordenador.
+          const rawUrl = String(response.secure_url ?? '')
+          const url = /\/image\/upload\//.test(rawUrl) ? rawUrl.replace(/\.(heic|heif|tiff?)$/i, '.jpg') : rawUrl
+          resolve({ url, resourceType: String(response.resource_type ?? '') })
         } catch {
           reject(new UploadError('Respuesta inesperada de Cloudinary.', false))
         }
