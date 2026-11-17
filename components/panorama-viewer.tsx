@@ -16,6 +16,7 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { useSite } from '@/components/site-provider'
+import { useA11y } from '@/components/accessibility-provider'
 import {
   PanoramaProjectionViewer,
   supportsProjections,
@@ -58,8 +59,12 @@ function loadPannellum(): Promise<any> {
 }
 
 // ---------- Vista POV 360 (Pannellum) ----------
-function PovViewer({ url, onError }: { url: string; onError: () => void }) {
+function PovViewer({ url, onError, reduceMotion }: { url: string; onError: () => void; reduceMotion: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const viewerRef = useRef<any>(null)
+  const reduceRef = useRef(reduceMotion)
+  reduceRef.current = reduceMotion
 
   useEffect(() => {
     let cancelled = false
@@ -73,7 +78,7 @@ function PovViewer({ url, onError }: { url: string; onError: () => void }) {
           type: 'equirectangular',
           panorama: panoramaUrl(url),
           autoLoad: true,
-          autoRotate: -2, // gira despacio hasta que el visitante la toca
+          autoRotate: reduceRef.current ? 0 : -2, // gira despacio hasta que el visitante la toca (nunca si pidió menos movimiento)
           showControls: true,
           showFullscreenCtrl: true,
           mouseZoom: true,
@@ -82,6 +87,7 @@ function PovViewer({ url, onError }: { url: string; onError: () => void }) {
           maxHfov: 120,
           compass: false,
         })
+        viewerRef.current = viewer
         viewer.on('error', onError)
       })
       .catch(onError)
@@ -96,6 +102,16 @@ function PovViewer({ url, onError }: { url: string; onError: () => void }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url])
+
+  // Si activa «Reducir animaciones» con la foto ya abierta, se para el giro sin recargarla.
+  useEffect(() => {
+    if (!reduceMotion) return
+    try {
+      viewerRef.current?.stopAutoRotate?.()
+    } catch {
+      // nada que hacer si ya no existe
+    }
+  }, [reduceMotion])
 
   return <div ref={ref} className="h-full w-full" />
 }
@@ -150,6 +166,7 @@ function ToolButton({
 
 export function PanoramaViewer({ url }: { url: string }) {
   const { lang } = useSite()
+  const { reduceMotion } = useA11y() // opción del panel de accesibilidad O preferencia del sistema
   const tx = (key: keyof typeof TEXT) => TEXT[key][lang === 'en' ? 'en' : 'es']
 
   const rootRef = useRef<HTMLDivElement>(null)
@@ -165,13 +182,16 @@ export function PanoramaViewer({ url }: { url: string }) {
   useEffect(() => {
     setCanProject(supportsProjections())
     setCanFullscreen(!!document.fullscreenEnabled)
-    // Quien tiene activado "reducir movimiento" no quiere que la foto gire sola.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setAutoRotate(false)
 
     const onChange = () => setIsFullscreen(document.fullscreenElement === rootRef.current)
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
+
+  // Quien tiene activado "reducir movimiento" (en el panel o en su sistema) no quiere que la foto gire sola.
+  useEffect(() => {
+    if (reduceMotion) setAutoRotate(false)
+  }, [reduceMotion])
 
   const toggleFullscreen = useCallback(() => {
     const root = rootRef.current
@@ -220,7 +240,7 @@ export function PanoramaViewer({ url }: { url: string }) {
           onError={projectionFailed}
         />
       ) : (
-        <PovViewer url={url} onError={() => setError(true)} />
+        <PovViewer url={url} onError={() => setError(true)} reduceMotion={reduceMotion} />
       )}
 
       {canProject && (

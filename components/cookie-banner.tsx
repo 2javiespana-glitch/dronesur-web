@@ -39,8 +39,8 @@ export function CookieBanner() {
       <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
         {en ? (
           <>
-            We use essential technical storage (for example, to remember your language and your
-            theme). With your permission, we also measure visits anonymously to improve the website.
+            We use essential technical storage (for example, to remember your theme and your
+            accessibility options). With your permission, we also measure visits anonymously to improve the website.
             You can accept or reject these statistics just as easily, and change your mind whenever
             you like. More information in the{' '}
             <Link href="/politica-de-cookies" className="underline hover:text-gold">
@@ -50,8 +50,8 @@ export function CookieBanner() {
           </>
         ) : (
           <>
-            Usamos almacenamiento técnico imprescindible (por ejemplo, para recordar tu idioma y tu
-            tema). Con tu permiso, también medimos las visitas de forma anónima para mejorar la web.
+            Usamos almacenamiento técnico imprescindible (por ejemplo, para recordar tu tema y tus
+            opciones de accesibilidad). Con tu permiso, también medimos las visitas de forma anónima para mejorar la web.
             Puedes aceptar o rechazar estas estadísticas con la misma facilidad, y cambiar de opinión
             cuando quieras. Más información en la{' '}
             <Link href="/politica-de-cookies" className="underline hover:text-gold">

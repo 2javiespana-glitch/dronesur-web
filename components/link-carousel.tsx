@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useA11y } from '@/components/accessibility-provider'
 import { optimizeImage } from '@/lib/site-content'
 import { playableVideoUrl, videoPosterUrl } from '@/lib/media-url'
 import type { LinkMedia } from '@/lib/campaign-links'
@@ -19,16 +20,8 @@ export function LinkCarousel({ media }: { media: LinkMedia[] }) {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const [active, setActive] = useState(0)
   const [rawVideos, setRawVideos] = useState<Set<number>>(new Set()) // vídeos que no se pudieron convertir: se usa el original
-  const [reduceMotion, setReduceMotion] = useState(false)
+  const { reduceMotion } = useA11y() // opción del panel de accesibilidad O preferencia del sistema
   const count = media.length
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduceMotion(mq.matches)
-    const onChange = () => setReduceMotion(mq.matches)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
 
   const goTo = useCallback(
     (index: number) => {

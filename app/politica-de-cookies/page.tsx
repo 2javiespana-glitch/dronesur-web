@@ -19,8 +19,8 @@ const ITEMS = [
     duration: 'Hasta que lo borres',
   },
   {
-    name: 'dronesur-lang',
-    purpose: 'Recuerda tu idioma (español o inglés).',
+    name: 'dronesur-a11y',
+    purpose: 'Recuerda las opciones que actives en el panel de Accesibilidad (texto grande, contraste, menos animaciones…).',
     type: 'Técnico (preferencia)',
     duration: 'Hasta que lo borres',
   },
@@ -75,8 +75,8 @@ const ITEMS_EN = [
     duration: 'Until you delete it',
   },
   {
-    name: 'dronesur-lang',
-    purpose: 'Remembers your language (Spanish or English).',
+    name: 'dronesur-a11y',
+    purpose: 'Remembers the options you turn on in the Accessibility panel (larger text, contrast, reduced motion…).',
     type: 'Technical (preference)',
     duration: 'Until you delete it',
   },

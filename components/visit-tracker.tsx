@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { takeRef } from '@/lib/ref-param'
 
 // Avisa al servidor de que ha entrado una visita (una vez por carga de la web).
 // No guarda nada en el dispositivo del visitante: ni cookies ni almacenamiento local.
@@ -22,14 +23,9 @@ export function VisitTracker() {
     }
 
     // Enlaces de carteles, tarjetas, QR...: dronesur.es/?ref=cartel-1 → se apunta "cartel-1".
-    // Así sabes cuál de ellos te trae visitas. Solo letras, números, guion y guion bajo.
-    let ref = ''
-    try {
-      const raw = new URLSearchParams(window.location.search).get('ref') || ''
-      ref = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 30)
-    } catch {
-      // Se ignora a propósito.
-    }
+    // Así sabes cuál de ellos te trae visitas. La dirección se limpia al entrar (ref-capture.tsx),
+    // por eso el nombre se lee de la copia en memoria y no de la barra del navegador.
+    const ref = takeRef()
 
     void fetch('/api/visits', {
       method: 'POST',

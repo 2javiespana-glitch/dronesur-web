@@ -47,11 +47,11 @@ const OPTIONS: {
     key: 'reduceMotion',
     es: {
       label: 'Reducir animaciones',
-      desc: 'Quita movimientos y transiciones, y deja el carrusel del inicio en pausa.',
+      desc: 'Quita movimientos y transiciones, y deja en pausa los carruseles y el giro automático de las fotos 360° y los modelos 3D.',
     },
     en: {
       label: 'Reduce motion',
-      desc: 'Removes movement and transitions, and keeps the home carousel paused.',
+      desc: 'Removes movement and transitions, and keeps carousels and the auto-rotation of 360° photos and 3D models paused.',
     },
   },
   {

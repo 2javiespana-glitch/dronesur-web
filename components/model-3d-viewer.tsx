@@ -1,6 +1,7 @@
 'use client'
 
 import { createElement, useEffect, useState } from 'react'
+import { useA11y } from '@/components/accessibility-provider'
 
 // Visor de modelos 3D (<model-viewer> de Google). Admite archivos .glb.
 // Se carga solo cuando hace falta, desde jsDelivr.
@@ -25,6 +26,7 @@ function loadModelViewer(): Promise<void> {
 }
 
 export function Model3DViewer({ url, label }: { url: string; label: string }) {
+  const { reduceMotion } = useA11y() // si pidió menos movimiento, el modelo no gira solo
   const [ready, setReady] = useState(false)
   const [error, setError] = useState(false)
 
@@ -55,7 +57,7 @@ export function Model3DViewer({ url, label }: { url: string; label: string }) {
     src: url,
     alt: label,
     'camera-controls': '',
-    'auto-rotate': '',
+    ...(reduceMotion ? {} : { 'auto-rotate': '' }),
     'touch-action': 'pan-y',
     'shadow-intensity': '1',
     style: { width: '100%', height: '100%', backgroundColor: '#111' },
