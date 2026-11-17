@@ -2,7 +2,7 @@
 // Decide si es una foto normal, un vídeo, una foto 360° o un modelo 3D (.glb) sin que haya que elegirlo.
 // Solo lee el archivo en el navegador: no sube nada. Lo usa components/media-manager.tsx.
 
-import type { UploadKind } from '@/lib/media-admin'
+import { isImageFile as isImage, isVideoFile as isVideo, VIDEO_EXT, type UploadKind } from '@/lib/media-admin'
 
 export type Detection =
   | {
@@ -18,15 +18,10 @@ export type Detection =
     }
   | { ok: false; error: string }
 
-const VIDEO_EXT = /\.(mp4|mov|m4v|webm|avi|mkv)$/i
-const IMAGE_EXT = /\.(jpe?g|png|webp|avif|gif|heic|heif|tiff?)$/i
 const NAME_HINT = /(^|[^a-z0-9])(pano|panorama|panoramica|360|sphere|spherical|esfera|equirect(angular)?)([^a-z0-9]|$)/i
 
 // Cuánto del principio del archivo se lee buscando metadatos 360° (el XMP está siempre al principio).
 const HEAD_BYTES = 256 * 1024
-
-const isVideo = (file: File) => file.type.startsWith('video/') || VIDEO_EXT.test(file.name)
-const isImage = (file: File) => file.type.startsWith('image/') || IMAGE_EXT.test(file.name)
 
 // Un .glb de verdad empieza por los cuatro bytes "glTF". Así se distingue de un archivo renombrado.
 async function hasGlbHeader(file: File): Promise<boolean> {
