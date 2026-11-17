@@ -28,7 +28,8 @@ import {
 } from '@/lib/content'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
 import { CloudinaryAccounts, CloudinaryTarget, useUploadTarget } from '@/components/cloudinary-target'
-import { MOBILE_VIDEO_WIDTH, playableVideoUrl } from '@/lib/media-url'
+import { MOBILE_VIDEO_WIDTH, isAllowedEmbed, playableVideoUrl } from '@/lib/media-url'
+import { detectFile, detectLink } from '@/lib/media-detect'
 import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS } from '@/lib/showcase'
 import { AutoSaveStatus, useAutoSave } from '@/lib/use-autosave'
 import {
@@ -89,6 +90,10 @@ async function call<T>(
 }
 
 const targetKey = (t: Target) => `${t.category}:${t.albumId ?? ''}`
+
+// Los recuadros «Añadir» de categorías y álbumes aceptan de todo: el detector decide el tipo (lib/media-detect.ts).
+const AUTO_ACCEPT = 'image/*,video/*,.glb,model/gltf-binary'
+const AUTO_HINT = 'Suelta fotos, vídeos, 360° o .glb: se detecta solo'
 
 // ---------------------------------------------------------------------------
 // Piezas pequeñas
@@ -243,10 +248,12 @@ function MediaTile({
   item,
   onDelete,
   onEdit,
+  onToggle360,
 }: {
   item: MediaItem
   onDelete: () => void
   onEdit?: () => void // abre la descripción de la foto (solo para fotos)
+  onToggle360?: () => void // corrige el tipo: foto normal <-> foto 360° (solo fotos)
 }) {
   const kind = kindOf(item)
   const missingAlt = !!onEdit && !item.alt
@@ -271,10 +278,32 @@ function MediaTile({
         </button>
       )}
       {playing && <VideoPreview item={item} onClose={() => setPlaying(false)} />}
-      {kind === 'panorama' && (
-        <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
-          360°
-        </span>
+      {kind === 'panorama' &&
+        (onToggle360 ? (
+          <button
+            type="button"
+            onClick={onToggle360}
+            title="Es una foto 360°. Pulsa para tratarla como foto normal"
+            aria-label="Quitar el tipo 360°: tratar como foto normal"
+            className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] focus-visible:bg-[var(--gold)] focus-visible:text-[var(--gold-foreground)]"
+          >
+            360°
+          </button>
+        ) : (
+          <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+            360°
+          </span>
+        ))}
+      {kind === 'image' && onToggle360 && (
+        <button
+          type="button"
+          onClick={onToggle360}
+          title="Marcar como foto 360° (esférica 2:1)"
+          aria-label="Marcar como foto 360°"
+          className="absolute bottom-1.5 left-1.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white opacity-0 transition hover:bg-[var(--gold)] hover:text-[var(--gold-foreground)] focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          ¿360°?
+        </button>
       )}
       {onEdit && (
         <button
@@ -451,12 +480,16 @@ function AddTile({
   upload,
   uploadKey,
   onFiles,
+  onLinks,
+  hint,
 }: {
   accept: string
   multiple: boolean
   upload: UploadState | null
   uploadKey: string
   onFiles: (files: File[]) => void
+  onLinks?: (urls: string[]) => void // enlaces soltados en lugar de archivos
+  hint?: string // texto pequeño bajo «Añadir»
 }) {
   const [dragOver, setDragOver] = useState(false)
   const target = useUploadTarget()
@@ -473,7 +506,20 @@ function AddTile({
       onDrop={(e) => {
         e.preventDefault()
         setDragOver(false)
-        if (!upload) onFiles(Array.from(e.dataTransfer.files ?? []))
+        if (upload) return
+        const files = Array.from(e.dataTransfer.files ?? [])
+        if (files.length > 0) {
+          onFiles(files)
+          return
+        }
+        // Sin archivos: puede ser un enlace arrastrado desde otra pestaña.
+        if (onLinks) {
+          const urls = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain'))
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line && !line.startsWith('#'))
+          if (urls.length > 0) onLinks(urls)
+        }
       }}
       className={`flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed text-center transition ${
         dragOver ? 'border-[var(--gold)] bg-[var(--gold)]/10' : 'border-border hover:border-[var(--gold)] hover:text-gold'
@@ -502,6 +548,7 @@ function AddTile({
         <>
           <Plus className="h-7 w-7" />
           <span className="text-sm font-semibold">Añadir</span>
+          {hint && <span className="px-2 text-[11px] leading-tight text-muted-foreground">{hint}</span>}
         </>
       )}
     </label>
@@ -851,6 +898,7 @@ export function MediaManager({
 
   const [openSlug, setOpenSlug] = useState<string | null>(null) // null = lista; 'hero' = carrusel
   const [errors, setErrors] = useState<string[]>([])
+  const [notes, setNotes] = useState<string[]>([]) // avisos de lo que ha detectado el detector automático
   const [upload, setUpload] = useState<UploadState | null>(null)
 
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
@@ -1095,13 +1143,39 @@ export function MediaManager({
   }
 
   // ----- subidas -----
-  const runUpload = async (files: File[], target: Target, kind: UploadKind = 'normal') => {
+  // Sin `kind`, el detector automático decide si cada archivo es foto, vídeo, foto 360° o modelo 3D.
+  // Con `kind` (lo elegido a mano en «Foto 360°, modelo 3D o enlace…») se respeta tal cual.
+  const runUpload = async (files: File[], target: Target, forcedKind?: UploadKind) => {
     if (files.length === 0) return
     setErrors([])
+    setNotes([])
     const key = targetKey(target)
+    // Los carruseles solo admiten fotos y vídeos normales (una foto 360° o un .glb no tienen sitio ahí).
+    const onlyPlain = target.category === HERO || target.category === SHOWCASE
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const label = files.length > 1 ? `${i + 1} de ${files.length}` : ''
+
+      let kind: UploadKind = forcedKind ?? 'normal'
+      let note = ''
+      if (!forcedKind) {
+        const found = await detectFile(file)
+        if (!found.ok) {
+          addError(found.error)
+          continue
+        }
+        kind = found.kind
+        if (onlyPlain && kind === 'model3d') {
+          addError(`"${file.name}" es un modelo 3D y este carrusel solo admite fotos y vídeos.`)
+          continue
+        }
+        // En un carrusel, una foto 360° se trata como foto normal.
+        if (onlyPlain && kind === 'panorama') kind = 'normal'
+        else if (found.kind !== 'normal' || found.confidence === 'medium') {
+          const dudoso = found.confidence === 'medium' ? ' Si no es 360°, pulsa «360°» en su miniatura para quitarlo.' : ''
+          note = `«${file.name}» se ha subido como ${found.label} (${found.reason}).${dudoso}`
+        }
+      }
 
       if (target.category === HERO && !file.type.startsWith('video/')) {
         addError(`"${file.name}" no es un vídeo. El carrusel de inicio solo usa vídeos.`)
@@ -1112,6 +1186,7 @@ export function MediaManager({
         addError(problem)
         continue
       }
+      if (note) setNotes((prev) => [...prev, note])
 
       setUpload({ key, label, percent: 0 })
       try {
@@ -1159,6 +1234,38 @@ export function MediaManager({
     if (!res.ok) return res.error
     setMedia(res.data.items)
     return null
+  }
+
+  // Enlaces soltados sobre «Añadir» (por ejemplo, arrastrar una pestaña de Sketchfab): se detecta el tipo de cada uno.
+  const runLinks = async (urls: string[], target: Target) => {
+    setErrors([])
+    setNotes([])
+    const onlyPlain = target.category === HERO || target.category === SHOWCASE
+    for (const raw of urls) {
+      const found = detectLink(raw, isAllowedEmbed)
+      if (!found) {
+        addError(`El enlace «${raw}» no vale: debe empezar por https:// y ser de Sketchfab, Kuula, Matterport o una foto/vídeo.`)
+        continue
+      }
+      if (onlyPlain && found.kind === 'embed') {
+        addError('Este carrusel solo admite fotos y vídeos, no enlaces incrustados.')
+        continue
+      }
+      const problem = await addByUrl(target, found.kind, found.url)
+      if (problem) addError(problem)
+      else setNotes((prev) => [...prev, `Enlace añadido como ${found.label}.`])
+    }
+  }
+
+  // Corrige lo que decidió el detector: una foto normal pasa a 360° o al revés.
+  const toggle360 = async (item: MediaItem) => {
+    const type = kindOf(item) === 'panorama' ? 'image' : 'panorama'
+    const res = await call<{ items: MediaItem[] }>('/api/media', 'POST', password, { action: 'retype', id: item.id, type })
+    if (!res.ok) {
+      addError(res.error)
+      return
+    }
+    setMedia(res.data.items)
   }
 
   // Cambia la portada de la tarjeta: sube la nueva y quita las anteriores (solo vale la última).
@@ -1270,20 +1377,40 @@ export function MediaManager({
     </>
   )
 
-  const errorBanner = errors.length > 0 && (
-    <div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          {errors.map((e) => (
-            <p key={e} className="text-sm text-destructive">
-              {e}
-            </p>
-          ))}
+  const errorBanner = (errors.length > 0 || notes.length > 0) && (
+    <div className="mt-4 space-y-2">
+      {errors.length > 0 && (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              {errors.map((e) => (
+                <p key={e} className="text-sm text-destructive">
+                  {e}
+                </p>
+              ))}
+            </div>
+            <button type="button" onClick={() => setErrors([])} aria-label="Cerrar aviso" className="shrink-0 rounded p-0.5">
+              <X className="h-4 w-4 text-destructive" />
+            </button>
+          </div>
         </div>
-        <button type="button" onClick={() => setErrors([])} aria-label="Cerrar aviso" className="shrink-0 rounded p-0.5">
-          <X className="h-4 w-4 text-destructive" />
-        </button>
-      </div>
+      )}
+      {notes.length > 0 && (
+        <div className="rounded-xl border border-border bg-muted/50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              {notes.map((n) => (
+                <p key={n} className="text-sm text-muted-foreground">
+                  {n}
+                </p>
+              ))}
+            </div>
+            <button type="button" onClick={() => setNotes([])} aria-label="Cerrar aviso" className="shrink-0 rounded p-0.5">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -1442,7 +1569,7 @@ export function MediaManager({
 
     return (
       <div ref={topRef} className="mt-10 scroll-mt-4">
-        <button type="button" onClick={() => { setOpenSlug(null); setShowTexts(false); setErrors([]) }} className={secondaryButton}>
+        <button type="button" onClick={() => { setOpenSlug(null); setShowTexts(false); setErrors([]); setNotes([]) }} className={secondaryButton}>
           <ArrowLeft className="h-4 w-4" /> Volver a categorías
         </button>
 
@@ -1542,15 +1669,19 @@ export function MediaManager({
               item={item}
               onDelete={() => askDeleteMedia(item)}
               onEdit={describable(item) ? () => setAltItem(item) : undefined}
+              onToggle360={describable(item) ? () => void toggle360(item) : undefined}
             />
           ))}
           <AddTile
-            accept="image/*,video/*"
+            accept={AUTO_ACCEPT}
             multiple
             upload={upload}
             uploadKey={targetKey(generalTarget)}
             onFiles={(files) => void runUpload(files, generalTarget)}
+            onLinks={(urls) => void runLinks(urls, generalTarget)}
+            hint={AUTO_HINT}
           />
+
         </Section>
 
         {/* Álbumes */}
@@ -1583,14 +1714,17 @@ export function MediaManager({
                   item={item}
                   onDelete={() => askDeleteMedia(item)}
                   onEdit={describable(item) ? () => setAltItem(item) : undefined}
+                  onToggle360={describable(item) ? () => void toggle360(item) : undefined}
                 />
               ))}
               <AddTile
-                accept="image/*,video/*"
+                accept={AUTO_ACCEPT}
                 multiple
                 upload={upload}
                 uploadKey={targetKey(target)}
                 onFiles={(files) => void runUpload(files, target)}
+                onLinks={(urls) => void runLinks(urls, target)}
+                hint={AUTO_HINT}
               />
             </Section>
           )
