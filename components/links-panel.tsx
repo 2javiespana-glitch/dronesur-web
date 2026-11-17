@@ -163,6 +163,30 @@ export function LinksPanel({ password }: { password: string }) {
     void load()
   }
 
+  const resetOne = async (row: Row) => {
+    if (
+      !window.confirm(
+        `¿Poner a 0 el recuento de «${row.slug}»?\n\nSe borran sus aperturas y las visitas que trajo a la web. No se puede deshacer.`,
+      )
+    )
+      return
+    const error = await call({ action: 'reset', slug: row.slug })
+    if (error) setLoadError(error)
+    void load()
+  }
+
+  const resetAll = async () => {
+    if (
+      !window.confirm(
+        '¿Poner a 0 el recuento de TODOS los enlaces?\n\nSe borran las aperturas y las visitas por cartel de todos. No se puede deshacer.',
+      )
+    )
+      return
+    const error = await call({ action: 'reset' })
+    if (error) setLoadError(error)
+    void load()
+  }
+
   const copy = async (slug: string) => {
     try {
       await navigator.clipboard.writeText(publicUrl(slug))
@@ -261,7 +285,10 @@ export function LinksPanel({ password }: { password: string }) {
           >
             <Plus className="h-4 w-4" /> Nuevo enlace
           </button>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <button type="button" className={secondaryButton} onClick={() => void resetAll()}>
+              Reiniciar todos
+            </button>
             Aperturas de los últimos
             {RANGES.map((n) => (
               <button
@@ -625,6 +652,9 @@ export function LinksPanel({ password }: { password: string }) {
                 </a>
                 <button type="button" className={secondaryButton} onClick={() => edit(row)}>
                   <Pencil className="h-3.5 w-3.5" /> Editar
+                </button>
+                <button type="button" className={secondaryButton} onClick={() => void resetOne(row)}>
+                  Reiniciar
                 </button>
                 <button type="button" className={secondaryButton} onClick={() => void toggleActive(row)}>
                   {row.active ? 'Desactivar' : 'Activar'}
