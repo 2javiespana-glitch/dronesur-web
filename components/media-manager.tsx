@@ -38,6 +38,8 @@ import {
   type MediaKind,
   type UploadKind,
   checkFile,
+  isImageFile,
+  isVideoFile,
   kindLabel,
   kindOf,
   stripExtension,
@@ -1177,7 +1179,7 @@ export function MediaManager({
         }
       }
 
-      if (target.category === HERO && !file.type.startsWith('video/')) {
+      if (target.category === HERO && !isVideoFile(file)) {
         addError(`"${file.name}" no es un vídeo. El carrusel de inicio solo usa vídeos.`)
         continue
       }
@@ -1271,7 +1273,7 @@ export function MediaManager({
   // Cambia la portada de la tarjeta: sube la nueva y quita las anteriores (solo vale la última).
   const changeCover = async (slug: string, file: File) => {
     setErrors([])
-    if (!file.type.startsWith('image/')) {
+    if (!isImageFile(file)) {
       addError(`"${file.name}" no es una foto. La portada tiene que ser una imagen.`)
       return
     }
