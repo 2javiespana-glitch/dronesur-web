@@ -1,9 +1,32 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react'
+import {
+  Aperture,
+  Camera,
+  CircleDot,
+  GalleryHorizontal,
+  Globe,
+  Maximize,
+  Minimize,
+  Orbit,
+  Pause,
+  Play,
+  Rotate3d,
+  RotateCcw,
+} from 'lucide-react'
+import { useSite } from '@/components/site-provider'
+import {
+  PanoramaProjectionViewer,
+  supportsProjections,
+  type ProjectionViewerHandle,
+} from '@/components/panorama-projection-viewer'
 import { panoramaUrl } from '@/lib/media-url'
+import { VIEW_LABELS, VIEW_MODES, type ProjectionMode, type ViewMode } from '@/lib/panorama-projections'
 
-// Visor de fotos 360° (Pannellum). Se carga solo cuando hace falta, desde cdnjs.
+// Visor de fotos 360°. Tiene dos motores:
+//  · "POV 360" (la vista de siempre): Pannellum, cargado solo cuando hace falta desde cdnjs.
+//  · Planeta, Invertido, Ojo de pez, Globo y Plano: nuestro visor WebGL (panorama-projection-viewer.tsx).
 const JS = 'https://cdnjs.cloudflare.com/ajax/libs/pannellum/2.5.6/pannellum.js'
 const CSS = 'https://cdnjs.cloudflare.com/ajax/libs/pannellum/2.5.6/pannellum.css'
 
@@ -34,9 +57,9 @@ function loadPannellum(): Promise<any> {
   })
 }
 
-export function PanoramaViewer({ url }: { url: string }) {
+// ---------- Vista POV 360 (Pannellum) ----------
+function PovViewer({ url, onError }: { url: string; onError: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -59,9 +82,9 @@ export function PanoramaViewer({ url }: { url: string }) {
           maxHfov: 120,
           compass: false,
         })
-        viewer.on('error', () => setError(true))
+        viewer.on('error', onError)
       })
-      .catch(() => setError(true))
+      .catch(onError)
 
     return () => {
       cancelled = true
@@ -71,15 +94,195 @@ export function PanoramaViewer({ url }: { url: string }) {
         // nada que hacer si ya no existe
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url])
+
+  return <div ref={ref} className="h-full w-full" />
+}
+
+// ---------- Botones ----------
+const MODE_ICONS: Record<ViewMode, ComponentType<{ className?: string }>> = {
+  pov: Rotate3d,
+  planet: Orbit,
+  tunnel: CircleDot,
+  fisheye: Aperture,
+  globe: Globe,
+  flat: GalleryHorizontal,
+}
+
+const TEXT = {
+  loading: { es: 'Cargando vista…', en: 'Loading view…' },
+  viewer: { es: 'Foto 360°', en: '360° photo' },
+  views: { es: 'Tipo de vista', en: 'View type' },
+  autoOn: { es: 'Activar giro automático', en: 'Start auto-rotate' },
+  autoOff: { es: 'Pausar giro automático', en: 'Pause auto-rotate' },
+  reset: { es: 'Reiniciar vista', en: 'Reset view' },
+  save: { es: 'Guardar imagen de esta vista', en: 'Save image of this view' },
+  fullscreen: { es: 'Pantalla completa', en: 'Fullscreen' },
+  exitFullscreen: { es: 'Salir de pantalla completa', en: 'Exit fullscreen' },
+  error: {
+    es: 'No se pudo cargar la foto 360°. Prueba a recargar la página.',
+    en: 'The 360° photo could not be loaded. Try reloading the page.',
+  },
+}
+
+function ToolButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="rounded-full border border-white/30 bg-black/45 p-2 text-white backdrop-blur-sm transition hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]"
+    >
+      {children}
+    </button>
+  )
+}
+
+export function PanoramaViewer({ url }: { url: string }) {
+  const { lang } = useSite()
+  const tx = (key: keyof typeof TEXT) => TEXT[key][lang === 'en' ? 'en' : 'es']
+
+  const rootRef = useRef<HTMLDivElement>(null)
+  const projectionRef = useRef<ProjectionViewerHandle>(null)
+
+  const [mode, setMode] = useState<ViewMode>('pov')
+  const [autoRotate, setAutoRotate] = useState(true)
+  const [canProject, setCanProject] = useState(false) // se comprueba en el navegador (WebGL2)
+  const [canFullscreen, setCanFullscreen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    setCanProject(supportsProjections())
+    setCanFullscreen(!!document.fullscreenEnabled)
+    // Quien tiene activado "reducir movimiento" no quiere que la foto gire sola.
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) setAutoRotate(false)
+
+    const onChange = () => setIsFullscreen(document.fullscreenElement === rootRef.current)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    const root = rootRef.current
+    if (!root) return
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void root.requestFullscreen?.()
+  }, [])
+
+  const saveImage = useCallback(async () => {
+    const blob = await projectionRef.current?.capture()
+    if (!blob) return
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `dronesur-360-${mode}.png`
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+  }, [mode])
+
+  // Si algo falla en las proyecciones se vuelve a la vista de siempre y se ocultan los botones nuevos.
+  const projectionFailed = useCallback(() => {
+    setCanProject(false)
+    setMode('pov')
+  }, [])
 
   if (error) {
     return (
       <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        No se pudo cargar la foto 360°. Prueba a recargar la página.
+        {tx('error')}
       </div>
     )
   }
 
-  return <div ref={ref} className="h-full w-full" />
+  const projectionMode: ProjectionMode | null = mode === 'pov' ? null : mode
+
+  return (
+    <div ref={rootRef} className="relative h-full w-full bg-black">
+      {projectionMode ? (
+        <PanoramaProjectionViewer
+          ref={projectionRef}
+          url={url}
+          mode={projectionMode}
+          autoRotate={autoRotate}
+          label={`${tx('viewer')} · ${VIEW_LABELS[mode][lang === 'en' ? 'en' : 'es']}`}
+          loadingLabel={tx('loading')}
+          onUserInteract={() => setAutoRotate(false)}
+          onError={projectionFailed}
+        />
+      ) : (
+        <PovViewer url={url} onError={() => setError(true)} />
+      )}
+
+      {canProject && (
+        <>
+          {/* Herramientas (arriba a la derecha; los botones de zoom de Pannellum van a la izquierda) */}
+          <div className="absolute right-3 top-3 z-10 flex gap-2">
+            {projectionMode && (
+              <>
+                <ToolButton
+                  label={autoRotate ? tx('autoOff') : tx('autoOn')}
+                  onClick={() => setAutoRotate((v) => !v)}
+                >
+                  {autoRotate ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </ToolButton>
+                <ToolButton label={tx('reset')} onClick={() => projectionRef.current?.reset()}>
+                  <RotateCcw className="h-4 w-4" />
+                </ToolButton>
+                <ToolButton label={tx('save')} onClick={saveImage}>
+                  <Camera className="h-4 w-4" />
+                </ToolButton>
+              </>
+            )}
+            {/* En POV 360 la pantalla completa la da Pannellum (botón de la izquierda) */}
+            {projectionMode && canFullscreen && (
+              <ToolButton
+                label={isFullscreen ? tx('exitFullscreen') : tx('fullscreen')}
+                onClick={toggleFullscreen}
+              >
+                {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+              </ToolButton>
+            )}
+          </div>
+
+          {/* Selector de vista */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-2">
+            <div
+              role="group"
+              aria-label={tx('views')}
+              className="pointer-events-auto flex max-w-full gap-1 overflow-x-auto rounded-2xl border border-white/20 bg-black/55 p-1 backdrop-blur-md [scrollbar-width:none]"
+            >
+              {VIEW_MODES.map((id) => {
+                const Icon = MODE_ICONS[id]
+                const active = id === mode
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setMode(id)}
+                    className={`flex min-w-[3.6rem] shrink-0 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-medium leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)] ${
+                      active ? 'bg-white/15 text-[var(--gold)]' : 'text-white/80 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {VIEW_LABELS[id][lang === 'en' ? 'en' : 'es']}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
