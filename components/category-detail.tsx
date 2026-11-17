@@ -280,6 +280,10 @@ export function CategoryDetail({
                   {es
                     ? 'Arrastra para girar · rueda del ratón o pellizco para acercar'
                     : 'Drag to rotate · mouse wheel or pinch to zoom'}
+                  {current.type === 'panorama' &&
+                    (es
+                      ? ' · cambia el tipo de vista (planeta, globo…) abajo'
+                      : ' · switch the view type (planet, globe…) below')}
                 </p>
               )}
 
