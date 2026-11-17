@@ -58,6 +58,13 @@ export function stripExtension(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '')
 }
 
+// ¿Es un vídeo / una foto? Se mira el tipo que declara el navegador Y la extensión: en Windows, algunos
+// archivos (.heic de iPhone, .mkv…) llegan con el tipo vacío y, mirando solo el tipo, se rechazarían sin motivo.
+export const VIDEO_EXT = /\.(mp4|mov|m4v|webm|avi|mkv)$/i
+export const IMAGE_EXT = /\.(jpe?g|png|webp|avif|gif|heic|heif|tiff?)$/i
+export const isVideoFile = (file: File) => file.type.startsWith('video/') || VIDEO_EXT.test(file.name)
+export const isImageFile = (file: File) => file.type.startsWith('image/') || IMAGE_EXT.test(file.name)
+
 // Comprueba el archivo antes de subirlo. Devuelve el motivo si no vale, o null si está bien.
 // (Los límites son los del plan gratuito de Cloudinary.)
 export function checkFile(file: File, kind: UploadKind): string | null {
@@ -70,11 +77,11 @@ export function checkFile(file: File, kind: UploadKind): string | null {
     }
     return null
   }
-  if (kind === 'panorama' && !file.type.startsWith('image/')) {
+  if (kind === 'panorama' && !isImageFile(file)) {
     return `"${file.name}" no es una foto. Para una foto 360° sube una imagen (JPG).`
   }
-  const isVideo = file.type.startsWith('video/')
-  if (!isVideo && !file.type.startsWith('image/')) {
+  const isVideo = isVideoFile(file)
+  if (!isVideo && !isImageFile(file)) {
     return `"${file.name}" no es una foto ni un vídeo.`
   }
   const maxMb = isVideo ? 100 : 10
