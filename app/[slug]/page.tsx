@@ -13,6 +13,8 @@ import {
   withRef,
   type CampaignLink,
 } from '@/lib/campaign-links'
+import type { MediaItem } from '@/lib/media-admin'
+import { resolveLinkMedia } from '@/lib/shared-carousels'
 
 // Enlaces de carteles, tarjetas y QR: dronesur.es/<nombre>, creados desde el admin («Carteles y enlaces»).
 // Según cómo se haya creado cada uno:
@@ -77,5 +79,18 @@ export default async function CampaignPage({
 
   if (link.mode === 'redirect') redirect(withRef(link.target, preview ? null : link.slug))
 
-  return <CampaignLanding link={link} preview={preview} />
+  // Fotos y vídeos propios del cartel + los de los carruseles de la web que tenga marcados en el admin.
+  // Solo se lee la lista de la web si hay algún carrusel marcado. Si falla la lectura, salen solo los propios.
+  let items: MediaItem[] = []
+  if (link.carousels.length > 0) {
+    try {
+      const saved = await readJSONPublic<unknown>('dronesur:media', [])
+      items = Array.isArray(saved) ? (saved as MediaItem[]) : []
+    } catch {
+      items = []
+    }
+  }
+  const media = resolveLinkMedia(link, items)
+
+  return <CampaignLanding link={{ ...link, media }} preview={preview} />
 }
