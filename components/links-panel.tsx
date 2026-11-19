@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, Film, Loader2, Pencil, P
 import { LEGAL } from '@/lib/legal'
 import { LINK_LIMITS, MAX_LINK_MEDIA, slugify, type CampaignLink, type LinkMedia, type LinkMode } from '@/lib/campaign-links'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { MAX_LINK_TOTAL, SHARED_CAROUSELS, type SharedCarouselId } from '@/lib/shared-carousels'
 import { checkFile } from '@/lib/media-admin'
 import { optimizeImage } from '@/lib/site-content'
 import { videoPosterUrl } from '@/lib/media-url'
@@ -28,7 +29,12 @@ type Draft = {
   text: { es: string; en: string }
   button: { es: string; en: string }
   media: LinkMedia[]
+  carousels: SharedCarouselId[]
 }
+
+// Carruseles de la web que se pueden reutilizar, con cuántas fotos/vídeos tienen (lo calcula /api/links).
+type CarouselInfo = { id: SharedCarouselId; label: string; hint: string; count: number }
+const DEFAULT_CAROUSELS: CarouselInfo[] = SHARED_CAROUSELS.map((c) => ({ ...c, count: 0 }))
 
 const EMPTY_DRAFT: Draft = {
   isNew: true,
@@ -41,6 +47,7 @@ const EMPTY_DRAFT: Draft = {
   text: { es: '', en: '' },
   button: { es: '', en: '' },
   media: [],
+  carousels: [],
 }
 
 const inputClass =
@@ -72,6 +79,7 @@ function DraftAutoSave({
 export function LinksPanel({ password }: { password: string }) {
   const [days, setDays] = useState(30)
   const [rows, setRows] = useState<Row[] | null>(null)
+  const [carouselInfo, setCarouselInfo] = useState<CarouselInfo[]>(DEFAULT_CAROUSELS)
   const [loadError, setLoadError] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [saving, setSaving] = useState(false)
@@ -88,6 +96,7 @@ export function LinksPanel({ password }: { password: string }) {
       const json = await res.json().catch(() => null)
       if (!res.ok) throw new Error(json?.error || 'No se pudieron cargar los enlaces.')
       setRows(json.links as Row[])
+      if (Array.isArray(json.carousels)) setCarouselInfo(json.carousels as CarouselInfo[])
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'No se pudieron cargar los enlaces.')
     }
@@ -209,6 +218,7 @@ export function LinksPanel({ password }: { password: string }) {
       text: { ...row.text },
       button: { ...row.button },
       media: row.media ? row.media.map((m) => ({ ...m })) : [],
+      carousels: row.carousels ? [...row.carousels] : [],
     })
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => (d ? { ...d, [key]: value } : d))
@@ -253,6 +263,11 @@ export function LinksPanel({ password }: { password: string }) {
       ;[media[index], media[to]] = [media[to], media[index]]
       return { ...d, media }
     })
+
+  const toggleCarousel = (id: SharedCarouselId) =>
+    setDraft((d) =>
+      d ? { ...d, carousels: d.carousels.includes(id) ? d.carousels.filter((c) => c !== id) : [...d.carousels, id] } : d,
+    )
 
   const removeMedia = (index: number) =>
     setDraft((d) => (d ? { ...d, media: d.media.filter((_, i) => i !== index) } : d))
@@ -451,8 +466,48 @@ export function LinksPanel({ password }: { password: string }) {
                 />
               </div>
               <div className="md:col-span-2">
+                <p className="mb-1.5 text-sm font-medium">
+                  Reutilizar carruseles de la web <span className="font-normal text-muted-foreground">(opcional)</span>
+                </p>
+                <div className="space-y-2">
+                  {carouselInfo.map((c) => {
+                    const checked = draft.carousels.includes(c.id)
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3 text-sm transition hover:bg-muted/50 has-[:checked]:border-[var(--gold)]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleCarousel(c.id)}
+                          className="mt-0.5 h-4 w-4 accent-[var(--gold)]"
+                        />
+                        <span>
+                          <span className="font-medium">{c.label}</span>
+                          <span className="text-muted-foreground">
+                            {' '}
+                            · {c.count} {c.count === 1 ? 'foto o vídeo' : 'fotos y vídeos'}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">{c.hint}</span>
+                          {checked && c.count === 0 && (
+                            <span className="block text-xs text-destructive">
+                              Ahora mismo ese carrusel está vacío, así que no se verá nada de él en esta página.
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  No se copian: se usan los originales, así que si cambias ese carrusel en la web, esta página se actualiza sola.
+                  Salen después de las fotos propias de este cartel (máximo {MAX_LINK_TOTAL} en total). Se guardan solas.
+                </p>
+              </div>
+              <div className="md:col-span-2">
                 <label className="mb-1.5 block text-sm font-medium">
-                  Carrusel de fotos y vídeos <span className="font-normal text-muted-foreground">(opcional)</span>
+                  Fotos y vídeos propios de este cartel <span className="font-normal text-muted-foreground">(opcional)</span>
                 </label>
                 {draft.media.length > 0 && (
                   <ul className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
