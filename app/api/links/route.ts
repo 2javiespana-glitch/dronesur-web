@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { readJSON, redis, updateJSON } from '@/lib/kv'
 import { fail, requireAdmin, serverError } from '@/lib/api'
+import type { MediaItem } from '@/lib/media-admin'
+import { SHARED_CAROUSELS, carouselMedia, normalizeCarouselIds } from '@/lib/shared-carousels'
 import { scheduleCloudinaryRelease } from '@/lib/cloudinary-cleanup'
 import {
   LINKS_KEY,
@@ -53,9 +55,20 @@ export async function GET(req: Request) {
     const scans = sumHashes(scanRows)
     const visits = sumHashes(refRows)
 
+    // Carruseles de la web que se pueden reutilizar (con cuántas fotos/vídeos tienen ahora mismo), para las casillas del panel.
+    let mediaItems: MediaItem[] = []
+    try {
+      const saved = await readJSON<unknown>('dronesur:media', [])
+      mediaItems = Array.isArray(saved) ? (saved as MediaItem[]) : []
+    } catch {
+      // Sin la lista, las casillas salen igual (con 0 elementos): no hace falta romper el panel.
+    }
+    const carousels = SHARED_CAROUSELS.map((c) => ({ ...c, count: carouselMedia(c.id, mediaItems).length }))
+
     return NextResponse.json(
       {
         days,
+        carousels,
         links: links
           .map((l) => ({ ...l, scans: scans[l.slug] || 0, visits: visits[l.slug] || 0 }))
           .sort((a, b) => b.createdAt - a.createdAt),
@@ -147,6 +160,7 @@ export async function POST(req: Request) {
       text: loc(raw.text, LINK_LIMITS.text),
       button: loc(raw.button, LINK_LIMITS.button),
       media: mode === 'landing' ? normalizeMedia(raw.media) : [],
+      carousels: mode === 'landing' ? normalizeCarouselIds(raw.carousels) : [],
     } satisfies Omit<CampaignLink, 'createdAt'>
 
     const removed: string[] = []
