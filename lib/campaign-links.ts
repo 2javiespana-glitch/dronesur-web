@@ -1,4 +1,5 @@
 import type { Localized } from '@/lib/content'
+import { normalizeCarouselIds, type SharedCarouselId } from '@/lib/shared-carousels'
 
 // Enlaces cortos para carteles, tarjetas, QR...: dronesur.es/cartel1
 // Cada uno puede (a) llevar directamente a la web principal o (b) enseñar antes una página de aviso con
@@ -14,7 +15,9 @@ export const LINK_LIMITS = { name: 60, target: 200, title: 100, text: 1500, butt
 export type LinkMode = 'redirect' | 'landing'
 
 // Una foto o un vídeo del carrusel de la página de aviso (suben a Cloudinary desde el admin).
-export type LinkMedia = { url: string; type: 'image' | 'video' }
+// «width» solo lo pone el servidor al preparar la página, para los vídeos reutilizados de otro carrusel (ver
+// lib/shared-carousels.ts): es el ancho que ya está preparado en Cloudinary. Nunca se guarda en la base de datos.
+export type LinkMedia = { url: string; type: 'image' | 'video'; width?: number }
 
 export type CampaignLink = {
   slug: string // lo que va tras dronesur.es/ (también es el nombre con el que se cuentan las visitas: ?ref=slug)
@@ -25,7 +28,8 @@ export type CampaignLink = {
   title: Localized // solo en modo «página de aviso»
   text: Localized
   button: Localized
-  media: LinkMedia[] // carrusel opcional, solo en modo «página de aviso»
+  media: LinkMedia[] // fotos y vídeos propios de este cartel (carrusel opcional, solo en modo «página de aviso»)
+  carousels: SharedCarouselId[] // carruseles de la web que reutiliza esta página (casillas del admin)
   createdAt: number
 }
 
@@ -119,6 +123,7 @@ export function normalizeLink(raw: unknown): CampaignLink | null {
     text: loc(r.text, LINK_LIMITS.text),
     button: loc(r.button, LINK_LIMITS.button),
     media: normalizeMedia(r.media),
+    carousels: normalizeCarouselIds(r.carousels),
     createdAt: typeof r.createdAt === 'number' && Number.isFinite(r.createdAt) ? r.createdAt : 0,
   }
 }
