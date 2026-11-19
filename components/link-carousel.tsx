@@ -99,7 +99,7 @@ export function LinkCarousel({ media }: { media: LinkMedia[] }) {
                 ref={(el) => {
                   videoRefs.current[i] = el
                 }}
-                src={rawVideos.has(i) ? item.url : playableVideoUrl(item.url, 1280)}
+                src={rawVideos.has(i) ? item.url : playableVideoUrl(item.url, item.width ?? 1280)}
                 poster={videoPosterUrl(item.url)}
                 muted
                 playsInline
