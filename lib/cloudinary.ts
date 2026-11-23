@@ -19,6 +19,7 @@
    { cloudName: 'bar5rrho', preset: 'dronesur videos', label: 'jlv20044' },
    { cloudName: 'ylxgfxzg', preset: 'dronesur videos', label: 'dronesur' }, // segunda cuenta
    { cloudName: 'pv7jdnpg', preset: 'dronesur videos', label: 'tercera cuenta' }, // tercera cuenta
+   { cloudName: 'xzximfb7', preset: 'dronesur videos', label: 'inlumine' }, // cuarta cuenta
  ]
 
  // Solo las cuentas que están rellenadas.
