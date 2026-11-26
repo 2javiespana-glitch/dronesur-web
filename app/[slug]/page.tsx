@@ -7,7 +7,6 @@ import {
   LINKS_KEY,
   SCANS_KEY,
   SCANS_TTL,
-  madridDay,
   normalizeLinks,
   validateSlug,
   withRef,
@@ -15,6 +14,7 @@ import {
 } from '@/lib/campaign-links'
 import type { MediaItem } from '@/lib/media-admin'
 import { resolveLinkMedia } from '@/lib/shared-carousels'
+import { HOURLY_TTL, HOUR_SCAN_KEY, madridDayHour, refField } from '@/lib/hourly-stats'
 
 // Enlaces de carteles, tarjetas y QR: dronesur.es/<nombre>, creados desde el admin («Carteles y enlaces»).
 // Según cómo se haya creado cada uno:
@@ -45,9 +45,13 @@ async function countOpening(slug: string) {
   try {
     const ua = (await headers()).get('user-agent') || ''
     if (!ua || BOT_RE.test(ua)) return
-    const key = SCANS_KEY(madridDay())
+    const { day, hour } = madridDayHour()
+    const key = SCANS_KEY(day)
     await redis(['HINCRBY', key, slug, '1'])
     await redis(['EXPIRE', key, String(SCANS_TTL)])
+    // Y también por hora (hora de Madrid), para ver a qué hora se abre cada cartel.
+    await redis(['HINCRBY', HOUR_SCAN_KEY(day), refField(slug, hour), '1'])
+    await redis(['EXPIRE', HOUR_SCAN_KEY(day), String(HOURLY_TTL)])
   } catch {
     // Se ignora a propósito: contar nunca debe impedir que el enlace funcione.
   }

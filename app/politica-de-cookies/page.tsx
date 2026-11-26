@@ -58,10 +58,17 @@ const ITEMS = [
     duration: 'Hasta 2 años',
   },
   {
-    name: 'Recuento de visitas por provincia',
+    name: 'Recuento de visitas por provincia y hora',
     purpose:
-      'Cuenta de forma agregada desde qué provincia nos visitan, sin guardar tu IP. Solo se activa si pulsas «Aceptar» en el aviso de cookies.',
+      'Cuenta de forma agregada desde qué provincia nos visitan y a qué día y hora, sin guardar tu IP. Solo se activa si pulsas «Aceptar» en el aviso de cookies.',
     type: 'Analítica (opcional)',
+    duration: 'No usa cookies ni almacenamiento en tu dispositivo',
+  },
+  {
+    name: 'Recuento de aperturas de enlaces',
+    purpose:
+      'Cuando se abre un enlace corto de la web (por ejemplo, el de un cartel o un código QR) se suma una unidad a un contador anónimo por día y hora. No guarda tu IP ni ningún dato tuyo.',
+    type: 'Recuento anónimo, sin datos personales',
     duration: 'No usa cookies ni almacenamiento en tu dispositivo',
   },
 ]
@@ -114,10 +121,17 @@ const ITEMS_EN = [
     duration: 'Up to 2 years',
   },
   {
-    name: 'Visit count by province',
+    name: 'Visit count by province and hour',
     purpose:
-      'Counts, in aggregate, which province visitors come from, without storing your IP. It is only activated if you click “Accept” in the cookie notice.',
+      'Counts, in aggregate, which province visitors come from and on what day and hour, without storing your IP. It is only activated if you click “Accept” in the cookie notice.',
     type: 'Analytics (optional)',
+    duration: 'Does not use cookies or storage on your device',
+  },
+  {
+    name: 'Link opening count',
+    purpose:
+      'When a short link on the website is opened (for example, the one on a poster or a QR code), one unit is added to an anonymous counter per day and hour. It does not store your IP or any other data about you.',
+    type: 'Anonymous count, no personal data',
     duration: 'Does not use cookies or storage on your device',
   },
 ]

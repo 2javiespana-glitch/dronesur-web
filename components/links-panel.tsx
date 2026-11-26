@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Check, Copy, ExternalLink, Film, Loader2, Pencil, P
 import { LEGAL } from '@/lib/legal'
 import { LINK_LIMITS, MAX_LINK_MEDIA, slugify, type CampaignLink, type LinkMedia, type LinkMode } from '@/lib/campaign-links'
 import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { HourlyStats } from '@/components/hourly-stats'
 import { MAX_LINK_TOTAL, SHARED_CAROUSELS, type SharedCarouselId } from '@/lib/shared-carousels'
 import { checkFile } from '@/lib/media-admin'
 import { optimizeImage } from '@/lib/site-content'
@@ -80,6 +81,9 @@ export function LinksPanel({ password }: { password: string }) {
   const [days, setDays] = useState(30)
   const [rows, setRows] = useState<Row[] | null>(null)
   const [carouselInfo, setCarouselInfo] = useState<CarouselInfo[]>(DEFAULT_CAROUSELS)
+  const [hourOpen, setHourOpen] = useState(false) // «Día y hora»: se carga solo al abrirlo
+  const [hourSlug, setHourSlug] = useState('') // vacío = todos los enlaces
+  const [hourTick, setHourTick] = useState(0) // sube tras reiniciar, para que las horas se recarguen
   const [loadError, setLoadError] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
   const [saving, setSaving] = useState(false)
@@ -181,6 +185,7 @@ export function LinksPanel({ password }: { password: string }) {
       return
     const error = await call({ action: 'reset', slug: row.slug })
     if (error) setLoadError(error)
+    setHourTick((t) => t + 1)
     void load()
   }
 
@@ -193,6 +198,7 @@ export function LinksPanel({ password }: { password: string }) {
       return
     const error = await call({ action: 'reset' })
     if (error) setLoadError(error)
+    setHourTick((t) => t + 1)
     void load()
   }
 
@@ -727,6 +733,51 @@ export function LinksPanel({ password }: { password: string }) {
           ))}
         </ul>
       </div>
+
+      {!draft && (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold">Día y hora de las aperturas</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Cuándo se abren los carteles y cuándo llegan visitas a la web desde ellos (hora de Madrid). Usa el periodo
+                de «Aperturas de los últimos» de arriba.
+              </p>
+            </div>
+            <button
+              type="button"
+              className={secondaryButton}
+              onClick={() => setHourOpen((o) => !o)}
+              aria-expanded={hourOpen}
+            >
+              {hourOpen ? 'Ocultar' : 'Ver por hora'}
+            </button>
+          </div>
+          {hourOpen && (
+            <div className="mt-4 space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="hour-link" className="text-sm font-medium">
+                  Enlace
+                </label>
+                <select
+                  id="hour-link"
+                  value={hourSlug}
+                  onChange={(e) => setHourSlug(e.target.value)}
+                  className={`${inputClass} max-w-xs`}
+                >
+                  <option value="">Todos los enlaces</option>
+                  {rows?.map((r) => (
+                    <option key={r.slug} value={r.slug}>
+                      {r.name} ({r.slug})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <HourlyStats password={password} kind="links" days={days} slug={hourSlug || undefined} reloadKey={hourTick} />
+            </div>
+          )}
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         <strong>Aperturas</strong> = las veces que alguien ha abierto el enlace (escaneando el QR o escribiéndolo). No

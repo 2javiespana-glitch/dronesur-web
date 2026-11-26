@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { HourlyStats } from '@/components/hourly-stats'
 
 // Panel del admin: visitas a la web por provincia y últimas visitas.
 // Habla con /api/visits, que solo responde con la contraseña de admin.
@@ -34,6 +35,7 @@ export function VisitsPanel({ password }: { password: string }) {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0) // sube al pulsar «Actualizar» o reiniciar, para que las horas se recarguen también
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -73,6 +75,7 @@ export function VisitsPanel({ password }: { password: string }) {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo reiniciar el recuento.')
     }
+    setTick((t) => t + 1)
     await load()
   }
 
@@ -92,7 +95,15 @@ export function VisitsPanel({ password }: { password: string }) {
             Últimos {r} días
           </button>
         ))}
-        <button type="button" onClick={() => void load()} disabled={loading} className={secondaryButton}>
+        <button
+          type="button"
+          onClick={() => {
+            setTick((t) => t + 1)
+            void load()
+          }}
+          disabled={loading}
+          className={secondaryButton}
+        >
           Actualizar
         </button>
         <button type="button" onClick={() => void reset()} disabled={loading} className={`${secondaryButton} ml-auto`}>
@@ -131,6 +142,8 @@ export function VisitsPanel({ password }: { password: string }) {
           ))}
         </ul>
       </div>
+
+      <HourlyStats password={password} kind="web" days={days} reloadKey={tick} />
 
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex items-baseline justify-between gap-2">

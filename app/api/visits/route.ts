@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { redis, clientHash } from '@/lib/kv'
 import { fail, serverError, requireAdmin } from '@/lib/api'
+import { HOURLY_TTL, HOUR_REF_KEY, HOUR_WEB_KEY, hh, madridDayHour, refField } from '@/lib/hourly-stats'
 
 // Recuento de visitas por provincia, sin formulario.
 // - POST  cualquier visitante que haya aceptado las cookies de estadísticas (lo llama components/visit-tracker.tsx)
 // - GET   ?days=30  solo admin: totales por provincia + últimas visitas
 //
 // Qué se guarda (nunca la IP):
-//   · un contador por día y provincia (se conserva ~13 meses, sin ningún dato individual)
+//   · un contador por día y provincia, y otro por día y hora (se conservan ~13 meses, sin ningún dato individual)
 //   · un registro por visita: hora, provincia, ciudad aproximada, tipo de dispositivo, web de
 //     procedencia y página de entrada (se borra solo a los 30 días)
 //   · una huella cifrada de la conexión durante 30 minutos, solo para no contar dos veces la misma visita
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
     if (first !== 'OK') return NextResponse.json({ ok: true, counted: false })
 
     const { province, city } = whereFrom(req.headers)
-    const day = madridDay()
+    const { day, hour } = madridDayHour()
     const visit: Visit = {
       t: Date.now(),
       province,
@@ -125,6 +126,17 @@ export async function POST(req: Request) {
     await redis(['LPUSH', LIST_KEY(day), JSON.stringify(visit)])
     await redis(['LTRIM', LIST_KEY(day), '0', String(MAX_LIST_PER_DAY - 1)])
     await redis(['EXPIRE', LIST_KEY(day), String(LIST_TTL)])
+    // Contador por hora (hora de Madrid), para ver a qué hora llegan las visitas. Si fallara, la visita ya está contada.
+    try {
+      await redis(['HINCRBY', HOUR_WEB_KEY(day), hh(hour), '1'])
+      await redis(['EXPIRE', HOUR_WEB_KEY(day), String(HOURLY_TTL)])
+      if (ref) {
+        await redis(['HINCRBY', HOUR_REF_KEY(day), refField(ref, hour), '1'])
+        await redis(['EXPIRE', HOUR_REF_KEY(day), String(HOURLY_TTL)])
+      }
+    } catch {
+      // Se ignora a propósito.
+    }
     return NextResponse.json({ ok: true, counted: true })
   } catch (e) {
     return serverError(e)
@@ -141,7 +153,7 @@ export async function DELETE(req: Request) {
     const keys: string[] = []
     for (let i = 0; i < Math.ceil(COUNTER_TTL / 86400) + 3; i++) {
       const d = madridDay(i)
-      keys.push(DAY_KEY(d), LIST_KEY(d), REF_KEY(d))
+      keys.push(DAY_KEY(d), LIST_KEY(d), REF_KEY(d), HOUR_WEB_KEY(d), HOUR_REF_KEY(d))
     }
     let removed = 0
     for (let i = 0; i < keys.length; i += 150) {

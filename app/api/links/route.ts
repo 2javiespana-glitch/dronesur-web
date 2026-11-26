@@ -18,6 +18,7 @@ import {
   validateSlug,
   type CampaignLink,
 } from '@/lib/campaign-links'
+import { HOUR_REF_KEY, HOUR_SCAN_KEY, refFieldsOfDay } from '@/lib/hourly-stats'
 
 // Enlaces de carteles (dronesur.es/cartel1...). Solo para el admin.
 // - GET   ?days=30  lista de enlaces + cuántas veces se han abierto y cuántas visitas han llegado a la web
@@ -121,13 +122,15 @@ export async function POST(req: Request) {
       const dates = Array.from({ length: Math.ceil(SCANS_TTL / 86400) + 3 }, (_, i) => madridDay(i))
       if (!slug) {
         // Todos los enlaces: se borran los contadores de aperturas y de visitas por «ref» de cada día.
-        const keys = dates.flatMap((d) => [SCANS_KEY(d), REF_VISITS_KEY(d)])
+        const keys = dates.flatMap((d) => [SCANS_KEY(d), REF_VISITS_KEY(d), HOUR_SCAN_KEY(d), HOUR_REF_KEY(d)])
         for (let i = 0; i < keys.length; i += 150) await redis(['DEL', ...keys.slice(i, i + 150)])
       } else {
         // Un enlace: solo se quita su nombre de cada día. Se mira hasta 90 días atrás, que es lo máximo que enseña el panel.
         const cmds = dates.slice(0, 92).flatMap((d) => [
           ['HDEL', SCANS_KEY(d), slug],
           ['HDEL', REF_VISITS_KEY(d), slug],
+          ['HDEL', HOUR_SCAN_KEY(d), ...refFieldsOfDay(slug)],
+          ['HDEL', HOUR_REF_KEY(d), ...refFieldsOfDay(slug)],
         ])
         for (let i = 0; i < cmds.length; i += 25) await Promise.all(cmds.slice(i, i + 25).map((c) => redis(c)))
       }
