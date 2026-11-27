@@ -405,9 +405,10 @@ export function LinksPanel({ password }: { password: string }) {
               placeholder="/"
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              <span className="font-mono">/</span> es la portada. También puedes poner otra página de la web, por
-              ejemplo <span className="font-mono">/servicios/eventos</span> o{' '}
-              <span className="font-mono">/#servicios</span>.
+              <span className="font-mono">/</span> es la portada normal (sin la oferta). <span className="font-mono">/ual</span>{' '}
+              es la portada con la oferta: ponla en los carteles de la universidad. También puedes poner otra página
+              de la web, por ejemplo <span className="font-mono">/servicios/eventos</span> o{' '}
+              <span className="font-mono">/ual/servicios/eventos</span>.
             </p>
           </div>
 
@@ -579,7 +580,7 @@ export function LinksPanel({ password }: { password: string }) {
                 >
                   {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                   {uploading
-                    ? `Subiendo ${uploading.percent}%${target ? ` · Cloudinary ${target.number}` : ''}`
+                    ? `Subiendo ${uploading.percent}%${target && !target.ask ? ` · Cloudinary ${target.number}` : ''}`
                     : 'Añadir fotos o vídeos'}
                   <input
                     type="file"

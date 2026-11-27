@@ -30,7 +30,7 @@ type QuoteContextValue = {
 const QuoteContext = createContext<QuoteContextValue | null>(null)
 
 export function QuoteProvider({ children }: { children: React.ReactNode }) {
-  const { t, tl, lang } = useSite()
+  const { t, tl, lang, isUal } = useSite()
   const [isOpen, setIsOpen] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
   useDialogFocus(isOpen, dialogRef)
@@ -47,8 +47,11 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   const [finePrintCfg, setFinePrintCfg] = useState<{ es: string; en: string }>({ es: '', en: '' })
   const [categories, setCategories] = useState<Category[]>(CATEGORIES)
 
+  // La oferta solo existe en la cara /ual. En la web principal la casilla nunca sale, aunque esté activada en el admin
+  // (y se comprueba aquí, no solo al cargar, porque este formulario sigue montado al pasar de una cara a otra).
+  const offerEnabled = isUal && discountCfg?.enabled === true
   // Solo cuenta como «pedir descuento» si la casilla está activada en el admin y marcada.
-  const discountOn = discountCfg?.enabled === true && discount
+  const discountOn = offerEnabled && discount
   const custom = (es: string | undefined, en: string | undefined) => ((lang === 'en' ? en : es) ?? '').trim()
   const discountLabel = custom(discountCfg?.labelEs, discountCfg?.labelEn) || t('wa.discount')
   const discountMessage =
@@ -81,8 +84,9 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
   }, [isOpen])
 
   // Al abrir el formulario, lee los ajustes de la casilla de descuento (activada/desactivada y sus textos).
+  // Solo en la cara /ual: en la web principal ni siquiera se piden.
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || !isUal) return
     let cancelled = false
     fetch('/api/settings', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
@@ -102,7 +106,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [isOpen])
+  }, [isOpen, isUal])
 
   // ¿Está activado guardar las solicitudes? (interruptor del admin). Si no, no se menciona ni se envía nada.
   useEffect(() => {
@@ -303,7 +307,7 @@ export function QuoteProvider({ children }: { children: React.ReactNode }) {
                 className="absolute -left-[9999px] h-0 w-0 opacity-0"
               />
 
-              {discountCfg?.enabled && (
+              {offerEnabled && (
                 <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--gold)]/40 bg-[var(--gold)]/10 p-3">
                   <input
                     type="checkbox"

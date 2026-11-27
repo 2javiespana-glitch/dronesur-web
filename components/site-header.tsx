@@ -34,7 +34,7 @@ const LINKS: { key: string; href: string; section?: SectionKey }[] = [
 // `sections`: qué secciones están visibles. La portada ya las tiene y se las pasa; en el resto de
 // páginas la cabecera las pide a /api/public-sections (una respuesta pequeña que se guarda 1 minuto).
 export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {}) {
-  const { theme, toggleTheme, lang, setLang, t } = useSite()
+  const { theme, toggleTheme, lang, setLang, t, isUal } = useSite()
   const localePath = useLocalePath()
   const pathname = usePathname()
   const router = useRouter()
@@ -90,8 +90,11 @@ export function SiteHeader({ sections }: { sections?: VisibilitySettings } = {})
     }
   }, [sections])
 
-  // Un enlace se oculta solo si su sección está explícitamente en false.
-  const visibleLinks = LINKS.filter((l) => !l.section || settings[l.section] !== false)
+  // Un enlace se oculta solo si su sección está explícitamente en false. El de «Promociones» solo existe en la
+  // cara /ual: la web principal no lleva oferta, así que tampoco el enlace.
+  const visibleLinks = LINKS.filter(
+    (l) => (l.section !== 'promo' || isUal) && (!l.section || settings[l.section] !== false),
+  )
 
   // Sin scroll, la cabecera tiene un fondo oscuro FIJO (en modo claro y oscuro), así que el texto
   // debe ser claro. Con scroll, el fondo sigue al tema y el texto usa los colores del tema.

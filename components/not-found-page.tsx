@@ -76,7 +76,8 @@ function NotFoundBody() {
 
 export function NotFoundPage() {
   const pathname = usePathname() || ''
-  const isEnglishUrl = pathname === '/en' || pathname.startsWith('/en/')
+  const rest = pathname.replace(/^\/ual(?=\/|$)/, '') || '/' // /ual/en/... cuenta igual que /en/...
+  const isEnglishUrl = rest === '/en' || rest.startsWith('/en/')
 
   // En una dirección /en/... siempre en inglés; en el resto, el idioma que ya tenga el visitante.
   return isEnglishUrl ? (

@@ -37,7 +37,7 @@ export type CampaignLink = {
 // Las que existen de verdad siempre ganan igualmente, pero así no se crea uno que nunca funcionaría.
 // Si algún día añades una página nueva en la raíz de la web, añádela también aquí.
 export const RESERVED_SLUGS = [
-  'admin', 'api', 'en', 'dron', 'servicios', 'aviso-legal', 'politica-de-privacidad', 'politica-de-cookies',
+  'admin', 'api', 'en', 'ual', 'dron', 'servicios', 'aviso-legal', 'politica-de-privacidad', 'politica-de-cookies',
   'sitemap', 'robots', 'icon', 'apple-icon', 'favicon', 'opengraph-image', 'twitter-image', 'manifest',
   'static', 'public', 'assets', 'login', 'inicio', 'home',
 ]

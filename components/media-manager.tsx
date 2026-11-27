@@ -26,8 +26,9 @@ import {
   type Category,
   type Localized,
 } from '@/lib/content'
-import { uploadToCloudinaryDetailed } from '@/lib/cloudinary'
-import { CloudinaryAccounts, CloudinaryTarget, useUploadTarget } from '@/components/cloudinary-target'
+import { accountNumber, getUploadPreference, uploadToCloudinaryDetailed } from '@/lib/cloudinary'
+import { UploadAccountPicker, chooseVideoAccounts } from '@/components/upload-account-picker'
+import { CloudinaryAccounts, CloudinaryTarget, UploadAccountSwitch, useUploadTarget } from '@/components/cloudinary-target'
 import { MOBILE_VIDEO_WIDTH, isAllowedEmbed, playableVideoUrl } from '@/lib/media-url'
 import { detectFile, detectLink } from '@/lib/media-detect'
 import { SHOWCASE_CATEGORY, SHOWCASE_LIMITS, SHOWCASE_MAX_ITEMS } from '@/lib/showcase'
@@ -543,7 +544,7 @@ function AddTile({
         <>
           <span className="text-sm font-semibold">Subiendo {upload?.label}</span>
           <span className="text-xs text-muted-foreground">
-            {upload?.percent}%{target ? ` · Cloudinary ${target.number}` : ''}
+            {upload?.percent}%{target && !target.ask ? ` · Cloudinary ${target.number}` : ''}
           </span>
         </>
       ) : (
@@ -1149,6 +1150,21 @@ export function MediaManager({
   // Con `kind` (lo elegido a mano en «Foto 360°, modelo 3D o enlace…») se respeta tal cual.
   const runUpload = async (files: File[], target: Target, forcedKind?: UploadKind) => {
     if (files.length === 0) return
+
+    // Con «Elegir en cada vídeo» (en el selector «Subir a:»), cada vídeo pregunta a qué cuenta de Cloudinary va.
+    // Las fotos y demás archivos siguen la opción «Automático». Si cancelas la ventana, no se sube nada.
+    const accountFor: Record<number, string> = {}
+    if (!forcedKind && getUploadPreference() === 'ask') {
+      const videoIdx = files.flatMap((f, i) => (isVideoFile(f) ? [i] : []))
+      if (videoIdx.length > 0) {
+        const choice = await chooseVideoAccounts(videoIdx.map((i) => files[i]))
+        if (!choice) return
+        videoIdx.forEach((fileIndex, k) => {
+          accountFor[fileIndex] = choice[k] ?? 'auto'
+        })
+      }
+    }
+
     setErrors([])
     setNotes([])
     const key = targetKey(target)
@@ -1156,7 +1172,10 @@ export function MediaManager({
     const onlyPlain = target.category === HERO || target.category === SHOWCASE
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      const label = files.length > 1 ? `${i + 1} de ${files.length}` : ''
+      const chosenNumber = accountFor[i] && accountFor[i] !== 'auto' ? accountNumber(accountFor[i]) : null
+      const label = [files.length > 1 ? `${i + 1} de ${files.length}` : '', chosenNumber ? `Cloudinary ${chosenNumber}` : '']
+        .filter(Boolean)
+        .join(' · ')
 
       let kind: UploadKind = forcedKind ?? 'normal'
       let note = ''
@@ -1193,8 +1212,11 @@ export function MediaManager({
       setUpload({ key, label, percent: 0 })
       try {
         const endpoint = kind === 'model3d' ? 'raw' : kind === 'panorama' ? 'image' : 'auto'
-        const result = await uploadToCloudinaryDetailed(file, endpoint, (percent) =>
-          setUpload((u) => (u ? { ...u, percent } : u)),
+        const result = await uploadToCloudinaryDetailed(
+          file,
+          endpoint,
+          (percent) => setUpload((u) => (u ? { ...u, percent } : u)),
+          { account: accountFor[i] },
         )
         const type: MediaKind =
           kind === 'panorama'
@@ -1335,6 +1357,9 @@ export function MediaManager({
 
   const dialogs = (
     <>
+      {/* Ventana «¿A qué cuenta va cada vídeo?» (solo sale con «Elegir en cada vídeo»). Va aquí, con las demás
+          ventanas, para que exista también dentro de una categoría o de un carrusel, que es donde se suben los archivos. */}
+      <UploadAccountPicker password={password} />
       {altItem && (
         <AltDialog
           item={altItem}
@@ -1451,6 +1476,7 @@ export function MediaManager({
         <Section
           title={isShowcase ? 'Fotos y vídeos del carrusel' : 'Vídeos del carrusel'}
           subtitle={isShowcase ? `${items.length} / ${SHOWCASE_MAX_ITEMS}` : `${items.length}`}
+          actions={<UploadAccountSwitch />}
         >
           {items.map((item, index) => (
             <div
@@ -1660,9 +1686,12 @@ export function MediaManager({
           title="General"
           subtitle={`${loose.length} · sin álbum`}
           actions={
-            <button type="button" onClick={() => setSpecial(generalTarget)} className="text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-gold hover:underline">
-              Foto 360°, modelo 3D o enlace…
-            </button>
+            <>
+              <UploadAccountSwitch />
+              <button type="button" onClick={() => setSpecial(generalTarget)} className="text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-gold hover:underline">
+                Foto 360°, modelo 3D o enlace…
+              </button>
+            </>
           }
         >
           {loose.map((item) => (
@@ -1697,6 +1726,7 @@ export function MediaManager({
               subtitle={`${albumItems.length} · álbum`}
               actions={
                 <>
+                  <UploadAccountSwitch />
                   <button type="button" onClick={() => setSpecial(target)} className="text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-gold hover:underline">
                     Foto 360°, modelo 3D o enlace…
                   </button>

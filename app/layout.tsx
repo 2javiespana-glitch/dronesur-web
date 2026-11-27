@@ -65,8 +65,9 @@ const themeScript = `
     var el = document.documentElement;
     el.classList.remove('light','dark');
     el.classList.add(t);
-    // El idioma lo marca la dirección: /en... en inglés, el resto en español.
+    // El idioma lo marca la dirección: /en... (y /ual/en...) en inglés, el resto en español.
     var p = location.pathname;
+    if (p === '/ual' || p.indexOf('/ual/') === 0) p = p.slice(4) || '/';
     el.setAttribute('lang', p === '/en' || p.indexOf('/en/') === 0 ? 'en' : 'es');
   } catch (e) {
     document.documentElement.classList.add('dark');

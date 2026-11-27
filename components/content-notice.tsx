@@ -15,8 +15,8 @@ const TEXT = {
     en: `${BRAND} · All videos and photographs are our own, with no third-party material. Appropriating them, for personal or business use, is prohibited without consent.`,
   },
   album: {
-    es: `Todo el contenido de este álbum ha sido grabado por ${BRAND}. No se permite su uso, copia ni difusión para otros fines, ni por parte de empresas ni de particulares, sin consentimiento previo y por escrito.`,
-    en: `All content in this album was recorded by ${BRAND}. Its use, copying or distribution for any other purpose, by companies or private individuals alike, is not permitted without prior written consent.`,
+    es: `Todo el contenido de este álbum ha sido grabado por ${BRAND}. No se permite su uso, copia ni difusión para otros fines, ni por parte de empresas ni de particulares, sin consentimiento previo y por escrito. Para que la web cargue con fluidez, los vídeos se muestran comprimidos a 1080p.`,
+    en: `All content in this album was recorded by ${BRAND}. Its use, copying or distribution for any other purpose, by companies or private individuals alike, is not permitted without prior written consent. To keep the site loading smoothly, videos are shown compressed to 1080p.`,
   },
 }
 

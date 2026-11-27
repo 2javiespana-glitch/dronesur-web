@@ -13,9 +13,12 @@ import { cachedVideo, fetchVideoToMemory, forgetVideo } from '@/lib/video-cache'
 type HeroProps = {
   videos: VideoItem[]
   music?: string // dirección de la música (se pone desde el admin); vacío = sin música
+  // A qué sección baja la flecha de abajo a la izquierda (el nombre del ancla, sin «#»). Es la que viene justo
+  // después: «promociones» si la oferta está visible y «servicios» si no.
+  scrollTo?: string
 }
 
-export function Hero({ videos, music }: HeroProps) {
+export function Hero({ videos, music, scrollTo = 'servicios' }: HeroProps) {
   const { t, lang } = useSite()
   const localePath = useLocalePath()
   const { reduceMotion } = useA11y()
@@ -597,7 +600,7 @@ export function Hero({ videos, music }: HeroProps) {
         )}
 
         <a
-          href="#promociones"
+          href={`#${scrollTo}`}
           className="absolute bottom-6 left-6 z-20 hidden flex-col items-center gap-1 text-white/80 transition hover:text-white sm:flex"
           aria-label={t('hero.scroll')}
         >

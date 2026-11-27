@@ -79,7 +79,9 @@ async function safe<T>(job: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
-export async function loadHomeData(): Promise<HomeData> {
+// `ual: true` es la cara /ual (con oferta). Sin él (la web principal), la oferta NO sale: ni el banner, ni su texto,
+// ni la sección «oportunidad» llegan siquiera a la página, así que no están ni en el código que ve el navegador.
+export async function loadHomeData({ ual = false }: { ual?: boolean } = {}): Promise<HomeData> {
   const [media, categories, savedSettings, savedContent] = await Promise.all([
     safe(() => readJSONPublic<MediaItem[]>('dronesur:media', []), [] as MediaItem[]),
     safe(() => readCategoriesPublic(), CATEGORIES),
@@ -120,10 +122,11 @@ export async function loadHomeData(): Promise<HomeData> {
   for (const key of TOGGLE_KEYS) {
     if (typeof savedSettings?.[key] === 'boolean') settings[key] = savedSettings[key] as boolean
   }
+  if (!ual) settings.promo = false // la web principal no lleva la oferta
 
   let promoOverride: PromoOverride | null = null
   const rawPromo = savedSettings?.promoOverride
-  if (rawPromo && typeof rawPromo === 'object') {
+  if (ual && rawPromo && typeof rawPromo === 'object') {
     const po = rawPromo as Record<string, unknown>
     const clean = {} as PromoOverride
     for (const key of PROMO_KEYS) clean[key] = typeof po[key] === 'string' ? (po[key] as string) : ''
@@ -133,7 +136,7 @@ export async function loadHomeData(): Promise<HomeData> {
   // Sección «oportunidad»: solo se prepara si está activada (empieza oculta hasta que la actives en el admin).
   // El carrusel son las fotos y vídeos de la categoría interna 'showcase', en el orden del admin.
   let showcase: ShowcaseData | null = null
-  if (savedSettings?.showcase === true) {
+  if (ual && savedSettings?.showcase === true) {
     const carousel = savedSettings.showcaseCarousel !== false
     const slides: ShowcaseSlide[] = carousel
       ? items

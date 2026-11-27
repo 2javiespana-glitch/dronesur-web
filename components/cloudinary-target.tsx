@@ -30,10 +30,16 @@ export function CloudinaryTarget() {
   if (!target) return null
   return (
     <p className="text-xs text-muted-foreground">
-      Las subidas van a: <span className="font-semibold text-foreground">Cloudinary {target.number}</span>
-      {target.manual && <> (elegida por ti)</>}
-      {target.skippedFull && <> (la anterior está llena)</>}
-      {target.configured < 2 && <> · la 2ª cuenta aún no está configurada</>}
+      {target.ask ? (
+        <>Al subir vídeos, eliges la cuenta de Cloudinary de cada uno</>
+      ) : (
+        <>
+          Las subidas van a: <span className="font-semibold text-foreground">Cloudinary {target.number}</span>
+          {target.manual && <> (elegida por ti)</>}
+          {target.skippedFull && <> (la anterior está llena)</>}
+          {target.configured < 2 && <> · la 2ª cuenta aún no está configurada</>}
+        </>
+      )}
     </p>
   )
 }
@@ -76,6 +82,8 @@ export function CloudinaryAccounts({ password }: { password: string }) {
   const options = [
     { value: 'auto', label: 'Automático' },
     ...accounts.map((a) => ({ value: a.account.cloudName, label: `Cloudinary ${a.index + 1}` })),
+    // Con una sola cuenta no hay nada que elegir.
+    ...(accounts.length > 1 ? [{ value: 'ask', label: 'Elegir en cada vídeo' }] : []),
   ]
 
   return (
@@ -124,7 +132,7 @@ export function CloudinaryAccounts({ password }: { password: string }) {
                       Google: {a.account.label}
                     </span>
                   )}
-                  {target && target.number === a.index + 1 && (
+                  {target && !target.ask && target.number === a.index + 1 && (
                     <span className="ml-1.5 rounded-full bg-[var(--gold)]/20 px-1.5 py-0.5 text-[10px] font-semibold">
                       recibe las subidas
                     </span>
@@ -144,9 +152,40 @@ export function CloudinaryAccounts({ password }: { password: string }) {
       </ul>
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-        Si eliges una cuenta y está llena, la subida pasa sola a la otra. Los créditos los calcula Cloudinary y pueden ir un
-        poco por detrás.
+        Si eliges una cuenta y está llena, la subida pasa sola a la otra. Con «Elegir en cada vídeo», al soltar vídeos te
+        sale una ventana para decidir a qué cuenta va cada uno (las fotos siguen la opción «Automático»). Los créditos los
+        calcula Cloudinary y pueden ir un poco por detrás.
       </p>
     </div>
+  )
+}
+
+// Selector pequeño junto al botón «Añadir» de cada carpeta, álbum y carrusel: elige a qué cuenta de Cloudinary se
+// suben los archivos («Automático», una cuenta concreta, o «Elegir en cada vídeo» para decidirlo al soltarlos).
+// Es la misma elección que la del cuadro de créditos de la cuadrícula de categorías: si la cambias aquí, cambia allí.
+export function UploadAccountSwitch() {
+  const target = useUploadTarget() // para que se redibuje cuando cambia la elección o una cuenta se llena
+  const accounts = configuredAccounts()
+  if (accounts.length < 2) return null
+  const preference = target ? (target.ask ? 'ask' : target.manual ? target.cloudName : 'auto') : getUploadPreference()
+  return (
+    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className="font-semibold">Subir a</span>
+      <select
+        value={preference}
+        onChange={(e) => setUploadPreference(e.target.value)}
+        aria-label="Cuenta de Cloudinary a la que se suben los archivos"
+        className="rounded-md border border-input bg-background px-2 py-1 text-xs font-medium text-foreground outline-none focus:border-[var(--gold)]"
+      >
+        <option value="auto">Automático{target && !target.manual && !target.ask ? ` (Cloudinary ${target.number})` : ''}</option>
+        {accounts.map((a) => (
+          <option key={a.account.cloudName} value={a.account.cloudName}>
+            Cloudinary {a.index + 1}
+            {a.account.label ? ` · ${a.account.label}` : ''}
+          </option>
+        ))}
+        <option value="ask">Elegir en cada vídeo</option>
+      </select>
+    </label>
   )
 }

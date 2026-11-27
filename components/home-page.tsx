@@ -26,7 +26,7 @@ export function HomePage({ data }: { data: HomeData }) {
     <>
       <SiteHeader sections={settings} />
       <main>
-        <Hero videos={videos} music={content.music.url} />
+        <Hero videos={videos} music={content.music.url} scrollTo={settings.promo ? 'promociones' : 'servicios'} />
         {settings.promo && <WelcomePromo override={promoOverride} />}
         {showcase && <ShowcaseSection data={showcase} />}
         <Categories categories={categories} covers={covers} />

@@ -3,12 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { type Lang, translate } from '@/lib/content'
+import { isUalPath, splitUal } from '@/lib/i18n-routes'
 
 type Theme = 'light' | 'dark'
 
 type SiteContextValue = {
   theme: Theme
   lang: Lang
+  isUal: boolean // true en la cara /ual (la que lleva la oferta)
   toggleTheme: () => void
   setLang: (lang: Lang) => void
   toggleLang: () => void
@@ -24,11 +26,13 @@ const THEME_KEY = 'dronesur-theme'
 // en español. Ya no se recuerda en el navegador (antes una visita a /en hacía que la dirección en español
 // se mostrara en inglés). El botón ES/EN de la cabecera es lo que lleva de una a otra.
 function langFromPath(pathname: string | null): Lang {
-  return pathname === '/en' || pathname?.startsWith('/en/') ? 'en' : 'es'
+  const path = splitUal(pathname ?? '').rest // /ual/en cuenta igual que /en
+  return path === '/en' || path.startsWith('/en/') ? 'en' : 'es'
 }
 
 export function SiteProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const isUal = isUalPath(pathname)
   const [theme, setTheme] = useState<Theme>('dark')
   const [lang, setLangState] = useState<Lang>(() => langFromPath(pathname))
 
@@ -77,7 +81,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SiteContext.Provider
-      value={{ theme, lang, toggleTheme, setLang, toggleLang, t, tl }}
+      value={{ theme, lang, isUal, toggleTheme, setLang, toggleLang, t, tl }}
     >
       {children}
     </SiteContext.Provider>
